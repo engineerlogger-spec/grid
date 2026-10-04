@@ -41,6 +41,14 @@ import com.grid.app.core.designsystem.components.MoneyText
 import com.grid.app.core.designsystem.components.Tile
 import com.grid.app.core.designsystem.theme.GridText
 import com.grid.app.core.designsystem.theme.GridTheme
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.grid.app.feature.common.MoneyField
+import com.grid.app.feature.common.moneyFieldText
+import com.grid.app.feature.common.parseMoney
 import com.grid.app.feature.common.shortDate
 import com.grid.app.feature.common.title
 
@@ -73,7 +81,7 @@ fun MovedScreen(onBack: () -> Unit, viewModel: MovedViewModel = hiltViewModel())
                 IconButton(onClick = viewModel::next) { Icon(Icons.Rounded.ChevronRight, contentDescription = stringResource(R.string.moved_next)) }
             }
         }
-        item { SavingsSummary(state) }
+        item { SavingsSummary(state, onSetSalary = viewModel::setSalary) }
         if (state.rows.isEmpty()) {
             item { EmptyState(Icons.Rounded.SwapVert, stringResource(R.string.moved_empty_title), stringResource(R.string.moved_empty_body)) }
         } else {
@@ -87,17 +95,33 @@ fun MovedScreen(onBack: () -> Unit, viewModel: MovedViewModel = hiltViewModel())
 }
 
 @Composable
-private fun SavingsSummary(state: MovedUi) {
+private fun SavingsSummary(state: MovedUi, onSetSalary: (Long) -> Unit) {
     val colors = GridTheme.colors
+    var editing by remember { mutableStateOf(false) }
     Tile {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Figure(stringResource(R.string.moved_salary), state.salaryMinor, state.currency)
+            Column(Modifier.clickable { editing = true }) {
+                Figure(stringResource(R.string.moved_salary), state.salaryMinor, state.currency)
+                Text(stringResource(R.string.moved_edit_salary), style = MaterialTheme.typography.labelSmall, color = colors.accentText)
+            }
             Figure(stringResource(R.string.moved_moved), state.movedMinor, state.currency)
             Figure(stringResource(R.string.moved_saved), state.savedMinor, state.currency, highlight = true)
         }
         if (state.salaryMinor == 0L) {
             Text(stringResource(R.string.moved_no_salary), style = MaterialTheme.typography.bodySmall, color = colors.warning, modifier = Modifier.padding(top = 8.dp))
         }
+    }
+    if (editing) {
+        var text by remember { mutableStateOf(moneyFieldText(state.salaryMinor, state.currency)) }
+        AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text(stringResource(R.string.moved_salary_title, state.period?.title(state.today).orEmpty())) },
+            text = { MoneyField(text, { text = it }, state.currency, label = stringResource(R.string.moved_salary)) },
+            confirmButton = {
+                TextButton(onClick = { onSetSalary(parseMoney(text, state.currency) ?: 0L); editing = false }) { Text(stringResource(R.string.action_done)) }
+            },
+            dismissButton = { TextButton(onClick = { editing = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
     }
 }
 

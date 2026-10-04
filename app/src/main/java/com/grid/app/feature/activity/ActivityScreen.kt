@@ -82,6 +82,7 @@ import com.grid.app.feature.common.shortDate
 @Composable
 fun ActivityScreen(
     contentPadding: PaddingValues,
+    onOpenMoved: () -> Unit = {},
     viewModel: ActivityViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -125,13 +126,20 @@ fun ActivityScreen(
                 }
             }
             items(group.items, key = { it.id }) { tx ->
-                SwipeToDelete(onDelete = {
-                    viewModel.delete(tx) { deleted ->
-                        messenger.show(deletedLabel.replace("%s", formatter.format(deleted.amountMinor, deleted.currency)), undoLabel) { viewModel.restore(deleted) }
-                    }
-                }) {
+                if (tx.ownTransfer) {
+                    // Money moved between own accounts: shown with its sign, managed on the "Moved to Revolut" screen.
                     Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp)) {
-                        TransactionRow(tx, showTime = true, onClick = { quickAdd.edit(tx.id) })
+                        TransactionRow(tx, showTime = false, onClick = onOpenMoved)
+                    }
+                } else {
+                    SwipeToDelete(onDelete = {
+                        viewModel.delete(tx) { deleted ->
+                            messenger.show(deletedLabel.replace("%s", formatter.format(deleted.amountMinor, deleted.currency)), undoLabel) { viewModel.restore(deleted) }
+                        }
+                    }) {
+                        Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp)) {
+                            TransactionRow(tx, showTime = true, onClick = { quickAdd.edit(tx.id) })
+                        }
                     }
                 }
             }

@@ -41,8 +41,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
-enum class BankPhase { KEY, CONNECT, WAITING, ACCOUNTS, CONNECTED }
-enum class Backfill { PERIOD, MONTHS_3, MONTHS_12 }
+enum class BankPhase { KEY, CONNECT, WAITING, CONNECTED }
 enum class BankSetupError { BAD_KEY, NEED_APP_ID, KEY_REFUSED, NO_REVOLUT, NOT_GRANTED, NETWORK, BANK_REFUSED }
 
 /** What went wrong, with the bank's own words when it gave any. */
@@ -83,20 +82,18 @@ class BankSetupViewModel @Inject constructor(
     private val appId = MutableStateFlow(keyStore.load()?.appId)
     private val busy = MutableStateFlow(false)
     private val error = MutableStateFlow<BankFailure?>(null)
-    private val choosingAccounts = MutableStateFlow(false)
     private val country = MutableStateFlow(defaultCountry())
 
     private val _events = MutableSharedFlow<BankEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<BankEvent> = _events
 
-    private val local = combine(appId, busy, error, choosingAccounts, country) { id, b, e, choosing, c -> Local(id, b, e, choosing, c) }
+    private val local = combine(appId, busy, error, country) { id, b, e, c -> Local(id, b, e, c) }
 
-    private data class Local(val appId: String?, val busy: Boolean, val error: BankFailure?, val choosing: Boolean, val country: String)
+    private data class Local(val appId: String?, val busy: Boolean, val error: BankFailure?, val country: String)
 
     val state: StateFlow<BankSetupUi> = combine(bank.observeConnection(), bank.observeAccounts(), settings.settings, local) { connection, accounts, s, l ->
         val phase = when {
             l.appId == null -> BankPhase.KEY
-            l.choosing -> BankPhase.ACCOUNTS
             connection?.sessionId != null -> BankPhase.CONNECTED
             connection?.authState != null -> BankPhase.WAITING
             else -> BankPhase.CONNECT
@@ -159,8 +156,8 @@ class BankSetupViewModel @Inject constructor(
         appId.value = null
     }
 
-    /** Opens the bank's consent page. [backfill] is null on a reconnect (keeps the original history start). */
-    fun connect(backfill: Backfill?) = work {
+    /** Opens the bank's consent page; once approved, the whole history is imported (also used to reconnect). */
+    fun connect() = work {
         val connector = connectors.current() ?: return@work
         val banks = try {
             connector.aspsps(country.value)
@@ -173,15 +170,8 @@ class BankSetupViewModel @Inject constructor(
             fail(BankSetupError.NO_REVOLUT)
             return@work
         }
-        val today = clock.today()
-        val from = when (backfill) {
-            Backfill.PERIOD -> BudgetPeriods.periodFor(today, settings.settings.first().periodStartDay).start
-            Backfill.MONTHS_3 -> today.minusMonths(3)
-            Backfill.MONTHS_12 -> today.minusMonths(12)
-            null -> null
-        }
         val state = UUID.randomUUID().toString()
-        bank.beginAuth(revolut, state, from?.toEpochDay())
+        bank.beginAuth(revolut, state, null)
         val validUntil = ConsentWindow.validUntil(clock.millis(), revolut.maxConsentSeconds)
         try {
             _events.emit(BankEvent.OpenUrl(connector.startAuth(revolut, validUntil, BankSync.REDIRECT_URL, state).url))
@@ -202,8 +192,9 @@ class BankSetupViewModel @Inject constructor(
         val connector = connectors.current() ?: return@work
         try {
             val session = connector.createSession(code)
-            val result = bank.completeAuth(callback.state.orEmpty(), session, settings.settings.first().currency)
-            if (result.firstConnect) choosingAccounts.value = true else runSync()
+            bank.completeAuth(callback.state.orEmpty(), session, settings.settings.first().currency)
+            // Straight away: right after approval is when Revolut gives the whole history. Accounts can be toggled later.
+            runSync()
         } catch (e: IllegalStateException) {
             fail(BankSetupError.NOT_GRANTED)
         } catch (e: BankError) {
@@ -212,11 +203,6 @@ class BankSetupViewModel @Inject constructor(
     }.join()
 
     fun setEnabled(account: BankAccountEntity, enabled: Boolean) = viewModelScope.launch { bank.setEnabled(account.id, enabled) }
-
-    fun startSync() = work {
-        choosingAccounts.value = false
-        runSync()
-    }
 
     fun syncNow() = work { runSync() }
 

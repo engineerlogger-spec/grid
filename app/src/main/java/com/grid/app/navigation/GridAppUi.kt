@@ -180,7 +180,7 @@ fun GridAppUi(
                             onOpenMoved = { nav.navigate(MovedRoute) },
                         )
                     }
-                    composable<ActivityRoute> { ActivityScreen(contentPadding = padding) }
+                    composable<ActivityRoute> { ActivityScreen(contentPadding = padding, onOpenMoved = { nav.navigate(MovedRoute) }) }
                     composable<BillsRoute> {
                         BillsScreen(
                             contentPadding = padding,

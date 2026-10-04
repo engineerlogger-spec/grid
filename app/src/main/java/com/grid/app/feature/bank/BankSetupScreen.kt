@@ -118,13 +118,6 @@ fun BankSetupScreen(onBack: () -> Unit, viewModel: BankSetupViewModel = hiltView
             BankPhase.KEY -> KeyStep(state, viewModel)
             BankPhase.CONNECT -> ConnectStep(state, viewModel)
             BankPhase.WAITING -> WaitingStep(state, viewModel)
-            BankPhase.ACCOUNTS -> {
-                CapsLabel(stringResource(R.string.bank_accounts_title), Modifier.padding(start = 4.dp, top = 4.dp))
-                AccountsTile(state, viewModel)
-                Button(onClick = viewModel::startSync, enabled = !state.busy, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(14.dp)) {
-                    Text(stringResource(R.string.bank_start_sync))
-                }
-            }
             BankPhase.CONNECTED -> ConnectedStep(state, viewModel, onShare = {
                 scope.launch {
                     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, viewModel.rawData())
@@ -184,21 +177,10 @@ private fun KeyStep(state: BankSetupUi, viewModel: BankSetupViewModel) {
 @Composable
 private fun ConnectStep(state: BankSetupUi, viewModel: BankSetupViewModel) {
     val reconnect = state.accounts.isNotEmpty()
-    var backfill by remember { mutableStateOf(Backfill.MONTHS_3) }
     FormSection(stringResource(R.string.bank_country)) { CountryPicker(state.country, viewModel::setCountry) }
-    if (!reconnect) {
-        FormSection(stringResource(R.string.bank_history)) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    Backfill.PERIOD to R.string.bank_history_period,
-                    Backfill.MONTHS_3 to R.string.bank_history_3m,
-                    Backfill.MONTHS_12 to R.string.bank_history_12m,
-                ).forEach { (value, label) -> GridChip(label = stringResource(label), selected = backfill == value, onClick = { backfill = value }) }
-            }
-        }
-    }
+    Text(stringResource(R.string.bank_whole_history_hint), style = MaterialTheme.typography.bodySmall, color = GridTheme.colors.muted, modifier = Modifier.padding(horizontal = 4.dp))
     Button(
-        onClick = { viewModel.connect(if (reconnect) null else backfill) }, enabled = !state.busy,
+        onClick = { viewModel.connect() }, enabled = !state.busy,
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(50.dp), shape = RoundedCornerShape(14.dp),
     ) { Text(stringResource(if (reconnect) R.string.bank_reconnect else R.string.bank_connect)) }
     TextButton(onClick = viewModel::changeKey) { Text(stringResource(R.string.bank_change_key)) }
@@ -212,7 +194,7 @@ private fun WaitingStep(state: BankSetupUi, viewModel: BankSetupViewModel) {
     Tile {
         Text(stringResource(R.string.bank_waiting_title), style = MaterialTheme.typography.titleMedium, color = colors.text)
         Text(stringResource(R.string.bank_waiting_body), style = MaterialTheme.typography.bodyMedium, color = colors.muted, modifier = Modifier.padding(top = 4.dp))
-        OutlinedButton(onClick = { viewModel.connect(null) }, enabled = !state.busy, modifier = Modifier.padding(top = 12.dp), shape = RoundedCornerShape(12.dp)) {
+        OutlinedButton(onClick = { viewModel.connect() }, enabled = !state.busy, modifier = Modifier.padding(top = 12.dp), shape = RoundedCornerShape(12.dp)) {
             Text(stringResource(R.string.bank_retry))
         }
     }
@@ -248,10 +230,10 @@ private fun ConnectedStep(state: BankSetupUi, viewModel: BankSetupViewModel, onS
         }
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (expired) {
-                Button(onClick = { viewModel.connect(null) }, enabled = !state.busy, shape = RoundedCornerShape(12.dp)) { Text(stringResource(R.string.bank_reconnect)) }
+                Button(onClick = { viewModel.connect() }, enabled = !state.busy, shape = RoundedCornerShape(12.dp)) { Text(stringResource(R.string.bank_reconnect)) }
             } else {
                 Button(onClick = viewModel::syncNow, enabled = !state.busy, shape = RoundedCornerShape(12.dp)) { Text(stringResource(R.string.bank_sync_now)) }
-                OutlinedButton(onClick = { viewModel.connect(null) }, enabled = !state.busy, shape = RoundedCornerShape(12.dp)) { Text(stringResource(R.string.bank_reconnect)) }
+                OutlinedButton(onClick = { viewModel.connect() }, enabled = !state.busy, shape = RoundedCornerShape(12.dp)) { Text(stringResource(R.string.bank_import_history)) }
             }
         }
     }

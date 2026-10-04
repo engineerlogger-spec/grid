@@ -108,6 +108,9 @@ fun HomeScreen(
         if (state.detectedCount > 0) {
             item { DetectedTile(state, onOpenDetected) }
         }
+        if (state.otherToSort > 0) {
+            item { SortLink(state.otherToSort, onOpenDetected) }
+        }
         item {
             HeroCard(state, summary, onDayClick = { onOpenActivity(it.toEpochDay()) })
         }
@@ -176,6 +179,22 @@ private fun CheckInBanner(onClick: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.home_checkin_banner), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             Text(stringResource(R.string.home_checkin_banner_action), style = GridText.caps, color = colors.accentText)
+            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.accentText)
+        }
+    }
+}
+
+/** Bank payments Grid couldn't name a category for: already counted (under Other); sorting is optional. */
+@Composable
+private fun SortLink(count: Int, onClick: () -> Unit) {
+    val colors = GridTheme.colors
+    Tile(onClick = onClick, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                pluralStringResource(R.plurals.home_other_to_sort, count, count),
+                style = MaterialTheme.typography.bodyMedium, color = colors.muted, modifier = Modifier.weight(1f),
+            )
+            Text(stringResource(R.string.home_sort), style = GridText.caps, color = colors.accentText)
             Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.accentText)
         }
     }
@@ -351,7 +370,12 @@ private fun UpcomingTile(state: HomeUiState, onClick: () -> Unit) {
                     Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                         Text(item.title, style = MaterialTheme.typography.titleSmall, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
-                            if (item.overdue) stringResource(R.string.bills_overdue) else relativeDay(item.date, state.today),
+                            when {
+                                item.overdue -> stringResource(R.string.bills_overdue)
+                                // Forecast from the bank history, not a bill the user entered.
+                                item.kind == UpcomingKind.FORECAST -> stringResource(R.string.home_upcoming_expected, relativeDay(item.date, state.today))
+                                else -> relativeDay(item.date, state.today)
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = if (item.overdue) colors.danger else colors.muted,
                         )

@@ -6,6 +6,7 @@ import com.grid.app.core.bank.MovedMoney
 import com.grid.app.core.bank.OwnTransfer
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.BankRepository
+import com.grid.app.core.data.repo.PlanRepository
 import com.grid.app.core.data.repo.TransactionRepository
 import com.grid.app.core.model.Transaction
 import com.grid.app.core.model.TxSource
@@ -47,6 +48,7 @@ class MovedViewModel @Inject constructor(
     private val settings: SettingsRepository,
     private val bank: BankRepository,
     private val transactions: TransactionRepository,
+    private val plans: PlanRepository,
     private val clock: AppClock,
 ) : ViewModel() {
 
@@ -78,6 +80,12 @@ class MovedViewModel @Inject constructor(
         anchor.value = if (by < 0) BudgetPeriods.previous(period, start).start else BudgetPeriods.next(period, start).start
     }
 
+    /** The salary of the month on screen (a plan figure, used for Saved; never an Activity entry). */
+    fun setSalary(amountMinor: Long) = viewModelScope.launch {
+        val period = state.value.period ?: return@launch
+        plans.setSalary(period, state.value.currency, amountMinor)
+    }
+
     /** Ticked: count this transfer in the month after its own; unticked: back in its own month. */
     fun setNextMonth(row: MovedRow, nextMonth: Boolean) = viewModelScope.launch {
         val start = settings.settings.first().periodStartDay
@@ -86,7 +94,8 @@ class MovedViewModel @Inject constructor(
     }
 
     companion object {
+        /** The salary set for the month (check-in / Savings card): a plan figure, not an Activity entry. */
         fun salaryOf(periodTx: List<Transaction>): Long =
-            periodTx.filter { it.type == TxType.INCOME && (it.source == TxSource.CHECKIN || it.source == TxSource.MANUAL) }.sumOf { it.amountMinor }
+            periodTx.filter { it.type == TxType.INCOME && it.source == TxSource.CHECKIN }.sumOf { it.amountMinor }
     }
 }

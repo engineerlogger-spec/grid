@@ -2,6 +2,8 @@ package com.grid.app.core.data.repo
 
 import androidx.room.withTransaction
 import com.grid.app.core.data.db.GridDatabase
+import com.grid.app.core.data.db.Seed
+import com.grid.app.core.model.CategoryKind
 import com.grid.app.core.data.db.entities.IncomeSourceEntity
 import com.grid.app.core.data.db.entities.PeriodPlanEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
@@ -60,6 +62,31 @@ class PlanRepository @Inject constructor(
         val start = period.start.toEpochDay()
         val existing = dao.getPlan(start)
         dao.upsertPlan(existing?.copy(goalMinor = goalMinor) ?: PeriodPlanEntity(start, goalMinor, null))
+        listeners.notifyAll()
+    }
+
+    /**
+     * Sets the salary of a month directly (from the Savings card): replaces that period's check-in income with one
+     * line of [amountMinor] (none when 0). It stays a plan figure: the Activity list never shows it.
+     */
+    suspend fun setSalary(period: BudgetPeriod, currency: String, amountMinor: Long) {
+        val now = clock.millis()
+        db.withTransaction {
+            val txDao = db.transactionDao()
+            val existing = txDao.between(period.startMillis(clock.zone), period.endMillis(clock.zone))
+                .filter { it.source == TxSource.CHECKIN && it.type == TxType.INCOME }
+            existing.forEach { txDao.delete(it.id) }
+            if (amountMinor > 0) {
+                val categoryId = existing.firstOrNull()?.categoryId ?: db.categoryDao().byIconKey(Seed.ICON_SALARY, CategoryKind.INCOME)!!.id
+                val at = existing.minOfOrNull { it.occurredAt } ?: minOf(now, period.startMillis(clock.zone) + 12 * 3_600_000L)
+                txDao.insert(
+                    TransactionEntity(
+                        type = TxType.INCOME, amountMinor = amountMinor, currency = currency, categoryId = categoryId,
+                        note = existing.firstOrNull()?.note ?: "Salary", occurredAt = at, createdAt = now, updatedAt = now, source = TxSource.CHECKIN,
+                    ),
+                )
+            }
+        }
         listeners.notifyAll()
     }
 

@@ -1,5 +1,6 @@
 package com.grid.app.core.bills
 
+import com.grid.app.core.model.MerchantKey
 import com.grid.app.core.model.PendingDirection
 import com.grid.app.core.model.PendingPayment
 import com.grid.app.core.model.PendingStatus
@@ -9,7 +10,8 @@ import com.grid.app.core.time.BillingSchedule
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-enum class UpcomingKind { SUBSCRIPTION, PENDING }
+/** FORECAST: a monthly payment found in the bank history (rent, phone…), expected again. */
+enum class UpcomingKind { SUBSCRIPTION, PENDING, FORECAST }
 
 /** Something that will cost (or bring) money soon: a subscription charge or a pending payment. */
 data class UpcomingItem(
@@ -33,6 +35,8 @@ object UpcomingPlanner {
         horizonDays: Int,
         subscriptions: List<Subscription>,
         pendings: List<PendingPayment>,
+        forecasts: List<RecurringPayment> = emptyList(),
+        currency: String = "EUR",
     ): List<UpcomingItem> {
         val end = today.plusDays(horizonDays.toLong())
         val subs = subscriptions.filter { it.status == SubscriptionStatus.ACTIVE }.flatMap { s ->
@@ -46,7 +50,12 @@ object UpcomingPlanner {
                 direction = p.direction, colorKey = p.category?.colorKey ?: "amber", iconKey = p.category?.iconKey,
             )
         }
-        return (subs + dues).sortedWith(compareByDescending<UpcomingItem> { it.overdue }.thenBy { it.date }.thenBy { it.title })
+        // Bank-history forecasts, unless the same bill is already tracked as a subscription.
+        val tracked = subscriptions.filter { it.status == SubscriptionStatus.ACTIVE }.mapNotNull { MerchantKey.of(it.name) }.toSet()
+        val expected = forecasts.filter { !it.nextDate.isAfter(end) && MerchantKey.of(it.merchant) !in tracked }.map { f ->
+            UpcomingItem(UpcomingKind.FORECAST, 0, f.merchant, f.amountMinor, currency, f.nextDate, overdue = false, colorKey = f.colorKey, iconKey = f.iconKey)
+        }
+        return (subs + dues + expected).sortedWith(compareByDescending<UpcomingItem> { it.overdue }.thenBy { it.date }.thenBy { it.title })
     }
 }
 
