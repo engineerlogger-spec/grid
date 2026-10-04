@@ -159,11 +159,31 @@ class BankRepositoryTest {
         assertThat(db.bankDao().stagedLinkedTo(estimate)!!.state).isEqualTo(BankTxState.BOOKED)
     }
 
-    @Test fun alwaysIgnoreStoresARule() = runTest {
+    @Test fun myOwnAccountTracksTransfersAsMovedAndLearns() = runTest {
         val account = connected()
-        stage(account, "t1", 5_000, "My Other Bank", CaptureDirection.OUT, BankTxKind.TRANSFER_OUT)
-        bank.ignore(bank.observeReviewGroups().first().single(), always = true)
-        assertThat(db.bankDao().ignoreRule("my other bank")).isNotNull()
+        stage(account, "t1", 150_000, "SAM TAYLOR", CaptureDirection.IN, BankTxKind.MONEY_IN)
+        bank.markOwnAccount(bank.observeReviewGroups().first().single())
+        assertThat(db.bankDao().ownAccountRule("sam taylor")).isNotNull()
+        assertThat(bank.observeReviewGroups().first()).isEmpty()
+        assertThat(transactions.observeAll().first()).isEmpty() // not income
+
+        val moved = bank.observeOwnTransfers().first().single()
+        assertThat(moved.amountMinor).isEqualTo(150_000)
+        assertThat(moved.incoming).isTrue()
+        assertThat(moved.counterparty).isEqualTo("Sam Taylor")
+        assertThat(moved.countIn).isNull()
+
+        bank.countIn(moved.id, LocalDate.parse("2026-11-01"))
+        assertThat(bank.observeOwnTransfers().first().single().countIn).isEqualTo(LocalDate.parse("2026-11-01"))
+        bank.countIn(moved.id, null)
+        assertThat(bank.observeOwnTransfers().first().single().countIn).isNull()
+    }
+
+    @Test fun ignoreIsJustThisOnce() = runTest {
+        val account = connected()
+        stage(account, "t1", 5_000, "Someone", CaptureDirection.OUT, BankTxKind.TRANSFER_OUT)
+        bank.ignore(bank.observeReviewGroups().first().single())
+        assertThat(db.bankDao().ownAccountRule("someone")).isNull()
         assertThat(bank.observeReviewGroups().first()).isEmpty()
         assertThat(bank.recentRaw()).contains("\"t1\"")
     }

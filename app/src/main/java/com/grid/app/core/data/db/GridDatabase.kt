@@ -10,7 +10,7 @@ import com.grid.app.core.data.db.dao.BankDao
 import com.grid.app.core.data.db.dao.CaptureDao
 import com.grid.app.core.data.db.entities.BankAccountEntity
 import com.grid.app.core.data.db.entities.BankConnectionEntity
-import com.grid.app.core.data.db.entities.BankIgnoreRuleEntity
+import com.grid.app.core.data.db.entities.OwnAccountRuleEntity
 import com.grid.app.core.data.db.entities.BankTransactionEntity
 import com.grid.app.core.data.db.dao.CategoryDao
 import com.grid.app.core.data.db.dao.MerchantRuleDao
@@ -30,7 +30,7 @@ import com.grid.app.core.data.db.entities.SubscriptionEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
 
 /**
- * Schema v2 (v1 + bank sync). Every schema change must bump the version and ship a tested Migration —
+ * Schema v3 (v1 + bank sync, v3: own-transfer month override). Every schema change must bump the version and ship a tested Migration —
  * never fall back to destructive migration: this is people's financial history.
  */
 @Database(
@@ -39,11 +39,11 @@ import com.grid.app.core.data.db.entities.TransactionEntity
         PeriodPlanEntity::class, IncomeSourceEntity::class,
         SubscriptionEntity::class, PendingPaymentEntity::class,
         CaptureEntity::class, MerchantRuleEntity::class,
-        BankConnectionEntity::class, BankAccountEntity::class, BankTransactionEntity::class, BankIgnoreRuleEntity::class,
+        BankConnectionEntity::class, BankAccountEntity::class, BankTransactionEntity::class, OwnAccountRuleEntity::class,
     ],
     version = GridDatabase.VERSION,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
 )
 abstract class GridDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
@@ -59,7 +59,7 @@ abstract class GridDatabase : RoomDatabase() {
     companion object {
         const val NAME = "grid.db"
         /** Schema version. Bump together with a Migration and an exported schema; backups record it. */
-        const val VERSION = 2
+        const val VERSION = 3
 
         fun build(context: Context): GridDatabase =
             Room.databaseBuilder(context, GridDatabase::class.java, NAME).addCallback(SeedCallback).build()

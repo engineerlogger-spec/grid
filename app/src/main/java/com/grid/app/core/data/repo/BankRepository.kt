@@ -4,10 +4,11 @@ import androidx.room.withTransaction
 import com.grid.app.core.bank.Aspsp
 import com.grid.app.core.bank.BankSession
 import com.grid.app.core.bank.DescriptorCleaner
+import com.grid.app.core.bank.OwnTransfer
 import com.grid.app.core.data.db.GridDatabase
 import com.grid.app.core.data.db.entities.BankAccountEntity
 import com.grid.app.core.data.db.entities.BankConnectionEntity
-import com.grid.app.core.data.db.entities.BankIgnoreRuleEntity
+import com.grid.app.core.data.db.entities.OwnAccountRuleEntity
 import com.grid.app.core.data.db.entities.BankTransactionEntity
 import com.grid.app.core.model.BankStatus
 import com.grid.app.core.model.BankTxState
@@ -24,6 +25,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import java.time.Instant
+import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -214,16 +218,42 @@ class BankRepository @Inject constructor(
         return transactions.get(entry.id)
     }
 
-    suspend fun ignore(group: BankReviewGroup, always: Boolean) {
+    /** Leaves these payments out, this once. */
+    suspend fun ignore(group: BankReviewGroup) {
         group.ids.forEach { id ->
             val row = dao.staged(id)?.takeIf { it.state == BankTxState.NEEDS_DECISION } ?: return@forEach
             dao.updateStaged(row.copy(state = BankTxState.IGNORED))
         }
+    }
+
+    /**
+     * "This is my own account" (e.g. the bank the salary is paid into): these and all future transfers with it are
+     * counted as money moved to Revolut, not income or spending.
+     */
+    suspend fun markOwnAccount(group: BankReviewGroup) {
+        group.ids.forEach { id ->
+            val row = dao.staged(id)?.takeIf { it.state == BankTxState.NEEDS_DECISION } ?: return@forEach
+            dao.updateStaged(row.copy(state = BankTxState.OWN_TRANSFER))
+        }
         val key = group.counterpartyKey
-        if (always && group.kind != ReviewKind.CATEGORISE && key != null && key != "?") {
-            dao.insertIgnoreRule(BankIgnoreRuleEntity(key, clock.millis()))
+        if (group.kind != ReviewKind.CATEGORISE && key != null && key != "?") {
+            dao.insertOwnAccountRule(OwnAccountRuleEntity(key, clock.millis()))
         }
     }
+
+    /** Every transfer between the user's own accounts, in the app currency. */
+    fun observeOwnTransfers(): Flow<List<OwnTransfer>> = dao.observeStagedByState(BankTxState.OWN_TRANSFER).map { rows ->
+        rows.map { row ->
+            OwnTransfer(
+                id = row.id, date = Instant.ofEpochMilli(row.occurredAt).atZone(clock.zone).toLocalDate(),
+                amountMinor = row.amountMinor, incoming = row.direction == CaptureDirection.IN,
+                countIn = row.countInEpochDay?.let(LocalDate::ofEpochDay), counterparty = displayName(row),
+            )
+        }
+    }
+
+    /** Counts an own transfer in the period containing [date] (null: back to the period of its own date). */
+    suspend fun countIn(transferId: Long, date: LocalDate?) = dao.setCountIn(transferId, date?.toEpochDay())
 
     /** The last fetched transactions exactly as the bank sent them, to tune the parsers from real data. */
     suspend fun recentRaw(limit: Int = 20): String = dao.recent(limit).joinToString(",\n", "[\n", "\n]") { it.rawJson }

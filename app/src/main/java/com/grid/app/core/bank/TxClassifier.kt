@@ -11,12 +11,13 @@ object TxClassifier {
     private val internal = listOf(
         Regex("\\b(to|from) (\\w+ )?(vault|pocket|savings)\\b"),
         Regex("\\bexchanged? (to|from)\\b"),
-        Regex("\\btop[- ]?up\\b"),
         Regex("\\bflexible (cash )?funds?\\b"),
         Regex("\\b(stocks?|crypto|commodities)\\b"),
         Regex("\\binvestment account\\b"),
     )
-    private val directDebitText = Regex("\\b(direct debit|sepa dd|pr[ée]l[èe]vement|mandate)\\b")
+    /** Money added from another account's card: moved from the user's own money, like a transfer from their salary bank. */
+    private val topUp = Regex("\\btop[- ]?up\\b")
+    private val directDebitText =Regex("\\b(direct debit|sepa dd|pr[ée]l[èe]vement|mandate)\\b")
     private val directDebitCode = Regex("\\b(dd|pmdd|ddt|direct debit)\\b", RegexOption.IGNORE_CASE)
     private val transferCode = Regex("\\b(trf|icdt|rcdt|transfer)\\b", RegexOption.IGNORE_CASE)
     private val toPerson = Regex("^to [\\p{L} .'-]+$", RegexOption.IGNORE_CASE)
@@ -26,6 +27,7 @@ object TxClassifier {
         if (counterpartyIban != null && counterpartyIban in ownIbans.map(::normalizeIban)) return BankTxKind.INTERNAL
 
         val text = (listOfNotNull(if (tx.isCredit) tx.debtorName else tx.creditorName) + tx.remittance).joinToString(" ").lowercase()
+        if (tx.isCredit && topUp.containsMatchIn(text)) return BankTxKind.TOP_UP
         if (internal.any { it.containsMatchIn(text) }) return BankTxKind.INTERNAL
         if (tx.isCredit) return BankTxKind.MONEY_IN
 

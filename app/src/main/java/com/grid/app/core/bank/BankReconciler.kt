@@ -56,7 +56,9 @@ class BankReconciler @Inject constructor(
     private suspend fun decide(row: BankTransactionEntity, appCurrency: String): Outcome {
         if (row.kind == BankTxKind.INTERNAL) return Outcome(BankTxState.IGNORED)
         if (row.currency != appCurrency) return Outcome(BankTxState.NEEDS_DECISION)
-        if (row.counterpartyKey?.let { dao.ignoreRule(it) } != null) return Outcome(BankTxState.IGNORED)
+        // Money between the user's own accounts: tracked as "moved to Revolut", never income or spending.
+        if (row.kind == BankTxKind.TOP_UP) return Outcome(BankTxState.OWN_TRANSFER)
+        if (row.counterpartyKey?.let { dao.ownAccountRule(it) } != null) return Outcome(BankTxState.OWN_TRANSFER)
 
         val type = if (row.direction == CaptureDirection.OUT) TxType.EXPENSE else TxType.INCOME
         val merchant = BankRepository.displayName(row)
@@ -110,6 +112,7 @@ class BankReconciler @Inject constructor(
                 if (ruleCategory != null) Outcome(BankTxState.BOOKED, book(row, merchant, ruleCategory.id, rule.paymentMethodId ?: viaMethod ?: revolut))
                 else Outcome(BankTxState.NEEDS_DECISION)
             BankTxKind.INTERNAL -> Outcome(BankTxState.IGNORED)
+            BankTxKind.TOP_UP -> Outcome(BankTxState.OWN_TRANSFER)
         }
     }
 

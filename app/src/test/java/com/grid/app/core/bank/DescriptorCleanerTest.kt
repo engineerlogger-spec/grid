@@ -45,6 +45,11 @@ class DescriptorCleanerTest {
         check("BNP PARIBAS", "BNP Paribas")
     }
 
+    @Test fun shortWordsInPeoplesNamesAreNotAcronyms() {
+        check("SAM TAYLOR", "Sam Taylor")
+        check("ANA LI", "Ana Li")
+    }
+
     @Test fun mixedCaseIsKept() {
         check("Amazon.fr", "Amazon.fr")
         check("  Uber   Eats ", "Uber Eats")

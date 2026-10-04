@@ -83,11 +83,12 @@ class BankSyncTest {
         assertThat(byMerchant["Netflix"]!!.all { it.method?.kind == PaymentKind.PAYPAL }).isTrue()
         assertThat(byMerchant["EDF"]).isNotEmpty() // direct debits are booked straight away
         assertThat(byMerchant["Starbucks"]!!.single().category.iconKey).isEqualTo("restaurant") // MCC 5814
-        assertThat(byMerchant.keys).containsNoneOf("Uber", "To EUR Vault", "J. Dupont", "Acme SAS")
+        assertThat(byMerchant.keys).containsNoneOf("Uber", "To EUR Vault", "J. Dupont", "Acme SAS", "Sam Taylor", "Top-Up by *4421")
 
         val decide = db.bankDao().stagedByState(BankTxState.NEEDS_DECISION).map { BankRepository.displayName(it) }.toSet()
-        assertThat(decide).containsExactly("J. Dupont", "Acme SAS")
+        assertThat(decide).containsExactly("J. Dupont", "Acme SAS", "Sam Taylor")
         assertThat(db.bankDao().stagedByState(BankTxState.IGNORED).single().counterparty).isEqualTo("To EUR Vault")
+        assertThat(db.bankDao().stagedByState(BankTxState.OWN_TRANSFER).single().counterparty).isEqualTo("Top-Up by *4421")
         assertThat(db.bankDao().stagedByState(BankTxState.NEW)).isEmpty()
         assertThat(bank.connection()!!.lastSyncAt).isEqualTo(clock.millis())
         // Only the EUR account is synced; the USD one is off by default.
