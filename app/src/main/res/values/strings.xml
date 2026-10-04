@@ -1,3 +1,150 @@
 <resources>
     <string name="app_name">Grid</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_activity">Activity</string>
+    <string name="nav_bills">Bills</string>
+    <string name="nav_insights">Insights</string>
+    <string name="nav_add">Add transaction</string>
+    <string name="action_back">Back</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_done">Done</string>
+    <string name="action_next">Next</string>
+    <string name="action_later">Later</string>
+    <string name="action_see_all">See all</string>
+    <string name="action_add_income">Add income</string>
+    <string name="action_hide_amounts">Hide amounts</string>
+    <string name="action_show_amounts">Show amounts</string>
+
+    <!-- Home -->
+    <string name="home_day_of">Day %1$d of %2$d</string>
+    <plurals name="home_days_left">
+        <item quantity="one">%d day left</item>
+        <item quantity="other">%d days left</item>
+    </plurals>
+    <string name="home_left_to_spend">Left to spend</string>
+    <string name="home_over_budget">Over budget</string>
+    <string name="home_per_day">%1$s / day keeps you on track</string>
+    <string name="home_over_by">You\'re over this month\'s goal</string>
+    <string name="home_no_goal">Set a monthly goal to see your daily allowance</string>
+    <string name="home_spent">Spent</string>
+    <string name="home_of_goal">of %1$s goal</string>
+    <string name="home_no_goal_short">No goal set</string>
+    <string name="home_income">Income</string>
+    <string name="home_income_confirmed">Confirmed this month</string>
+    <string name="home_income_missing">Not confirmed yet</string>
+    <string name="home_top_categories">Top categories</string>
+    <string name="home_no_spending_yet">No spending yet</string>
+    <string name="home_recent">Recent</string>
+    <string name="home_empty_title">A fresh grid</string>
+    <string name="home_empty_body">Tap + to log your first spend. Amount, category, done.</string>
+    <string name="home_checkin_banner">New month — confirm your income</string>
+    <string name="home_checkin_banner_action">Check in</string>
+    <string name="home_spent_hidden">Hidden</string>
+
+    <!-- Quick add -->
+    <string name="add_expense">Expense</string>
+    <string name="add_income">Income</string>
+    <string name="add_today">Today</string>
+    <string name="add_yesterday">Yesterday</string>
+    <string name="add_note">Note</string>
+    <string name="add_note_hint">What was it? (optional)</string>
+    <string name="add_more">More</string>
+    <string name="add_less">Less</string>
+    <string name="add_hint_tap_category">Tap a category to save · long-press to add details</string>
+    <string name="add_hint_selected">Add details, then Save</string>
+    <string name="add_enter_amount">Enter an amount first</string>
+    <string name="add_pick_category">Pick a category</string>
+    <string name="add_saved">Saved %1$s · %2$s</string>
+    <string name="add_updated">Updated</string>
+    <string name="add_deleted">Deleted %1$s</string>
+    <string name="add_edit_title">Edit transaction</string>
+    <string name="add_suggestions">Usual</string>
+    <string name="add_no_method">No method</string>
+
+    <!-- Activity -->
+    <string name="activity_title">Activity</string>
+    <string name="activity_search">Search</string>
+    <string name="activity_all">All</string>
+    <string name="activity_expenses">Expenses</string>
+    <string name="activity_incomes">Income</string>
+    <string name="activity_all_categories">Categories</string>
+    <plurals name="activity_categories_selected">
+        <item quantity="one">%d category</item>
+        <item quantity="other">%d categories</item>
+    </plurals>
+    <string name="activity_all_methods">Methods</string>
+    <string name="activity_clear_filters">Clear</string>
+    <string name="activity_spent">Spent</string>
+    <string name="activity_earned">Income</string>
+    <string name="activity_net">Net</string>
+    <string name="activity_today">Today</string>
+    <string name="activity_yesterday">Yesterday</string>
+    <string name="activity_empty_title">Nothing here</string>
+    <string name="activity_empty_body">No transactions match this month and filters.</string>
+    <string name="activity_day_filter">%1$s only</string>
+    <string name="activity_all_time">All months</string>
+
+    <!-- Check-in -->
+    <string name="checkin_eyebrow">%1$s check-in</string>
+    <string name="checkin_title">New month,\nfresh grid.</string>
+    <string name="checkin_body">What\'s coming in this month? Confirm your income and set how much you want to spend.</string>
+    <string name="checkin_income">Income this month</string>
+    <string name="checkin_goal">Spending goal</string>
+    <string name="checkin_goal_hint">%1$d%% of income · leaves %2$s to save</string>
+    <string name="checkin_confirm">Confirm %1$s</string>
+    <string name="checkin_source_name">Source</string>
+    <string name="checkin_amount">Amount</string>
+    <string name="checkin_salary">Salary</string>
+
+    <!-- Onboarding -->
+    <string name="onb_welcome_title">Every euro,\non a grid.</string>
+    <string name="onb_welcome_body">Track spending in two taps, see your month at a glance, never miss a bill.</string>
+    <string name="onb_get_started">Get started</string>
+    <string name="onb_currency_title">Your currency</string>
+    <string name="onb_currency_body">You can change it later in settings.</string>
+    <string name="onb_currency_search">Search currencies</string>
+    <string name="onb_income_title">What comes in each month?</string>
+    <string name="onb_income_body">Grid asks you to confirm this at the start of every month.</string>
+    <string name="onb_goal_title">How much do you want to spend?</string>
+    <string name="onb_goal_body">Your monthly spending goal. Grid turns it into a daily allowance.</string>
+    <string name="onb_goal_custom">Custom</string>
+    <string name="onb_goal_saves">Leaves %1$s to save each month</string>
+    <string name="onb_theme_title">Pick a look</string>
+    <string name="onb_theme_body">Grid is designed dark-first, with a warm light twin.</string>
+    <string name="onb_ready_title">You\'re set.</string>
+    <string name="onb_ready_body">Tap + any time to log a spend. Bills, insights and automatic payment detection are a tap away.</string>
+    <string name="onb_start">Start using Grid</string>
+
+    <!-- Theme -->
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_dynamic_color">Material You colors</string>
+    <string name="settings_dynamic_color_body">Use your wallpaper colors instead of Graphite &amp; Lime</string>
+    <string name="settings_money">Money</string>
+    <string name="settings_currency">Currency</string>
+    <string name="settings_period_start">Month starts on</string>
+    <string name="settings_period_start_body">Day %1$d · handy if you\'re paid on a fixed day</string>
+    <string name="settings_goal">Monthly spending goal</string>
+    <string name="settings_privacy">Privacy</string>
+    <string name="settings_hide_amounts">Hide amounts</string>
+    <string name="settings_hide_amounts_body">Mask every amount until you tap the eye on Home</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+    <string name="settings_coming_soon">Coming soon</string>
+
+    <!-- Placeholders until their milestones land -->
+    <string name="bills_title">Bills</string>
+    <string name="insights_title">Insights</string>
 </resources>

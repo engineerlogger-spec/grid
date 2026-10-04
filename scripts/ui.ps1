@@ -31,7 +31,10 @@ function Invoke-Tap([string]$Pattern) {
 }
 
 function Send-Text([string]$Text) {
-    & $Adb shell input text ($Text -replace ' ', '%s')
+    # One character per command: bulk `input text` drops keystrokes on fields that recompose per change.
+    foreach ($ch in $Text.ToCharArray()) {
+        & $Adb shell input text ($(if ($ch -eq ' ') { '%s' } else { "$ch" }))
+    }
     Start-Sleep -Milliseconds 500
 }
 
