@@ -1,4 +1,4 @@
-# End-to-end check of M8 (bank sync) against the debug-only demo bank: connect, import, grouped review, de-duplication.
+# End-to-end check of M8 (bank sync) against the debug-only demo bank: connect, whole-history import, automatic sorting, savings.
 . "$PSScriptRoot\ui.ps1"
 
 $failures = 0
@@ -60,72 +60,77 @@ if ($card) {
     if ($chip) { & $Adb shell input tap $chip.X $chip.Y; Start-Sleep 1.5 }
 }
 $starbucksBefore = Get-ActivityRowCount 'Starbucks'
+$starbucksBefore = Get-ActivityRowCount 'Starbucks'
 
-Step 'Demo bank connects through the app link' {
+Step 'Demo bank connects and imports straight away' {
     Home
     Invoke-Tap '^Settings$'; Start-Sleep 1.2
     SwipeUp; SwipeUp
     Invoke-TapCase '^Bank sync$'; Start-Sleep 1.5
     Invoke-TapCase '^Use demo bank'; Start-Sleep 1.5
     Invoke-TapCase '^Connect Revolut$'
-    $accounts = Wait-ForText 'Start sync' 20
-    & "$PSScriptRoot\screenshot.ps1" e2e-bank-accounts | Out-Null
-    $accounts -and ((ScreenText) -match 'not supported yet')   # the USD pocket is shown but can't be enabled
-}
-Step 'First sync imports three months and lands on the connected status' {
-    Invoke-TapCase '^Start sync$'
     $connected = Wait-ForText '^Sync now$' 40
     & "$PSScriptRoot\screenshot.ps1" e2e-bank-connected | Out-Null
-    $connected -and ((ScreenText) -match 'days of access left')
+    $connected -and ((ScreenText) -match 'days of access left') -and ((ScreenText) -match 'not supported yet')
 }
-Step 'Review groups payments by merchant and person' {
-    Launch 'DETECTED'; Start-Sleep 2
-    $t = ScreenText
-    & "$PSScriptRoot\screenshot.ps1" e2e-bank-review | Out-Null
-    1..3 | ForEach-Object { SwipeUp; $t += ScreenText }
-    ($t -match 'From Revolut') -and ($t -match 'Lidl') -and ($t -match 'J\. Dupont') -and ($t -match 'Acme SAS') -and ($t -match '3 payments')
+Step 'Payments are categorised automatically' {
+    Home
+    Invoke-TapCase '^Activity$'; Start-Sleep 1.2
+    Invoke-Tap '^Search$'; Send-Text 'Lidl'; Start-Sleep 1.2
+    $t = ScreenText; Hide-Keyboard; Send-Back
+    & "$PSScriptRoot\screenshot.ps1" e2e-bank-activity | Out-Null
+    ($t -match 'Lidl') -and ($t -match 'Groceries')
 }
-Step 'One tap settles a whole group' {
-    Resolve-Group 'Lidl' 'Groceries'
+Step 'Money moved between own accounts shows in Activity without counting as income' {
+    Home
+    Invoke-TapCase '^Activity$'; Start-Sleep 1.2
+    Invoke-TapCase '^All months$'; Start-Sleep 1   # the demo's transfers are dated last month
+    Invoke-Tap '^Search$'; Send-Text 'Sam'; Start-Sleep 1.2
+    $t = ScreenText; Hide-Keyboard; Send-Back
+    ($t -match 'Sam Taylor') -and ($t -match 'Moved from your account') -and ($t -match 'Sent to your account')
+}
+Step 'Unknown payments are counted under Other and sorted with one tap' {
+    Home
+    $link = Wait-ForText 'under Other' 10
     Resolve-Group 'J. Dupont' 'Housing'
-    Resolve-Group 'Acme SAS' 'Salary'
     Launch 'DETECTED'; Start-Sleep 2
     $t = ScreenText; SwipeUp; $t += ScreenText
-    ($t -notmatch '\bLidl\b') -and ($t -notmatch 'J\. Dupont') -and ($t -notmatch 'Acme SAS')
+    & "$PSScriptRoot\screenshot.ps1" e2e-bank-sort | Out-Null
+    $link -and ($t -notmatch 'J\. Dupont')
 }
-Step '"My own account" counts salary-account transfers as money moved' {
-    & $Adb shell am force-stop $AppId; Launch 'DETECTED'; Wait-ForText '^Detected$' 15 | Out-Null; Start-Sleep 1
-    $nodes = Get-UiNodes
-    $group = $nodes | Where-Object { $_.Text -ceq 'Sam Taylor' } | Select-Object -First 1
-    for ($i = 0; -not $group -and $i -lt 3; $i++) { SwipeUp; $nodes = Get-UiNodes; $group = $nodes | Where-Object { $_.Text -ceq 'Sam Taylor' } | Select-Object -First 1 }
-    $own = $nodes | Where-Object { $_.Text -ceq 'My own account' -and $_.Y -gt $group.Y } | Sort-Object Y | Select-Object -First 1
-    & $Adb shell input tap $own.X $own.Y; Start-Sleep 1.5
+Step 'Savings: salary minus money moved, with the salary set on the card' {
     Home
     Invoke-Tap '^Savings$'; Wait-ForText 'Moved to Revolut' 10 | Out-Null
     Invoke-TapCase '^Show previous month$'; Start-Sleep 1.5
+    $moved = ScreenText   # previous month: +1,500 in on the 29th, +100 card top-up, -200 sent back on the 20th
+    Invoke-TapCase '^Edit$'; Start-Sleep 1
+    Invoke-TapCase '^Salary$'; Start-Sleep 0.5   # the field's label (the card's label is in capitals)
+    Send-Text '2500'; Start-Sleep 0.5
+    Invoke-TapCase '^Done$'; Start-Sleep 1.5
     $t = ScreenText
     & "$PSScriptRoot\screenshot.ps1" e2e-moved | Out-Null
-    # Previous month: +1,500 in on the 29th, +100 card top-up, −200 sent back on the 20th.
-    ($t -match 'Sam Taylor') -and ($t -match '€1,400\.00')
+    ($moved -match '€1,400\.00') -and ($t -match '€2,500\.00') -and ($t -match '€1,100\.00')
 }
 Step 'Ticking "Next month" moves a transfer into the following month' {
     $nodes = Get-UiNodes
-    $row = $nodes | Where-Object { $_.Text -match '\b29\b' -and $_.Text -notmatch 'last month|next month' } | Select-Object -First 1
+    # Sam Taylor's transfer of the 29th (the demo's card top-up can fall on the same day).
+    $row = $nodes | Where-Object { $_.Text -match '\b29\b' -and $_.Text -notmatch 'last month|next month' } |
+        Where-Object { $r = $_; $nodes | Where-Object { $_.Text -ceq 'Sam Taylor' -and ($r.Y - $_.Y) -gt 0 -and ($r.Y - $_.Y) -lt 70 } } | Select-Object -First 1
     $box = $nodes | Where-Object { $_.Text -ceq 'Next month' -and [math]::Abs($_.Y - $row.Y) -lt 90 } | Select-Object -First 1
     & $Adb shell input tap $box.X ($box.Y - 45); Start-Sleep 1.5
-    $before = ScreenText   # previous month now: moved 100 − 200 = −100 (so saved = +100 with no salary entered)
+    $before = ScreenText   # previous month now: moved 100 - 200 = -100
     Invoke-TapCase '^Show next month$'; Start-Sleep 1.5
     $after = ScreenText    # this month: the 1,500 moved in
     & "$PSScriptRoot\screenshot.ps1" e2e-moved-next | Out-Null
     # Negative money is written with a typographic minus (U+2212) or a hyphen depending on the locale.
-    ($before -match '[−-]€100\.00') -and ($before -notmatch '€1,400\.00') -and ($after -match '€1,500\.00') -and ($after -match 'from last month')
+    ($before -match '[\u2212-]€100\.00') -and ($before -notmatch '€1,400\.00') -and ($after -match '€1,500\.00') -and ($after -match 'from last month')
 }
 Step 'The bank copy of a captured payment is merged, not added' {
     $after = Get-ActivityRowCount 'Starbucks'
     Write-Host "      Starbucks rows: before $starbucksBefore, after $after"
     $after -eq $starbucksBefore -and $after -ge 1
 }
-Step 'Moves to my own vault are not spending' {
+Step 'Moves to my own vault are not shown' {
     (Get-ActivityRowCount 'To EUR Vault') -eq 0
 }
 Step 'Syncing again finds nothing new' {

@@ -65,7 +65,7 @@ class BackupManagerTest {
         val result = runCatching { manager.inspect(ByteArrayInputStream("not a backup".toByteArray())) }
         assertThat((result.exceptionOrNull() as BackupException).reason).isEqualTo(BackupException.Reason.CORRUPT)
         // The live database is untouched and still usable.
-        assertThat(db.categoryDao().all()).hasSize(20)
+        assertThat(db.categoryDao().all()).hasSize(22)
         db.close()
     }
 }

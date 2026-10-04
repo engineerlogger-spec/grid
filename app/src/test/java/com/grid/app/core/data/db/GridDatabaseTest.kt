@@ -35,9 +35,9 @@ class GridDatabaseTest {
 
     @Test fun seedsCategoriesAndMethods() = runTest {
         val categories = db.categoryDao().all()
-        assertThat(categories).hasSize(20)
+        assertThat(categories).hasSize(22)
         assertThat(categories.count { it.kind == CategoryKind.INCOME }).isEqualTo(4)
-        assertThat(categories.filter { it.kind == CategoryKind.EXPENSE }.map { it.position }).isEqualTo((0..15).toList())
+        assertThat(categories.filter { it.kind == CategoryKind.EXPENSE }.map { it.position }).isEqualTo((0..17).toList())
         assertThat(db.paymentMethodDao().all().map { it.name })
             .containsExactly("Card", "Cash", "Google Wallet", "PayPal", "Revolut").inOrder()
     }

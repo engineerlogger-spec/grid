@@ -38,6 +38,8 @@ data class Transaction(
     val pendingId: Long? = null,
     val captureId: Long? = null,
     val needsReview: Boolean = false,
+    /** Display-only row for money moved between the user's own accounts: shown, never counted as income or spending. */
+    val ownTransfer: Boolean = false,
 ) {
     /** What to call this transaction in lists: merchant, else note, else the category name. */
     val title: String

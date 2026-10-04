@@ -41,13 +41,15 @@ Grid shows your month as a grid of days: each cell is coloured by how that day's
 - Generated insights, e.g. *"Groceries is up €250 vs the same point last month"*.
 
 **Bank sync (Revolut, and Google Wallet and PayPal through it)**
-- Imports settled Revolut transactions through Enable Banking (Open Banking, read-only), straight from your phone. Sync runs three times a day, and history can be imported for up to 12 months.
-- Wallet payments with a Revolut card and PayPal purchases funded by Revolut arrive too, with the real merchant: "PAYPAL *NETFLIX" becomes Netflix, paid with PayPal.
-- Payments already caught from a notification are merged, not doubled. Bills like rent are matched to their entry in Bills.
-- New merchants and transfers are grouped for one-tap review, and every choice is learned. Moves between your own pockets and vaults are ignored.
-- **Savings:** money moved in from your salary account is tracked as *Moved to Revolut*, not income. Home shows salary − moved = saved. Any transfer can be counted in the next month, for example a salary moved on the 29th.
+- Imports your **whole** Revolut history through Enable Banking (Open Banking, read-only), straight from your phone. After that it syncs three times a day.
+- Every movement shows in Activity, money in (+) and out (−).
+  - Wallet payments made with a Revolut card and PayPal purchases funded by Revolut arrive with the real merchant: "PAYPAL *NETFLIX" becomes Netflix, paid with PayPal.
+- **Categories are automatic**, from merchant names and Revolut's own codes (cash, refunds, top-ups). The rest is counted under Other and sorted in one tap per merchant, which is learned.
+- **Your own money moving between accounts** (salary bank, top-ups, payees in your name) is recognised and never counted as income or spending. Moves between Revolut pockets and vaults are ignored.
+- **Savings:** salary (set per month) − money moved to Revolut = saved. Any transfer can be counted in the next month, for example a salary moved on the 29th.
+- **Upcoming** forecasts monthly payments (rent, phone, energy, insurance, subscriptions) found in the history.
+- Payments already caught from a notification are merged, not doubled.
 - Setup takes 10 minutes and is free for personal use: [docs/BANK_SYNC_SETUP.md](docs/BANK_SYNC_SETUP.md).
-
 **Payment detection (Google Wallet, PayPal, Revolut)**
 - Reads those three apps' payment notifications, on your phone only, the moment you pay.
 - New merchants arrive with one-tap category buttons. Merchants you've categorised before are added automatically, with Undo.

@@ -75,6 +75,13 @@ class TransactionRepository @Inject constructor(
         listeners.notifyAll()
     }
 
+    /** Gives an entry filed under the placeholder its category (automatic guess: no rule is learned from it). */
+    suspend fun recategorize(id: Long, categoryId: Long) {
+        val existing = dao.get(id) ?: return
+        dao.update(existing.copy(categoryId = categoryId, needsReview = false, updatedAt = clock.millis()))
+        listeners.notifyAll()
+    }
+
     /** Bank sync found the settled version of this entry: the bank's amount wins; [methodId] replaces the method when given. */
     suspend fun applyBank(id: Long, amountMinor: Long, methodId: Long?) {
         val existing = dao.get(id) ?: return

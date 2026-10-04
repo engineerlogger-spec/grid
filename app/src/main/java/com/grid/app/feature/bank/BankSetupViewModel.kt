@@ -3,6 +3,8 @@ package com.grid.app.feature.bank
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
+import com.grid.app.core.bank.ConsentWindow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.grid.app.BuildConfig
@@ -39,9 +41,11 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
-enum class BankPhase { KEY, CONNECT, WAITING, ACCOUNTS, CONNECTED }
-enum class Backfill { PERIOD, MONTHS_3, MONTHS_12 }
-enum class BankSetupError { BAD_KEY, NEED_APP_ID, KEY_REFUSED, NO_REVOLUT, NOT_GRANTED, NETWORK }
+enum class BankPhase { KEY, CONNECT, WAITING, CONNECTED }
+enum class BankSetupError { BAD_KEY, NEED_APP_ID, KEY_REFUSED, NO_REVOLUT, NOT_GRANTED, NETWORK, BANK_REFUSED }
+
+/** What went wrong, with the bank's own words when it gave any. */
+data class BankFailure(val kind: BankSetupError, val detail: String? = null)
 
 sealed interface BankEvent {
     data class OpenUrl(val url: String) : BankEvent
@@ -60,7 +64,7 @@ data class BankSetupUi(
     val appCurrency: String = "EUR",
     val country: String = "FR",
     val busy: Boolean = false,
-    val error: BankSetupError? = null,
+    val error: BankFailure? = null,
 )
 
 @HiltViewModel
@@ -77,21 +81,19 @@ class BankSetupViewModel @Inject constructor(
 
     private val appId = MutableStateFlow(keyStore.load()?.appId)
     private val busy = MutableStateFlow(false)
-    private val error = MutableStateFlow<BankSetupError?>(null)
-    private val choosingAccounts = MutableStateFlow(false)
+    private val error = MutableStateFlow<BankFailure?>(null)
     private val country = MutableStateFlow(defaultCountry())
 
     private val _events = MutableSharedFlow<BankEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<BankEvent> = _events
 
-    private val local = combine(appId, busy, error, choosingAccounts, country) { id, b, e, choosing, c -> Local(id, b, e, choosing, c) }
+    private val local = combine(appId, busy, error, country) { id, b, e, c -> Local(id, b, e, c) }
 
-    private data class Local(val appId: String?, val busy: Boolean, val error: BankSetupError?, val choosing: Boolean, val country: String)
+    private data class Local(val appId: String?, val busy: Boolean, val error: BankFailure?, val country: String)
 
     val state: StateFlow<BankSetupUi> = combine(bank.observeConnection(), bank.observeAccounts(), settings.settings, local) { connection, accounts, s, l ->
         val phase = when {
             l.appId == null -> BankPhase.KEY
-            l.choosing -> BankPhase.ACCOUNTS
             connection?.sessionId != null -> BankPhase.CONNECTED
             connection?.authState != null -> BankPhase.WAITING
             else -> BankPhase.CONNECT
@@ -121,12 +123,12 @@ class BankSetupViewModel @Inject constructor(
     fun importKey(uri: Uri, appIdInput: String) = work {
         val pem = context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
         if (pem == null || runCatching { PemKeys.parsePrivateKey(pem) }.isFailure) {
-            error.value = BankSetupError.BAD_KEY
+            fail(BankSetupError.BAD_KEY)
             return@work
         }
         val id = appIdInput.trim().ifBlank { null } ?: UUID_PATTERN.find(displayName(uri).orEmpty())?.value
         if (id == null) {
-            error.value = BankSetupError.NEED_APP_ID
+            fail(BankSetupError.NEED_APP_ID)
             return@work
         }
         keyStore.save(BankCredentials(id, pem))
@@ -136,10 +138,10 @@ class BankSetupViewModel @Inject constructor(
             appId.value = id
         } catch (e: BankError.Unauthorized) {
             keyStore.clear()
-            error.value = BankSetupError.KEY_REFUSED
+            fail(BankSetupError.KEY_REFUSED)
         } catch (e: BankError) {
             appId.value = id
-            error.value = BankSetupError.NETWORK
+            fail(e)
         }
     }
 
@@ -154,34 +156,27 @@ class BankSetupViewModel @Inject constructor(
         appId.value = null
     }
 
-    /** Opens the bank's consent page. [backfill] is null on a reconnect (keeps the original history start). */
-    fun connect(backfill: Backfill?) = work {
+    /** Opens the bank's consent page; once approved, the whole history is imported (also used to reconnect). */
+    fun connect() = work {
         val connector = connectors.current() ?: return@work
         val banks = try {
             connector.aspsps(country.value)
         } catch (e: BankError) {
-            error.value = if (e is BankError.Unauthorized) BankSetupError.KEY_REFUSED else BankSetupError.NETWORK
+            fail(e)
             return@work
         }
         val revolut = banks.firstOrNull { it.name.equals("Revolut", ignoreCase = true) } ?: banks.firstOrNull { it.name.contains("revolut", ignoreCase = true) }
         if (revolut == null) {
-            error.value = BankSetupError.NO_REVOLUT
+            fail(BankSetupError.NO_REVOLUT)
             return@work
         }
-        val today = clock.today()
-        val from = when (backfill) {
-            Backfill.PERIOD -> BudgetPeriods.periodFor(today, settings.settings.first().periodStartDay).start
-            Backfill.MONTHS_3 -> today.minusMonths(3)
-            Backfill.MONTHS_12 -> today.minusMonths(12)
-            null -> null
-        }
         val state = UUID.randomUUID().toString()
-        bank.beginAuth(revolut, state, from?.toEpochDay())
-        val validUntil = clock.millis() + TimeUnit.SECONDS.toMillis(revolut.maxConsentSeconds ?: DEFAULT_CONSENT_SECONDS)
+        bank.beginAuth(revolut, state, null)
+        val validUntil = ConsentWindow.validUntil(clock.millis(), revolut.maxConsentSeconds)
         try {
             _events.emit(BankEvent.OpenUrl(connector.startAuth(revolut, validUntil, BankSync.REDIRECT_URL, state).url))
         } catch (e: BankError) {
-            error.value = BankSetupError.NETWORK
+            fail(e)
         }
     }
 
@@ -191,27 +186,23 @@ class BankSetupViewModel @Inject constructor(
     private suspend fun complete(callback: BankAuthInbox.Callback) = work {
         val code = callback.code
         if (callback.error != null || code == null) {
-            error.value = BankSetupError.NOT_GRANTED
+            fail(BankSetupError.NOT_GRANTED)
             return@work
         }
         val connector = connectors.current() ?: return@work
         try {
             val session = connector.createSession(code)
-            val result = bank.completeAuth(callback.state.orEmpty(), session, settings.settings.first().currency)
-            if (result.firstConnect) choosingAccounts.value = true else runSync()
+            bank.completeAuth(callback.state.orEmpty(), session, settings.settings.first().currency)
+            // Straight away: right after approval is when Revolut gives the whole history. Accounts can be toggled later.
+            runSync()
         } catch (e: IllegalStateException) {
-            error.value = BankSetupError.NOT_GRANTED
+            fail(BankSetupError.NOT_GRANTED)
         } catch (e: BankError) {
-            error.value = BankSetupError.NETWORK
+            fail(e)
         }
     }.join()
 
     fun setEnabled(account: BankAccountEntity, enabled: Boolean) = viewModelScope.launch { bank.setEnabled(account.id, enabled) }
-
-    fun startSync() = work {
-        choosingAccounts.value = false
-        runSync()
-    }
 
     fun syncNow() = work { runSync() }
 
@@ -249,9 +240,25 @@ class BankSetupViewModel @Inject constructor(
             throw e
         } catch (e: Exception) {
             // Last line of defence: an unexpected bank or file problem shows as an error, never a crash.
-            error.value = if (e is BankError.Unauthorized) BankSetupError.KEY_REFUSED else BankSetupError.NETWORK
+            if (e is BankError) fail(e) else fail(BankSetupError.NETWORK, e.message)
         } finally {
             busy.value = false
+        }
+    }
+
+    private fun fail(kind: BankSetupError, detail: String? = null) {
+        error.value = BankFailure(kind, detail)
+    }
+
+    /** Maps a bank error to what the user sees, keeping Enable Banking's own explanation (e.g. HTTP 422 reasons). */
+    private fun fail(e: BankError) {
+        Log.w(TAG, "Bank setup failed", e)
+        when (e) {
+            is BankError.Unauthorized -> fail(BankSetupError.KEY_REFUSED, ConsentWindow.serverMessage(e.body))
+            is BankError.Http -> fail(BankSetupError.BANK_REFUSED, ConsentWindow.serverMessage(e.body) ?: "HTTP ${e.code}")
+            is BankError.SessionExpired -> fail(BankSetupError.NOT_GRANTED)
+            is BankError.RateLimited -> fail(BankSetupError.BANK_REFUSED, e.message)
+            is BankError.Network -> fail(BankSetupError.NETWORK, e.message)
         }
     }
 
@@ -269,7 +276,7 @@ class BankSetupViewModel @Inject constructor(
             "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IS", "IE", "IT", "LV", "LI",
             "LT", "LU", "MT", "NL", "NO", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "GB",
         )
-        private val UUID_PATTERN = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
-        private val DEFAULT_CONSENT_SECONDS = TimeUnit.DAYS.toSeconds(180)
+        private const val TAG = "GridBank"
+        private val UUID_PATTERN =Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
     }
 }

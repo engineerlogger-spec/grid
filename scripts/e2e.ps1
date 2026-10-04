@@ -1,6 +1,8 @@
-# Full on-device regression: build, fresh install, run every milestone's E2E flow in order, report crashes.
-# Usage: .\scripts\e2e.ps1 [-NoBuild]
-param([switch]$NoBuild)
+# On-device regression: build, fresh install, run E2E suites in order, report crashes.
+# Usage: .\scripts\e2e.ps1 [-NoBuild] [-Suites m4,m8]
+#   No -Suites: every suite (full regression, ~15 min) — before shipping.
+#   -Suites:    only those, after a minimal onboarding (~3 min) — while iterating on one area.
+param([switch]$NoBuild, [string[]]$Suites)
 . "$PSScriptRoot\env.ps1"
 
 if (-not $NoBuild) { & "$PSScriptRoot\build.ps1" | Out-Null }
@@ -9,8 +11,14 @@ Start-Emulator
 & $Adb install -r $Apk | Out-Null
 & $Adb logcat -c
 
+$all = Get-ChildItem $PSScriptRoot -Filter 'e2e-m*.ps1' | Sort-Object Name
+$selected = if ($Suites) { $all | Where-Object { $_.BaseName -replace '^e2e-', '' -in $Suites } } else { $all }
 $total = 0
-foreach ($suite in Get-ChildItem $PSScriptRoot -Filter 'e2e-m*.ps1' | Sort-Object Name) {
+if ($Suites -and -not ($Suites -contains 'm1')) {
+    & "$PSScriptRoot\e2e-setup.ps1"
+    $total += $LASTEXITCODE
+}
+foreach ($suite in $selected) {
     Write-Host "== $($suite.BaseName)"
     & $suite.FullName
     $total += $LASTEXITCODE

@@ -1,6 +1,13 @@
 package com.grid.app.feature.activity
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
+import com.grid.app.R
+import com.grid.app.core.bank.OwnTransfer
+import com.grid.app.core.data.repo.BankRepository
+import com.grid.app.core.model.CategoryKind
+import com.grid.app.core.model.TxSource
+import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
@@ -60,9 +67,11 @@ data class ActivityUiState(
 @HiltViewModel
 class ActivityViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
+    @ApplicationContext private val context: Context,
     settings: SettingsRepository,
     private val transactions: TransactionRepository,
     categories: CategoryRepository,
+    bank: BankRepository,
     private val clock: AppClock,
 ) : ViewModel() {
 
@@ -84,8 +93,12 @@ class ActivityViewModel @Inject constructor(
             val today = clock.today()
             val period = BudgetPeriods.periodFor(a ?: today, s.periodStartDay)
             val source = if (f.allTime) transactions.observeAll() else transactions.observePeriod(period)
-            combine(source, categories.observeAll(), categories.observePaymentMethods()) { txs, cats, methods ->
-                val visible = txs.filter { matches(it, f) }
+            combine(source, bank.observeOwnTransfers(), categories.observeAll(), categories.observePaymentMethods()) { txs, moves, cats, methods ->
+                // The monthly salary is a plan figure, not an entry; money moved between own accounts is shown but not counted.
+                val entries = txs.filter { it.source != TxSource.CHECKIN } +
+                    moves.filter { f.allTime || it.date in period }.map { it.toDisplayRow(s.currency) }
+                val visible = entries.filter { matches(it, f) }
+                val counted = visible.filter { !it.ownTransfer }
                 ActivityUiState(
                     loading = false,
                     currency = s.currency,
@@ -94,8 +107,8 @@ class ActivityViewModel @Inject constructor(
                     today = today,
                     filters = f,
                     groups = group(visible),
-                    spentMinor = visible.filter { it.type == TxType.EXPENSE }.sumOf { it.amountMinor },
-                    incomeMinor = visible.filter { it.type == TxType.INCOME }.sumOf { it.amountMinor },
+                    spentMinor = counted.filter { it.type == TxType.EXPENSE }.sumOf { it.amountMinor },
+                    incomeMinor = counted.filter { it.type == TxType.INCOME }.sumOf { it.amountMinor },
                     categories = cats.filter { !it.archived },
                     methods = methods,
                 )
@@ -148,11 +161,22 @@ class ActivityViewModel @Inject constructor(
             .map { (date, items) ->
                 DayGroup(
                     date = date,
-                    spentMinor = items.filter { it.type == TxType.EXPENSE }.sumOf { it.amountMinor },
-                    incomeMinor = items.filter { it.type == TxType.INCOME }.sumOf { it.amountMinor },
-                    items = items,
+                    spentMinor = items.filter { it.type == TxType.EXPENSE && !it.ownTransfer }.sumOf { it.amountMinor },
+                    incomeMinor = items.filter { it.type == TxType.INCOME && !it.ownTransfer }.sumOf { it.amountMinor },
+                    items = items.sortedByDescending { it.occurredAt },
                 )
             }
 
     private fun <T> Set<T>.toggle(item: T): Set<T> = if (item in this) this - item else this + item
+
+    /** A transfer between the user's own accounts as an Activity line (negative id: not a ledger entry). */
+    private fun OwnTransfer.toDisplayRow(currency: String): Transaction {
+        val at = date.atTime(12, 0).atZone(clock.zone).toInstant().toEpochMilli()
+        val label = context.getString(if (incoming) R.string.activity_moved_in else R.string.activity_moved_out)
+        return Transaction(
+            id = -id, type = if (incoming) TxType.INCOME else TxType.EXPENSE, amountMinor = amountMinor, currency = currency,
+            category = Category(-1, label, "bank", "slate", if (incoming) CategoryKind.INCOME else CategoryKind.EXPENSE, 0),
+            method = null, merchant = counterparty, note = null, occurredAt = at, createdAt = at, source = TxSource.BANK, ownTransfer = true,
+        )
+    }
 }

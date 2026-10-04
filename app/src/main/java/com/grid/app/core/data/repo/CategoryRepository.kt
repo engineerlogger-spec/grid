@@ -1,6 +1,7 @@
 package com.grid.app.core.data.repo
 
 import com.grid.app.core.data.db.GridDatabase
+import com.grid.app.core.data.db.Seed
 import com.grid.app.core.data.db.dao.CategoryUsage
 import com.grid.app.core.data.db.entities.CategoryEntity
 import com.grid.app.core.model.Category
@@ -32,6 +33,16 @@ class CategoryRepository @Inject constructor(private val db: GridDatabase) {
         val active = dao.all().filter { it.kind == kind && !it.archived }.map { it.toDomain() }
         val rank = usage.withIndex().associate { (index, u) -> u.categoryId to index }
         return active.sortedWith(compareBy<Category> { rank[it.id] ?: Int.MAX_VALUE }.thenBy { it.position })
+    }
+
+    /**
+     * The active category for a built-in [iconKey]. Categories added to the defaults after a user installed Grid
+     * (e.g. Cash, Insurance) are created on first need. Null when the user archived it.
+     */
+    suspend fun ensure(iconKey: String, kind: CategoryKind): Category? {
+        dao.byIconKey(iconKey, kind)?.let { return it.takeIf { !it.archived }?.toDomain() }
+        val seed = Seed.categories.firstOrNull { it.iconKey == iconKey && it.kind == kind } ?: return null
+        return dao.get(add(seed.name, seed.iconKey, seed.colorKey, seed.kind))?.toDomain()
     }
 
     suspend fun add(name: String, iconKey: String, colorKey: String, kind: CategoryKind): Long =

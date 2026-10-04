@@ -7,6 +7,8 @@ import com.grid.app.core.data.db.entities.BankTransactionEntity
 import com.grid.app.core.data.db.entities.PendingPaymentEntity
 import com.grid.app.core.data.db.entities.SubscriptionEntity
 import com.grid.app.core.data.repo.BankRepository
+import com.grid.app.core.data.repo.CategoryRepository
+import com.grid.app.core.model.Category
 import com.grid.app.core.data.repo.PendingRepository
 import com.grid.app.core.data.repo.TransactionRepository
 import com.grid.app.core.model.BankTxKind
@@ -41,6 +43,7 @@ class BankReconciler @Inject constructor(
     private val db: GridDatabase,
     private val transactions: TransactionRepository,
     private val pending: PendingRepository,
+    private val categories: CategoryRepository,
     private val clock: AppClock,
 ) {
     private val dao = db.bankDao()
@@ -57,8 +60,7 @@ class BankReconciler @Inject constructor(
         if (row.kind == BankTxKind.INTERNAL) return Outcome(BankTxState.IGNORED)
         if (row.currency != appCurrency) return Outcome(BankTxState.NEEDS_DECISION)
         // Money between the user's own accounts: tracked as "moved to Revolut", never income or spending.
-        if (row.kind == BankTxKind.TOP_UP) return Outcome(BankTxState.OWN_TRANSFER)
-        if (row.counterpartyKey?.let { dao.ownAccountRule(it) } != null) return Outcome(BankTxState.OWN_TRANSFER)
+        if (isOwnTransfer(row)) return Outcome(BankTxState.OWN_TRANSFER)
 
         val type = if (row.direction == CaptureDirection.OUT) TxType.EXPENSE else TxType.INCOME
         val merchant = BankRepository.displayName(row)
@@ -97,23 +99,62 @@ class BankReconciler @Inject constructor(
             pending.settle(p.id, row.amountMinor, row.occurredAt)?.let { return Outcome(BankTxState.BOOKED, it) }
         }
 
-        // 3. New money: card payments and direct debits are always booked; transfers only once learned.
-        return when (row.kind) {
-            BankTxKind.CARD_SPEND, BankTxKind.DIRECT_DEBIT -> {
-                val mccCategory = MccCategories.iconKeyFor(row.mcc)?.let { db.categoryDao().byIconKey(it, CategoryKind.EXPENSE) }?.takeIf { !it.archived }
-                val category = ruleCategory ?: mccCategory ?: db.categoryDao().byIconKey(Seed.ICON_OTHER, CategoryKind.EXPENSE)!!
-                val id = book(
-                    row, merchant, category.id, rule?.paymentMethodId ?: viaMethod ?: revolut,
-                    needsReview = ruleCategory == null && mccCategory == null,
-                )
-                Outcome(BankTxState.BOOKED, id)
-            }
-            BankTxKind.TRANSFER_OUT, BankTxKind.MONEY_IN ->
-                if (ruleCategory != null) Outcome(BankTxState.BOOKED, book(row, merchant, ruleCategory.id, rule.paymentMethodId ?: viaMethod ?: revolut))
-                else Outcome(BankTxState.NEEDS_DECISION)
-            BankTxKind.INTERNAL -> Outcome(BankTxState.IGNORED)
-            BankTxKind.TOP_UP -> Outcome(BankTxState.OWN_TRANSFER)
+        // 3. Everything else is real money in or out: always booked, so Activity shows it all. The category comes from
+        //    what the user taught, else the bank's code, else the name; when nothing knows, "Other" (marked to sort).
+        val guessedId = ruleCategory?.id ?: guessCategory(row, merchant, wantedKind)?.id
+        val categoryId = guessedId
+            ?: db.categoryDao().byIconKey(if (type == TxType.EXPENSE) Seed.ICON_OTHER else Seed.ICON_OTHER_INCOME, wantedKind)!!.id
+        val id = book(row, merchant, categoryId, rule?.paymentMethodId ?: viaMethod ?: revolut, needsReview = guessedId == null)
+        return Outcome(BankTxState.BOOKED, id)
+    }
+
+    /**
+     * Re-checks, with today's rules, what earlier versions left undecided or filed under "Other": the user's own
+     * money becomes a move, a recognised merchant gets its category. What the user sorted themselves is never touched.
+     */
+    suspend fun revisit(appCurrency: String, ownIbans: Set<String>) {
+        fun reclassified(row: BankTransactionEntity) =
+            row.copy(kind = RemoteTxJson.parse(row.rawJson)?.let { TxClassifier.classify(it, ownIbans) } ?: row.kind)
+
+        for (row in dao.stagedByState(BankTxState.NEEDS_DECISION)) {
+            if (row.currency == appCurrency) process(reclassified(row).copy(state = BankTxState.NEW), appCurrency)
         }
+        for (tx in dao.bankNeedsReview()) {
+            val row = dao.stagedLinkedTo(tx.id)?.let(::reclassified) ?: continue
+            if (row.kind == BankTxKind.INTERNAL || isOwnTransfer(row)) {
+                db.withTransaction {
+                    dao.updateStaged(row.copy(state = if (row.kind == BankTxKind.INTERNAL) BankTxState.IGNORED else BankTxState.OWN_TRANSFER, transactionId = null))
+                    db.transactionDao().delete(tx.id)
+                }
+                continue
+            }
+            val wantedKind = if (tx.type == TxType.EXPENSE) CategoryKind.EXPENSE else CategoryKind.INCOME
+            val category = guessCategory(row, BankRepository.displayName(row), wantedKind) ?: continue
+            dao.updateStaged(row)
+            transactions.recategorize(tx.id, category.id)
+        }
+    }
+
+    /** Top-ups and transfers with the holder's own name or a learned own account (e.g. the salary bank). */
+    private suspend fun isOwnTransfer(row: BankTransactionEntity): Boolean {
+        if (row.kind !in setOf(BankTxKind.TOP_UP, BankTxKind.MONEY_IN, BankTxKind.TRANSFER_OUT)) return false
+        if (row.counterpartyKey?.let { dao.ownAccountRule(it) } != null) return true
+        // A card top-up names no one ("Top-Up by *1234"): the user's own card elsewhere.
+        if (row.kind == BankTxKind.TOP_UP && (row.counterparty == null || row.counterparty.contains("top-up", ignoreCase = true))) return true
+        return OwnerMatch.isOwner(row.counterparty, dao.accountHolderNames())
+    }
+
+    private suspend fun guessCategory(row: BankTransactionEntity, merchant: String?, kind: CategoryKind): Category? {
+        val iconKey = when (row.kind) {
+            BankTxKind.CASH_WITHDRAWAL -> "cash"
+            // Refunds, and "top-ups" that aren't the user's own money (an insurer or energy supplier paying back).
+            BankTxKind.REFUND, BankTxKind.TOP_UP -> Seed.ICON_REFUND
+            BankTxKind.MONEY_IN -> null
+            else -> MccCategories.iconKeyFor(row.mcc)
+                ?: MerchantCategorizer.iconKeyFor(merchant, isTransfer = row.kind == BankTxKind.TRANSFER_OUT || row.kind == BankTxKind.DIRECT_DEBIT)
+                ?: MerchantCategorizer.iconKeyFor(row.counterparty, isTransfer = row.kind == BankTxKind.TRANSFER_OUT || row.kind == BankTxKind.DIRECT_DEBIT)
+        } ?: return null
+        return categories.ensure(iconKey, kind)
     }
 
     private suspend fun book(

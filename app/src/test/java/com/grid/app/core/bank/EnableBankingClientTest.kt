@@ -125,6 +125,14 @@ class EnableBankingClientTest {
         assertThat(server.takeRequest().url.queryParameter("continuation_key")).isEqualTo("next-1")
     }
 
+    @Test fun asksForTheWholeHistory() = runTest {
+        server.enqueue(json("""{"transactions":[]}"""))
+        client.transactions("u-1", null, null, longest = true)
+        val request = server.takeRequest()
+        assertThat(request.url.queryParameter("strategy")).isEqualTo("longest")
+        assertThat(request.url.queryParameter("date_from")).isNull()
+    }
+
     @Test fun deletesSession() = runTest {
         server.enqueue(MockResponse.Builder().code(204).build())
         client.deleteSession("s-1")

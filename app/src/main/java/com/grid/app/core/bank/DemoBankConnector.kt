@@ -20,12 +20,12 @@ class DemoBankConnector(private val clock: AppClock) : BankConnector {
         sessionId = "demo-session",
         validUntil = clock.millis() + TimeUnit.DAYS.toMillis(180),
         accounts = listOf(
-            RemoteAccount("demo-eur", "demo-hash-eur", "EUR", "Main", IBAN),
+            RemoteAccount("demo-eur", "demo-hash-eur", "EUR", "Sam Taylor", IBAN),
             RemoteAccount("demo-usd", "demo-hash-usd", "USD", "Dollars", null),
         ),
     )
 
-    override suspend fun transactions(accountUid: String, dateFrom: LocalDate, continuationKey: String?): TxPage {
+    override suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean): TxPage {
         if (accountUid != "demo-eur") return TxPage(emptyList(), null)
         val today = clock.today()
         val all = buildList {
@@ -45,7 +45,8 @@ class DemoBankConnector(private val clock: AppClock) : BankConnector {
                 add(transfer("tosalaryacct", month.withDayOfMonth(20), "200.00", OWNER, OWNER_IBAN))
             }
         }
-        return TxPage(all.filter { tx -> LocalDate.parse(tx.bookingDate).let { !it.isBefore(dateFrom) && !it.isAfter(today) } }, null)
+        val from = if (longest) LocalDate.MIN else dateFrom ?: LocalDate.MIN
+        return TxPage(all.filter { tx -> LocalDate.parse(tx.bookingDate).let { !it.isBefore(from) && !it.isAfter(today) } }, null)
     }
 
     override suspend fun deleteSession(sessionId: String) = Unit

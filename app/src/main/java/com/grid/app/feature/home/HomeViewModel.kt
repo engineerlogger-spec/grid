@@ -2,10 +2,16 @@ package com.grid.app.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grid.app.core.bills.PastPayment
+import com.grid.app.core.bills.RecurringDetector
 import com.grid.app.core.bills.UpcomingItem
+import com.grid.app.core.model.TxType
 import com.grid.app.core.bills.UpcomingPlanner
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.BankRepository
+import com.grid.app.core.data.repo.ReviewKind
+import com.grid.app.core.model.TxSource
+import kotlinx.coroutines.flow.map
 import com.grid.app.core.data.repo.CaptureRepository
 import com.grid.app.core.data.repo.CategoryRepository
 import com.grid.app.core.model.BankStatus
@@ -71,6 +77,8 @@ data class HomeUiState(
     val movedMinor: Long? = null,
     val period: BudgetPeriod? = null,
     val periodStartDay: Int = 1,
+    /** Bank payments counted under "Other" that the user may want to sort. */
+    val otherToSort: Int = 0,
 )
 
 @HiltViewModel
@@ -86,8 +94,22 @@ class HomeViewModel @Inject constructor(
     clock: AppClock,
 ) : ViewModel() {
 
-    private val upcoming = combine(subscriptions.observeAll(), pendings.observeAll(), clock.todayFlow()) { subs, pend, today ->
-        UpcomingPlanner.upcoming(today, horizonDays = 7, subscriptions = subs, pendings = pend)
+    /** Monthly payments found in the bank history (rent, phone, insurance…): Revolut shares no scheduled payments. */
+    private val forecasts = combine(transactions.observeAll(), clock.todayFlow()) { txs, today ->
+        val since = today.minusDays(400)
+        RecurringDetector.detect(
+            txs.mapNotNull { tx ->
+                val date = tx.occurredAt.toLocalDate(clock.zone)
+                if (tx.type != TxType.EXPENSE || tx.ownTransfer || date.isBefore(since)) return@mapNotNull null
+                if (tx.source != TxSource.BANK && tx.source != TxSource.CAPTURE && tx.source != TxSource.MANUAL) return@mapNotNull null
+                PastPayment(tx.merchant ?: return@mapNotNull null, tx.amountMinor, date, tx.category.iconKey, tx.category.colorKey)
+            },
+            today,
+        )
+    }
+
+    private val upcoming = combine(subscriptions.observeAll(), pendings.observeAll(), clock.todayFlow(), forecasts, settings.settings) { subs, pend, today, expected, s ->
+        UpcomingPlanner.upcoming(today, horizonDays = 7, subscriptions = subs, pendings = pend, forecasts = expected, currency = s.currency)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -98,7 +120,7 @@ class HomeViewModel @Inject constructor(
                 transactions.observePeriod(period),
                 plans.observeGoal(period),
                 plans.observeNeedsCheckIn(period),
-                transactions.observeRecent(5),
+                transactions.observeRecent(8).map { list -> list.filter { it.source != TxSource.CHECKIN }.take(5) },
                 categories.observeAll(),
             ) { periodTx, goal, needsCheckIn, recent, cats ->
                 val entries = periodTx.map { LedgerEntry(it.type, it.amountMinor, it.category.id, it.occurredAt.toLocalDate(clock.zone)) }
@@ -134,8 +156,10 @@ class HomeViewModel @Inject constructor(
         home.copy(
             upcoming = items,
             upcomingDueMinor = items.filter { it.direction == PendingDirection.I_OWE && it.currency == home.currency }.sumOf { it.amountMinor },
-            detectedCount = inbox.size + bankGroups.size,
-            detectedSources = (inbox.map { it.source } + if (bankGroups.isNotEmpty()) listOf(CaptureSource.REVOLUT) else emptyList()).distinct(),
+            // Notifications to confirm (and rare bank items needing a decision); payments under Other are only a link.
+            detectedCount = inbox.size + bankGroups.count { it.kind != ReviewKind.CATEGORISE },
+            detectedSources = (inbox.map { it.source } + if (bankGroups.any { it.kind != ReviewKind.CATEGORISE }) listOf(CaptureSource.REVOLUT) else emptyList()).distinct(),
+            otherToSort = bankGroups.filter { it.kind == ReviewKind.CATEGORISE }.sumOf { it.count },
             bankToReconnect = connection?.takeIf { it.sessionId != null && it.status == BankStatus.EXPIRED }?.aspspName,
             movedMinor = if (period != null && (connection?.sessionId != null || transfers.isNotEmpty())) {
                 MovedMoney.moved(transfers, period, home.periodStartDay)

@@ -109,7 +109,10 @@ class BankRepository @Inject constructor(
             session.accounts.forEach { remote ->
                 val old = existing[remote.identificationHash]
                 if (old != null) {
-                    dao.updateAccount(old.copy(uid = remote.uid, name = remote.name ?: old.name, currency = remote.currency, iban = remote.iban ?: old.iban))
+                    // A fresh approval is the moment the bank gives the whole history: fetch it all again (ids de-duplicate).
+                    dao.updateAccount(
+                        old.copy(uid = remote.uid, name = remote.name ?: old.name, currency = remote.currency, iban = remote.iban ?: old.iban, syncedThroughEpochDay = null),
+                    )
                 } else {
                     dao.upsertAccount(
                         BankAccountEntity(

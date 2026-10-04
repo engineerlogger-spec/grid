@@ -8,10 +8,12 @@ import com.grid.app.core.data.db.GridDatabase
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.BankRepository
 import com.grid.app.core.data.repo.PendingRepository
+import com.grid.app.core.data.repo.CategoryRepository
 import com.grid.app.core.data.repo.TransactionRepository
 import com.grid.app.core.model.BankStatus
 import com.grid.app.core.model.BankTxState
 import com.grid.app.core.model.PaymentKind
+import com.grid.app.core.model.TxType
 import com.grid.app.core.time.FixedClock
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -39,11 +41,13 @@ class BankSyncTest {
 
     /** Wraps the demo bank to record requests or fail on demand. */
     private inner class Recording(var failWith: BankError? = null) : BankConnector by DemoBankConnector(clock) {
-        val froms = mutableListOf<LocalDate>()
-        override suspend fun transactions(accountUid: String, dateFrom: LocalDate, continuationKey: String?): TxPage {
+        val froms = mutableListOf<LocalDate?>()
+        val longest = mutableListOf<Boolean>()
+        override suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean): TxPage {
             failWith?.let { throw it }
             froms += dateFrom
-            return DemoBankConnector(clock).transactions(accountUid, dateFrom, continuationKey)
+            this.longest += longest
+            return DemoBankConnector(clock).transactions(accountUid, dateFrom, continuationKey, longest)
         }
     }
 
@@ -62,7 +66,7 @@ class BankSyncTest {
         settings = SettingsRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.newFile("s.preferences_pb").also { it.delete() } }, Locale.FRANCE)
         transactions = TransactionRepository(db, clock, emptySet())
         bank = BankRepository(db, transactions, clock)
-        val reconciler = BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), clock)
+        val reconciler = BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), CategoryRepository(db), clock)
         sync = BankSync(db, bank, { connector }, reconciler, settings, clock)
 
         val demo = DemoBankConnector(clock)
@@ -78,21 +82,26 @@ class BankSyncTest {
 
         val ledger = transactions.observeAll().first()
         val byMerchant = ledger.groupBy { it.merchant }
-        assertThat(byMerchant["Lidl"]!!.all { it.needsReview }).isTrue()
+        assertThat(byMerchant["Lidl"]!!.all { it.category.iconKey == "groceries" && !it.needsReview }).isTrue()
         assertThat(byMerchant["Lidl"]).hasSize(3)
+        // Everything is booked: a transfer to a person under Other, money from a company as income.
+        assertThat(byMerchant["J. Dupont"]!!.all { it.type == TxType.EXPENSE }).isTrue()
+        assertThat(byMerchant["Acme SAS"]!!.all { it.type == TxType.INCOME }).isTrue()
         assertThat(byMerchant["Netflix"]!!.all { it.method?.kind == PaymentKind.PAYPAL }).isTrue()
         assertThat(byMerchant["EDF"]).isNotEmpty() // direct debits are booked straight away
         assertThat(byMerchant["Starbucks"]!!.single().category.iconKey).isEqualTo("restaurant") // MCC 5814
-        assertThat(byMerchant.keys).containsNoneOf("Uber", "To EUR Vault", "J. Dupont", "Acme SAS", "Sam Taylor", "Top-Up by *4421")
+        assertThat(byMerchant.keys).containsNoneOf("Uber", "To EUR Vault", "Sam Taylor", "Top-Up by *4421")
 
-        val decide = db.bankDao().stagedByState(BankTxState.NEEDS_DECISION).map { BankRepository.displayName(it) }.toSet()
-        assertThat(decide).containsExactly("J. Dupont", "Acme SAS", "Sam Taylor")
+        assertThat(db.bankDao().stagedByState(BankTxState.NEEDS_DECISION)).isEmpty()
         assertThat(db.bankDao().stagedByState(BankTxState.IGNORED).single().counterparty).isEqualTo("To EUR Vault")
-        assertThat(db.bankDao().stagedByState(BankTxState.OWN_TRANSFER).single().counterparty).isEqualTo("Top-Up by *4421")
+        // The demo account is held by Sam Taylor: transfers with that name and the card top-up are moves.
+        assertThat(db.bankDao().stagedByState(BankTxState.OWN_TRANSFER).map { BankRepository.displayName(it) }.toSet())
+            .containsExactly("Sam Taylor", "Top-Up by *4421")
         assertThat(db.bankDao().stagedByState(BankTxState.NEW)).isEmpty()
         assertThat(bank.connection()!!.lastSyncAt).isEqualTo(clock.millis())
-        // Only the EUR account is synced; the USD one is off by default.
-        assertThat(connector.froms).containsExactly(today.minusMonths(3))
+        // Only the EUR account is synced (the USD one is off by default), and the first fetch asks for the whole history.
+        assertThat(connector.froms).containsExactly(null)
+        assertThat(connector.longest).containsExactly(true)
     }
 
     @Test fun secondSyncAddsNothingAndRereadsAFewDays() = runTest {
@@ -130,12 +139,12 @@ class BankSyncTest {
 
     @Test fun unexpectedTroubleFailsTheSyncInsteadOfCrashing() = runTest {
         connect()
-        val broken = BankSync(db, bank, { throwingConnector }, BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), clock), settingsFor(), clock)
+        val broken = BankSync(db, bank, { throwingConnector }, BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), CategoryRepository(db), clock), settingsFor(), clock)
         assertThat(broken.run()).isInstanceOf(SyncResult.Failed::class.java)
     }
 
     private val throwingConnector = object : BankConnector by DemoBankConnector(clock) {
-        override suspend fun transactions(accountUid: String, dateFrom: LocalDate, continuationKey: String?): TxPage = error("unexpected shape")
+        override suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean): TxPage = error("unexpected shape")
     }
 
     @Test fun notConnectedWithoutSession() = runTest {

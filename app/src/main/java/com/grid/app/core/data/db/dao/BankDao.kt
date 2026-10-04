@@ -36,6 +36,10 @@ interface BankDao {
     @Query("SELECT * FROM bank_accounts WHERE connectionId = :connectionId ORDER BY id")
     fun observeAccounts(connectionId: Long): Flow<List<BankAccountEntity>>
 
+    /** Revolut reports the account holder's name as the account name. */
+    @Query("SELECT DISTINCT name FROM bank_accounts WHERE name IS NOT NULL")
+    suspend fun accountHolderNames(): List<String>
+
     @Query("SELECT * FROM bank_accounts WHERE id = :id")
     suspend fun account(id: Long): BankAccountEntity?
 
@@ -88,6 +92,10 @@ interface BankDao {
 
     @Query("SELECT * FROM transactions WHERE needsReview = 1 ORDER BY occurredAt DESC")
     fun observeNeedsReview(): Flow<List<TransactionEntity>>
+
+    /** Bank payments still under the placeholder category, to re-check when the rules improve. */
+    @Query("SELECT * FROM transactions WHERE needsReview = 1 AND source = 'BANK'")
+    suspend fun bankNeedsReview(): List<TransactionEntity>
 
     /** Everything waiting for the user: uncategorised bank bookings plus undecided bank rows. */
     @Query("SELECT (SELECT COUNT(*) FROM transactions WHERE needsReview = 1) + (SELECT COUNT(*) FROM bank_transactions WHERE state = 'NEEDS_DECISION')")
