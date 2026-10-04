@@ -23,6 +23,7 @@ import com.grid.app.core.time.AppClock
 import com.grid.app.core.time.BudgetPeriods
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -244,6 +245,11 @@ class BankSetupViewModel @Inject constructor(
         error.value = null
         try {
             block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Last line of defence: an unexpected bank or file problem shows as an error, never a crash.
+            error.value = if (e is BankError.Unauthorized) BankSetupError.KEY_REFUSED else BankSetupError.NETWORK
         } finally {
             busy.value = false
         }

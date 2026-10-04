@@ -119,7 +119,9 @@ class EnableBankingClient(
 
     private suspend fun authorization(): String {
         val creds = credentials()
-        val key = cachedKey?.takeIf { it.first == creds }?.second ?: PemKeys.parsePrivateKey(creds.privateKeyPem).also { cachedKey = creds to it }
+        val key = cachedKey?.takeIf { it.first == creds }?.second
+            ?: runCatching { PemKeys.parsePrivateKey(creds.privateKeyPem) }.getOrElse { throw BankError.Unauthorized("Unusable private key") }
+                .also { cachedKey = creds to it }
         return "Bearer " + EnableBankingJwt.sign(creds.appId, key, nowSeconds())
     }
 
@@ -134,7 +136,10 @@ class EnableBankingClient(
             response.use {
                 val text = it.body.string()
                 when {
-                    it.isSuccessful -> if (text.isBlank()) JsonObject(emptyMap()) else json.parseToJsonElement(text).jsonObject
+                    it.isSuccessful -> if (text.isBlank()) JsonObject(emptyMap()) else {
+                        // A maintenance page or proxy error instead of JSON is a bank error, not a crash.
+                        runCatching { json.parseToJsonElement(text).jsonObject }.getOrElse { _ -> throw BankError.Http(it.code, text.take(200)) }
+                    }
                     text.contains("EXPIRED_SESSION") || text.contains("SESSION_EXPIRED") -> throw BankError.SessionExpired()
                     it.code == 401 || it.code == 403 -> throw BankError.Unauthorized(text)
                     it.code == 429 -> throw BankError.RateLimited()

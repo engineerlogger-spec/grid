@@ -10,6 +10,7 @@ import com.grid.app.core.model.CaptureDirection
 import com.grid.app.core.model.MerchantKey
 import com.grid.app.core.money.Currencies
 import com.grid.app.core.time.AppClock
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -89,6 +90,12 @@ class BankSync @Inject constructor(
                     SyncResult.Failed(e.message ?: "Sync failed")
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Anything the bank sends that we don't understand fails this run; it never takes the app down.
+            bank.recordError(e.message ?: e.javaClass.simpleName)
+            return SyncResult.Failed(e.message ?: e.javaClass.simpleName)
         }
 
         // Includes rows left NEW by an interrupted run.

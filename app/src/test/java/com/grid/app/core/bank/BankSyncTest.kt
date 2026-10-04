@@ -55,8 +55,11 @@ class BankSyncTest {
 
     @After fun tearDown() = db.close()
 
+    private lateinit var settings: SettingsRepository
+    private fun settingsFor() = settings
+
     private suspend fun TestScope.connect() {
-        val settings = SettingsRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.newFile("s.preferences_pb").also { it.delete() } }, Locale.FRANCE)
+        settings = SettingsRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.newFile("s.preferences_pb").also { it.delete() } }, Locale.FRANCE)
         transactions = TransactionRepository(db, clock, emptySet())
         bank = BankRepository(db, transactions, clock)
         val reconciler = BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), clock)
@@ -122,6 +125,16 @@ class BankSyncTest {
         assertThat(sync.run()).isInstanceOf(SyncResult.Failed::class.java)
         assertThat(bank.connection()!!.status).isEqualTo(BankStatus.ACTIVE)
         assertThat(bank.connection()!!.lastError).isEqualTo("offline")
+    }
+
+    @Test fun unexpectedTroubleFailsTheSyncInsteadOfCrashing() = runTest {
+        connect()
+        val broken = BankSync(db, bank, { throwingConnector }, BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), clock), settingsFor(), clock)
+        assertThat(broken.run()).isInstanceOf(SyncResult.Failed::class.java)
+    }
+
+    private val throwingConnector = object : BankConnector by DemoBankConnector(clock) {
+        override suspend fun transactions(accountUid: String, dateFrom: LocalDate, continuationKey: String?): TxPage = error("unexpected shape")
     }
 
     @Test fun notConnectedWithoutSession() = runTest {

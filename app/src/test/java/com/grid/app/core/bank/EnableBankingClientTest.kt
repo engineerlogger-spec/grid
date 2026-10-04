@@ -133,6 +133,16 @@ class EnableBankingClientTest {
         assertThat(request.url.encodedPath).isEqualTo("/sessions/s-1")
     }
 
+    @Test fun unusableKeyIsAnAccessError() = runTest {
+        val broken = EnableBankingClient(OkHttpClient(), { BankCredentials("app-42", "not a key") }, { 1_790_000_000 }, server.url("/"))
+        assertThat(runCatching { broken.aspsps("FR") }.exceptionOrNull()).isInstanceOf(BankError.Unauthorized::class.java)
+    }
+
+    @Test fun garbledResponseIsABankError() = runTest {
+        server.enqueue(MockResponse.Builder().code(200).body("<html>maintenance</html>").build())
+        assertThat((runCatching { client.aspsps("FR") }.exceptionOrNull() as BankError.Http).code).isEqualTo(200)
+    }
+
     @Test fun errorsAreTyped() = runTest {
         suspend fun errorFor(response: MockResponse): Throwable? {
             server.enqueue(response)
