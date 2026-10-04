@@ -36,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SwipeToDismissBox
@@ -290,7 +291,7 @@ private fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit)
 @Composable
 private fun CategoryFilterSheet(state: ActivityUiState, onToggle: (Long) -> Unit, onClear: () -> Unit, onDismiss: () -> Unit) {
     val colors = GridTheme.colors
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.tile) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.tile) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.activity_all_categories), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))

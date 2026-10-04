@@ -24,6 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.CloudUpload
+import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
@@ -34,6 +37,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -61,13 +65,16 @@ import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.core.model.ThemeMode
 import com.grid.app.core.money.Currencies
 import com.grid.app.core.time.BudgetPeriods
+import com.grid.app.feature.backup.BackupViewModel
 import com.grid.app.feature.common.CurrencyPicker
+import com.grid.app.feature.common.shortDate
+import com.grid.app.feature.common.toLocalDate
 import com.grid.app.feature.common.MoneyField
 import com.grid.app.feature.common.moneyFieldText
 import com.grid.app.feature.common.parseMoney
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onOpenCapture: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(onBack: () -> Unit, onOpenCapture: () -> Unit, onOpenBackup: () -> Unit, onOpenCategories: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val s = state.settings ?: return
     val colors = GridTheme.colors
@@ -116,6 +123,12 @@ fun SettingsScreen(onBack: () -> Unit, onOpenCapture: () -> Unit, viewModel: Set
                 onClick = { currencySheet = true },
             )
             SettingRow(
+                icon = Icons.Rounded.Category,
+                title = stringResource(R.string.settings_categories),
+                body = stringResource(R.string.settings_categories_body),
+                onClick = onOpenCategories,
+            )
+            SettingRow(
                 icon = Icons.Rounded.Flag,
                 title = stringResource(R.string.settings_goal),
                 body = state.goalMinor?.let { formatter.format(it, s.currency) } ?: "—",
@@ -145,8 +158,32 @@ fun SettingsScreen(onBack: () -> Unit, onOpenCapture: () -> Unit, viewModel: Set
             )
         }
 
+        CapsLabel(stringResource(R.string.backup_title), Modifier.padding(start = 4.dp, top = 8.dp))
+        Tile(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
+            SettingRow(
+                icon = Icons.Rounded.CloudUpload,
+                title = stringResource(R.string.backup_title),
+                body = s.backup.lastAt?.let {
+                    stringResource(R.string.backup_last, shortDate(it.toLocalDate()), BackupViewModel.formatSize(s.backup.lastSizeBytes ?: 0))
+                } ?: stringResource(R.string.settings_backup_body_never),
+                onClick = onOpenBackup,
+            )
+        }
+
         CapsLabel(stringResource(R.string.settings_privacy), Modifier.padding(start = 4.dp, top = 8.dp))
         Tile(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
+            val messenger = com.grid.app.feature.common.LocalMessenger.current
+            val noLock = stringResource(R.string.settings_no_screen_lock)
+            SettingRow(
+                icon = Icons.Rounded.Fingerprint,
+                title = stringResource(R.string.settings_app_lock),
+                body = stringResource(R.string.settings_app_lock_body),
+                trailing = {
+                    Switch(checked = s.appLock, onCheckedChange = { on ->
+                        if (on && !viewModel.canLock()) messenger.show(noLock) else viewModel.setAppLock(on)
+                    })
+                },
+            )
             SettingRow(
                 icon = Icons.Rounded.VisibilityOff,
                 title = stringResource(R.string.settings_hide_amounts),
@@ -163,7 +200,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenCapture: () -> Unit, viewModel: Set
     }
 
     if (currencySheet) {
-        ModalBottomSheet(onDismissRequest = { currencySheet = false }, containerColor = colors.background) {
+        ModalBottomSheet(onDismissRequest = { currencySheet = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.background) {
             CurrencyPicker(s.currency, { viewModel.setCurrency(it); currencySheet = false }, Modifier.padding(horizontal = 16.dp).height(520.dp))
         }
     }

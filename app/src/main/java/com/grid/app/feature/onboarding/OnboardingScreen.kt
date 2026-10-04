@@ -61,7 +61,7 @@ import com.grid.app.feature.common.IncomeLinesEditor
 import com.grid.app.feature.common.MoneyField
 
 @Composable
-fun OnboardingScreen(viewModel: OnboardingViewModel = hiltViewModel()) {
+fun OnboardingScreen(onRestore: () -> Unit, viewModel: OnboardingViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     BackHandler(enabled = state.page != OnboardingPage.WELCOME) { viewModel.back() }
 
@@ -87,7 +87,7 @@ fun OnboardingScreen(viewModel: OnboardingViewModel = hiltViewModel()) {
         ) { page ->
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 when (page) {
-                    OnboardingPage.WELCOME -> Welcome()
+                    OnboardingPage.WELCOME -> Welcome(onRestore)
                     OnboardingPage.CURRENCY -> {
                         Title(R.string.onb_currency_title, R.string.onb_currency_body)
                         CurrencyPicker(state.currency, viewModel::setCurrency, Modifier.weight(1f))
@@ -148,7 +148,7 @@ private fun Title(title: Int, body: Int) {
 }
 
 @Composable
-private fun ColumnScope.Welcome() {
+private fun ColumnScope.Welcome(onRestore: () -> Unit) {
     val colors = GridTheme.colors
     Spacer(Modifier.weight(0.3f))
     HeroTile(Modifier.fillMaxWidth()) {
@@ -160,6 +160,9 @@ private fun ColumnScope.Welcome() {
     Text(stringResource(R.string.onb_welcome_title), style = MaterialTheme.typography.displaySmall, color = colors.text)
     Text(stringResource(R.string.onb_welcome_body), style = MaterialTheme.typography.bodyLarge, color = colors.muted)
     Spacer(Modifier.weight(0.7f))
+    androidx.compose.material3.TextButton(onClick = onRestore, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+        Text(stringResource(R.string.onb_restore), color = colors.accentText)
+    }
 }
 
 @Composable

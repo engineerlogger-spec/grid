@@ -34,7 +34,7 @@ import com.grid.app.core.data.db.entities.TransactionEntity
         SubscriptionEntity::class, PendingPaymentEntity::class,
         CaptureEntity::class, MerchantRuleEntity::class,
     ],
-    version = 1,
+    version = GridDatabase.VERSION,
     exportSchema = true,
 )
 abstract class GridDatabase : RoomDatabase() {
@@ -49,6 +49,8 @@ abstract class GridDatabase : RoomDatabase() {
 
     companion object {
         const val NAME = "grid.db"
+        /** Schema version. Bump together with a Migration and an exported schema; backups record it. */
+        const val VERSION = 1
 
         fun build(context: Context): GridDatabase =
             Room.databaseBuilder(context, GridDatabase::class.java, NAME).addCallback(SeedCallback).build()

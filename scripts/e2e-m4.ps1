@@ -17,7 +17,7 @@ function GridNotifications { (& $Adb shell dumpsys notification --noredact) -joi
 
 & $Adb shell cmd notification allow_listener "$AppId/$Namespace.feature.capture.PaymentCaptureService" | Out-Null
 & $Adb shell am start -n "$AppId/$Namespace.MainActivity" | Out-Null
-Wait-ForText 'Get started|LEFT TO SPEND|Home' | Out-Null; Start-Sleep 1
+Wait-ForText 'Get started|LEFT TO SPEND' | Out-Null; Start-Sleep 1
 
 Step 'Settings shows detection as on' {
     Invoke-Tap '^Home$'; Start-Sleep 1

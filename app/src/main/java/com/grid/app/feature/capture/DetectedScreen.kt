@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -138,7 +139,7 @@ fun DetectedScreen(onBack: () -> Unit, viewModel: DetectedViewModel = hiltViewMo
     }
 
     morePickerFor?.let { item ->
-        ModalBottomSheet(onDismissRequest = { morePickerFor = null }, containerColor = colors.tile) {
+        ModalBottomSheet(onDismissRequest = { morePickerFor = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.tile) {
             Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
                 viewModel.categoriesFor(item).forEach { c ->
                     TextButton(onClick = { accept(item, c); morePickerFor = null }, modifier = Modifier.fillMaxWidth()) {

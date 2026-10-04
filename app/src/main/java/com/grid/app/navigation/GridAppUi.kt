@@ -48,6 +48,7 @@ import com.grid.app.core.model.TxType
 import com.grid.app.core.notify.LaunchTarget
 import com.grid.app.feature.add.QuickAddSheet
 import com.grid.app.feature.add.QuickAddViewModel
+import com.grid.app.feature.backup.BackupScreen
 import com.grid.app.feature.bills.BillsScreen
 import com.grid.app.feature.bills.PendingEditorScreen
 import com.grid.app.feature.bills.SubscriptionEditorScreen
@@ -61,6 +62,7 @@ import com.grid.app.feature.common.QuickAddController
 import com.grid.app.feature.home.HomeScreen
 import com.grid.app.feature.insights.InsightsScreen
 import com.grid.app.feature.onboarding.OnboardingScreen
+import com.grid.app.feature.settings.CategoriesScreen
 import com.grid.app.feature.settings.SettingsScreen
 
 /** Root of the UI: navigation, bottom bar, quick-add sheet and snackbars. */
@@ -100,7 +102,7 @@ fun GridAppUi(
             LaunchTarget.ADD_EXPENSE -> quickAdd.add(TxType.EXPENSE)
             LaunchTarget.ADD_INCOME -> quickAdd.add(TxType.INCOME)
             LaunchTarget.DETECTED -> nav.navigate(DetectedRoute) { launchSingleTop = true }
-            LaunchTarget.BACKUP -> nav.navigateToTab("home")
+            LaunchTarget.BACKUP -> nav.navigate(BackupRoute) { launchSingleTop = true }
         }
         onLaunchHandled()
     }
@@ -162,7 +164,7 @@ fun GridAppUi(
                     startDestination = if (onboardingDone) HomeRoute else OnboardingRoute,
                     modifier = Modifier,
                 ) {
-                    composable<OnboardingRoute> { OnboardingScreen() }
+                    composable<OnboardingRoute> { OnboardingScreen(onRestore = { nav.navigate(BackupRoute) }) }
                     composable<HomeRoute> {
                         HomeScreen(
                             contentPadding = padding,
@@ -193,10 +195,12 @@ fun GridAppUi(
                         )
                     }
                     composable<SettingsRoute> {
-                        SettingsScreen(onBack = { nav.popBackStack() }, onOpenCapture = { nav.navigate(CaptureSetupRoute) })
+                        SettingsScreen(onBack = { nav.popBackStack() }, onOpenCapture = { nav.navigate(CaptureSetupRoute) }, onOpenBackup = { nav.navigate(BackupRoute) }, onOpenCategories = { nav.navigate(CategoriesRoute) })
                     }
                     composable<DetectedRoute> { DetectedScreen(onBack = { nav.popBackStack() }) }
                     composable<CaptureSetupRoute> { CaptureSetupScreen(onBack = { nav.popBackStack() }) }
+                    composable<BackupRoute> { BackupScreen(onBack = { nav.popBackStack() }) }
+                    composable<CategoriesRoute> { CategoriesScreen(onBack = { nav.popBackStack() }) }
                 }
             }
             quickAdd.request?.let { request ->

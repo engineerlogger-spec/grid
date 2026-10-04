@@ -12,7 +12,7 @@ function ScreenText { (Get-UiNodes | ForEach-Object { "$($_.Text)|$($_.Desc)" })
 function ScrollDown { & $Adb shell input swipe 540 1500 540 600 300; Start-Sleep 0.8 }
 
 & $Adb shell am start -n "$AppId/$Namespace.MainActivity" | Out-Null
-Wait-ForText 'Get started|LEFT TO SPEND|Home' | Out-Null; Start-Sleep 1
+Wait-ForText 'Get started|LEFT TO SPEND' | Out-Null; Start-Sleep 1
 
 # After M1+M2: Groceries 25, Metro 10, Netflix 13.99, Rent 850 → 898.99 spent.
 Step 'Insights KPIs match the ledger' {

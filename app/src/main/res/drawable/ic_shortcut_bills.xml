@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shortcut icon: amber tile with a calendar grid. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+    <path android:fillColor="#FFB547" android:pathData="M12,4h24a8,8 0 0 1 8,8v24a8,8 0 0 1 -8,8h-24a8,8 0 0 1 -8,-8v-24a8,8 0 0 1 8,-8z" />
+    <path android:fillColor="#0B0D0E" android:pathData="M14,14h20v4h-20z M14,22h5v5h-5z M21.5,22h5v5h-5z M29,22h5v5h-5z M14,29h5v5h-5z M21.5,29h5v5h-5z" />
+</vector>

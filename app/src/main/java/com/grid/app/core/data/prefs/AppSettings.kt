@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.grid.app.core.model.CaptureSource
 import com.grid.app.core.model.ThemeMode
@@ -12,7 +13,10 @@ import com.grid.app.core.money.Currencies
 import com.grid.app.core.time.BudgetPeriods
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.util.Locale
 
 data class AppSettings(
@@ -25,6 +29,7 @@ data class AppSettings(
     val hideAmounts: Boolean = false,
     val appLock: Boolean = false,
     val capture: CaptureSettings = CaptureSettings(),
+    val backup: BackupSettings = BackupSettings(),
 )
 
 /** Payment detection preferences. All sources on by default; nothing happens until access is granted. */
@@ -44,6 +49,38 @@ data class CaptureSettings(
     }
 }
 
+enum class BackupFrequency { OFF, DAILY, WEEKLY, MONTHLY }
+
+/** Google Drive backup state (WhatsApp-style: periodic upload to the hidden app folder). */
+data class BackupSettings(
+    val frequency: BackupFrequency = BackupFrequency.WEEKLY,
+    val wifiOnly: Boolean = true,
+    /** The user connected a Google account at least once (auto-backup only runs when true). */
+    val connected: Boolean = false,
+    val account: String? = null,
+    val lastAt: Long? = null,
+    val lastSizeBytes: Long? = null,
+    val lastError: String? = null,
+)
+
+/** Portable subset of settings stored inside backups (no device-specific state). */
+@Serializable
+data class SettingsSnapshot(
+    val currency: String,
+    val themeMode: String,
+    val dynamicColor: Boolean,
+    val periodStartDay: Int,
+    val hideAmounts: Boolean,
+    val appLock: Boolean,
+    val captureWallet: Boolean,
+    val capturePaypal: Boolean,
+    val captureRevolut: Boolean,
+    val captureAutoAdd: Boolean,
+    val captureDiagnostics: Boolean,
+    val backupFrequency: String,
+    val backupWifiOnly: Boolean,
+)
+
 /** User preferences in DataStore. Ledger data lives in Room; this is configuration only. */
 class SettingsRepository(
     private val store: DataStore<Preferences>,
@@ -62,7 +99,16 @@ class SettingsRepository(
         val captureRevolut = booleanPreferencesKey("capture_revolut")
         val captureAutoAdd = booleanPreferencesKey("capture_auto_add")
         val captureDiagnostics = booleanPreferencesKey("capture_diagnostics")
+        val backupFrequency = stringPreferencesKey("backup_frequency")
+        val backupWifiOnly = booleanPreferencesKey("backup_wifi_only")
+        val backupConnected = booleanPreferencesKey("backup_connected")
+        val backupAccount = stringPreferencesKey("backup_account")
+        val backupLastAt = longPreferencesKey("backup_last_at")
+        val backupLastSize = longPreferencesKey("backup_last_size")
+        val backupLastError = stringPreferencesKey("backup_last_error")
     }
+
+    private val json = Json { ignoreUnknownKeys = true }
 
     val settings: Flow<AppSettings> = store.data.map { p ->
         AppSettings(
@@ -79,6 +125,15 @@ class SettingsRepository(
                 revolut = p[Keys.captureRevolut] ?: true,
                 autoAdd = p[Keys.captureAutoAdd] ?: true,
                 diagnostics = p[Keys.captureDiagnostics] ?: true,
+            ),
+            backup = BackupSettings(
+                frequency = p[Keys.backupFrequency]?.let { n -> BackupFrequency.entries.firstOrNull { it.name == n } } ?: BackupFrequency.WEEKLY,
+                wifiOnly = p[Keys.backupWifiOnly] ?: true,
+                connected = p[Keys.backupConnected] ?: false,
+                account = p[Keys.backupAccount],
+                lastAt = p[Keys.backupLastAt],
+                lastSizeBytes = p[Keys.backupLastSize],
+                lastError = p[Keys.backupLastError],
             ),
         )
     }.distinctUntilChanged()
@@ -104,4 +159,55 @@ class SettingsRepository(
     suspend fun completeOnboarding() = store.edit { it[Keys.onboardingDone] = true }
     suspend fun setHideAmounts(hidden: Boolean) = store.edit { it[Keys.hideAmounts] = hidden }
     suspend fun setAppLock(enabled: Boolean) = store.edit { it[Keys.appLock] = enabled }
+
+    suspend fun setBackupFrequency(frequency: BackupFrequency) = store.edit { it[Keys.backupFrequency] = frequency.name }
+    suspend fun setBackupWifiOnly(wifiOnly: Boolean) = store.edit { it[Keys.backupWifiOnly] = wifiOnly }
+    suspend fun setBackupConnected(account: String?) = store.edit {
+        it[Keys.backupConnected] = true
+        if (account != null) it[Keys.backupAccount] = account else it.remove(Keys.backupAccount)
+    }
+    suspend fun disconnectBackup() = store.edit { it[Keys.backupConnected] = false; it.remove(Keys.backupAccount) }
+    suspend fun recordBackup(at: Long, sizeBytes: Long) = store.edit {
+        it[Keys.backupLastAt] = at
+        it[Keys.backupLastSize] = sizeBytes
+        it.remove(Keys.backupLastError)
+    }
+    suspend fun recordBackupError(message: String) = store.edit { it[Keys.backupLastError] = message }
+
+    /** Settings that travel inside a backup file. */
+    suspend fun exportJson(): String {
+        val s = settings.first()
+        return json.encodeToString(
+            SettingsSnapshot.serializer(),
+            SettingsSnapshot(
+                currency = s.currency, themeMode = s.themeMode.name, dynamicColor = s.dynamicColor, periodStartDay = s.periodStartDay,
+                hideAmounts = s.hideAmounts, appLock = s.appLock,
+                captureWallet = s.capture.wallet, capturePaypal = s.capture.paypal, captureRevolut = s.capture.revolut,
+                captureAutoAdd = s.capture.autoAdd, captureDiagnostics = s.capture.diagnostics,
+                backupFrequency = s.backup.frequency.name, backupWifiOnly = s.backup.wifiOnly,
+            ),
+        )
+    }
+
+    /** Applies settings from a backup. A restored install is onboarded by definition. */
+    suspend fun importJson(raw: String) {
+        val snapshot = runCatching { json.decodeFromString(SettingsSnapshot.serializer(), raw) }.getOrNull()
+        store.edit { p ->
+            p[Keys.onboardingDone] = true
+            snapshot ?: return@edit
+            p[Keys.currency] = snapshot.currency
+            p[Keys.theme] = snapshot.themeMode
+            p[Keys.dynamicColor] = snapshot.dynamicColor
+            p[Keys.periodStartDay] = snapshot.periodStartDay.coerceIn(BudgetPeriods.MIN_START_DAY, BudgetPeriods.MAX_START_DAY)
+            p[Keys.hideAmounts] = snapshot.hideAmounts
+            p[Keys.appLock] = snapshot.appLock
+            p[Keys.captureWallet] = snapshot.captureWallet
+            p[Keys.capturePaypal] = snapshot.capturePaypal
+            p[Keys.captureRevolut] = snapshot.captureRevolut
+            p[Keys.captureAutoAdd] = snapshot.captureAutoAdd
+            p[Keys.captureDiagnostics] = snapshot.captureDiagnostics
+            p[Keys.backupFrequency] = snapshot.backupFrequency
+            p[Keys.backupWifiOnly] = snapshot.backupWifiOnly
+        }
+    }
 }

@@ -307,6 +307,77 @@
     <string name="capture_diagnostics_body">Stored on this phone for 30 days to help improve detection</string>
     <string name="settings_capture_body_on">Reading Google Wallet, PayPal and Revolut</string>
 
+    <!-- Backup -->
+    <string name="backup_title">Backup &amp; restore</string>
+    <string name="backup_drive">Google Drive</string>
+    <string name="backup_drive_body">Like WhatsApp: your data is saved to a hidden folder in your own Google Drive that only Grid can read. Restore it on any phone.</string>
+    <string name="backup_connect">Connect Google Drive</string>
+    <string name="backup_connected_as">Backing up to %1$s</string>
+    <string name="backup_connected">Connected</string>
+    <string name="backup_last">Last backup: %1$s · %2$s</string>
+    <string name="backup_never">No backup yet</string>
+    <string name="backup_now">Back up now</string>
+    <string name="backup_working">Backing up…</string>
+    <string name="backup_done">Backed up · %1$s</string>
+    <string name="backup_restore_drive">Restore from Google Drive</string>
+    <string name="backup_frequency">Back up automatically</string>
+    <string name="backup_off">Off</string>
+    <string name="backup_daily">Daily</string>
+    <string name="backup_weekly">Weekly</string>
+    <string name="backup_monthly">Monthly</string>
+    <string name="backup_wifi_only">Only on Wi-Fi</string>
+    <string name="backup_disconnect">Disconnect</string>
+    <string name="backup_not_configured_title">Drive backup isn\'t set up for this build</string>
+    <string name="backup_not_configured_body">This copy of Grid has no Google sign-in client yet (a 10-minute, one-time setup described in docs/GOOGLE_DRIVE_SETUP.md). Local backup files work meanwhile.</string>
+    <string name="backup_local">Backup file</string>
+    <string name="backup_local_body">Save a complete backup file anywhere (Downloads, a USB stick, another cloud) and restore it later.</string>
+    <string name="backup_save_file">Save backup file</string>
+    <string name="backup_open_file">Restore from file</string>
+    <string name="backup_export_csv">Export transactions (CSV)</string>
+    <string name="backup_saved_file">Backup saved</string>
+    <string name="backup_saved_csv">CSV exported</string>
+    <string name="backup_restore_confirm_title">Replace your data?</string>
+    <string name="backup_restore_confirm_body">Backup made %2$s on %1$s, with %3$d transactions. Everything currently in Grid will be replaced and the app will restart.</string>
+    <string name="backup_restore_confirm">Restore</string>
+    <string name="backup_restoring">Restoring…</string>
+    <string name="backup_error">%1$s</string>
+    <string name="backup_error_corrupt">That file isn\'t a valid Grid backup.</string>
+    <string name="backup_error_newer">That backup was made by a newer version of Grid. Update the app first.</string>
+    <string name="backup_error_none">No backup found in this Google account.</string>
+    <string name="backup_reconnect">Reconnect Google Drive</string>
+    <string name="backup_reconnect_body">Grid needs your permission again to keep backing up.</string>
+    <string name="onb_restore">Restore a backup</string>
+    <string name="settings_backup_body_never">Not backed up yet</string>
+
+    <!-- Shortcuts, tile, widget -->
+    <string name="shortcut_add_expense">Add expense</string>
+    <string name="shortcut_add_income">Add income</string>
+    <string name="shortcut_bills">Bills</string>
+    <string name="widget_name">Grid · this month</string>
+    <string name="widget_description">What\'s left to spend this month, with a one-tap +</string>
+    <string name="widget_per_day">%1$s / day</string>
+
+    <!-- Lock & categories -->
+    <string name="lock_title">Grid is locked</string>
+    <string name="lock_body">Unlock to see your money</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="settings_app_lock">App lock</string>
+    <string name="settings_app_lock_body">Fingerprint, face or screen lock when opening Grid</string>
+    <string name="settings_no_screen_lock">Set a screen lock on your phone first</string>
+    <string name="settings_categories">Categories</string>
+    <string name="settings_categories_body">Add, rename, reorder, set budgets</string>
+    <string name="categories_add">Add category</string>
+    <string name="category_name">Name</string>
+    <string name="category_icon">Icon</string>
+    <string name="category_budget">Monthly budget (optional)</string>
+    <string name="category_budget_value">Budget %1$s / month</string>
+    <string name="category_archive">Remove category</string>
+    <string name="category_archived">Archived</string>
+    <string name="category_restore">Restore</string>
+    <string name="category_move_up">Move up</string>
+    <string name="category_move_down">Move down</string>
+    <string name="category_duplicate">You already have a category with this name</string>
+
     <!-- Insights -->
     <string name="insights_title">Insights</string>
     <string name="insights_spent">Spent</string>

@@ -8,6 +8,7 @@ import com.grid.app.core.data.repo.PlanRepository
 import com.grid.app.core.model.ThemeMode
 import com.grid.app.core.time.AppClock
 import com.grid.app.core.time.BudgetPeriods
+import com.grid.app.feature.lock.AppLock
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,7 +27,16 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepo: SettingsRepository,
     private val plans: PlanRepository,
     private val clock: AppClock,
+    private val appLock: AppLock,
 ) : ViewModel() {
+
+    /** False when the phone has no screen lock: enabling the app lock would then be pointless. */
+    fun canLock(): Boolean = appLock.canAuthenticate()
+
+    fun setAppLock(on: Boolean) = viewModelScope.launch {
+        if (on) appLock.unlock() // the user is here right now; lock from the next start/background
+        settingsRepo.setAppLock(on)
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: StateFlow<SettingsUiState> = settingsRepo.settings

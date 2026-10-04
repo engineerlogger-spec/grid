@@ -13,3 +13,5 @@ import kotlinx.serialization.Serializable
 @Serializable data class PendingEditRoute(val id: Long? = null)
 @Serializable data object DetectedRoute
 @Serializable data object CaptureSetupRoute
+@Serializable data object BackupRoute
+@Serializable data object CategoriesRoute

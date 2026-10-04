@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shortcut icon: sky tile with an arrow into a tray. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+    <path android:fillColor="#6EC1FF" android:pathData="M12,4h24a8,8 0 0 1 8,8v24a8,8 0 0 1 -8,8h-24a8,8 0 0 1 -8,-8v-24a8,8 0 0 1 8,-8z" />
+    <path android:fillColor="#0B0D0E" android:pathData="M22,12h4v12.2l4.6,-4.6 2.8,2.8 -9.4,9.4 -9.4,-9.4 2.8,-2.8 4.6,4.6z M14,32h20v4h-20z" />
+</vector>

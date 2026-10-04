@@ -61,6 +61,29 @@ class SettingsRepositoryTest {
         assertThat(r.settings.first().periodStartDay).isEqualTo(1)
     }
 
+    @Test fun exportImportRoundTripMarksOnboarded() = runTest(UnconfinedTestDispatcher()) {
+        val source = repo()
+        source.setCurrency("GBP"); source.setThemeMode(ThemeMode.LIGHT); source.setPeriodStartDay(25)
+        source.setBackupFrequency(BackupFrequency.DAILY)
+        val json = source.exportJson()
+
+        val target = SettingsRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.newFile("t.preferences_pb").also { it.delete() } }, Locale.FRANCE)
+        target.importJson(json)
+        val s = target.settings.first()
+        assertThat(s.currency).isEqualTo("GBP")
+        assertThat(s.themeMode).isEqualTo(ThemeMode.LIGHT)
+        assertThat(s.periodStartDay).isEqualTo(25)
+        assertThat(s.backup.frequency).isEqualTo(BackupFrequency.DAILY)
+        assertThat(s.onboardingDone).isTrue()
+    }
+
+    @Test fun garbageImportStillOnboards() = runTest(UnconfinedTestDispatcher()) {
+        val r = repo()
+        r.importJson("not json")
+        assertThat(r.settings.first().onboardingDone).isTrue()
+        assertThat(r.settings.first().currency).isEqualTo("EUR")
+    }
+
     @Test fun unknownThemeNameFallsBackToSystem() = runTest(UnconfinedTestDispatcher()) {
         assertThat(ThemeMode.entries.firstOrNull { it.name == "SEPIA" } ?: ThemeMode.SYSTEM).isEqualTo(ThemeMode.SYSTEM)
     }

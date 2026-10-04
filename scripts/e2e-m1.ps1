@@ -22,7 +22,7 @@ function Invoke-TapLabeled([string]$Pattern) {
 function OpenAdd { Invoke-Tap 'Add transaction'; Start-Sleep -Milliseconds 900 }
 
 & $Adb shell am start -n "$AppId/$Namespace.MainActivity" | Out-Null
-Wait-ForText 'Get started|LEFT TO SPEND|Home' | Out-Null; Start-Sleep 1
+Wait-ForText 'Get started|LEFT TO SPEND' | Out-Null; Start-Sleep 1
 
 if (Get-UiNodes | Where-Object { $_.Text -eq 'Get started' }) {
     Step 'Onboarding: EUR, salary 2,500, 80% goal, dark' {

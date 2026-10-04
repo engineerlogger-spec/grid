@@ -12,7 +12,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.grid.app.feature.lock.AppLock
+import com.grid.app.feature.lock.LockScreen
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.grid.app.core.designsystem.components.LocalHideAmounts
@@ -31,6 +35,7 @@ class MainActivity : FragmentActivity() {
     private val appViewModel: AppViewModel by viewModels()
 
     @Inject lateinit var moneyFormatter: MoneyFormatter
+    @Inject lateinit var appLock: AppLock
 
     /** Set from notification taps, widget, tile and shortcuts; consumed once by the UI. */
     private var launchTarget by mutableStateOf<LaunchTarget?>(null)
@@ -41,10 +46,12 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) launchTarget = LaunchTarget.from(intent)
+        appLock.attach()
 
         setContent {
             val state by appViewModel.state.collectAsStateWithLifecycle()
             val dismissed by appViewModel.checkInDismissed.collectAsStateWithLifecycle()
+            val locked by appLock.locked.collectAsStateWithLifecycle()
             val ready = state as? AppUiState.Ready ?: return@setContent
             val settings = ready.settings
             GridTheme(themeMode = settings.themeMode, dynamicColor = settings.dynamicColor) {
@@ -65,12 +72,30 @@ class MainActivity : FragmentActivity() {
                         state = ready,
                         checkInDismissed = dismissed,
                         onDismissCheckIn = appViewModel::dismissCheckIn,
-                        launchTarget = launchTarget,
+                        launchTarget = if (locked) null else launchTarget,
                         onLaunchHandled = { launchTarget = null },
                     )
+                    if (locked) LockScreen(onUnlock = ::authenticate)
                 }
             }
         }
+    }
+
+    private fun authenticate() {
+        if (!appLock.canAuthenticate()) { appLock.unlock(); return }
+        val prompt = BiometricPrompt(
+            this, ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = appLock.unlock()
+            },
+        )
+        prompt.authenticate(
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle(getString(R.string.lock_title))
+                .setSubtitle(getString(R.string.lock_body))
+                .setAllowedAuthenticators(AppLock.AUTHENTICATORS)
+                .build(),
+        )
     }
 
     override fun onNewIntent(intent: Intent) {

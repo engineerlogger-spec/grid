@@ -8,8 +8,12 @@ import com.grid.app.core.data.prefs.SentLog
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.BudgetAlertListener
 import com.grid.app.core.data.repo.LedgerListener
+import com.grid.app.feature.backup.DriveClient
 import com.grid.app.feature.capture.CaptureAlerts
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 import com.grid.app.feature.capture.NotificationCaptureAlerts
+import com.grid.app.feature.widget.WidgetUpdater
 import dagger.Binds
 import dagger.multibindings.IntoSet
 import com.grid.app.core.money.MoneyFormatter
@@ -58,6 +62,16 @@ object AppModule {
 
     @Provides @Singleton @AppScope
     fun appScope(): CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    @Provides @Singleton
+    fun okHttp(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(120, TimeUnit.SECONDS)
+        .build()
+
+    @Provides @Singleton
+    fun driveClient(http: OkHttpClient): DriveClient = DriveClient(http)
 }
 
 @Module
@@ -69,6 +83,9 @@ abstract class LedgerListenerModule {
 
     @Binds @IntoSet
     abstract fun budgetAlerts(listener: BudgetAlertListener): LedgerListener
+
+    @Binds @IntoSet
+    abstract fun widget(listener: WidgetUpdater): LedgerListener
 
     @Binds
     abstract fun captureAlerts(impl: NotificationCaptureAlerts): CaptureAlerts
