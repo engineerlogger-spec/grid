@@ -129,6 +129,23 @@ class RepositoriesTest {
         assertThat(plans.observeNeedsCheckIn(october).first()).isTrue()
     }
 
+    @Test fun goalCarriesOverWhenPayDayMovesEarlier() = runTest {
+        plans.setGoal(october, 200000)                           // plan starts Oct 1
+        val payDayPeriod = BudgetPeriods.periodFor(clock.today(), 25) // Sep 25 – Oct 25
+        assertThat(plans.observeGoal(payDayPeriod).first()).isEqualTo(200000)
+        assertThat(plans.goalFor(payDayPeriod)).isEqualTo(200000)
+    }
+
+    @Test fun checkInDoesNotBookTheSameIncomeTwiceInOnePeriod() = runTest {
+        val salary = cat("salary", CategoryKind.INCOME)
+        plans.confirmCheckIn(october, "EUR", 1000, listOf(IncomeLine("Salary", 250000, salary)))
+        // Pay day moved to the 25th → new overlapping period → check-in again.
+        val payDayPeriod = BudgetPeriods.periodFor(clock.today(), 25)
+        plans.confirmCheckIn(payDayPeriod, "EUR", 1000, listOf(IncomeLine("salary ", 250000, salary), IncomeLine("Bonus", 30000, salary)))
+        val income = transactions.observePeriod(payDayPeriod).first().filter { it.type == TxType.INCOME }
+        assertThat(income.map { it.note }).containsExactly("Salary", "Bonus")
+    }
+
     @Test fun setGoalKeepsCheckInState() = runTest {
         plans.confirmCheckIn(october, "EUR", 1000, emptyList())
         plans.setGoal(october, 2000)

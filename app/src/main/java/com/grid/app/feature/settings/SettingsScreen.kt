@@ -3,6 +3,9 @@ package com.grid.app.feature.settings
 import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -26,12 +29,11 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,6 +55,7 @@ import com.grid.app.core.designsystem.components.CapsLabel
 import com.grid.app.core.designsystem.components.LocalMoneyFormatter
 import com.grid.app.core.designsystem.components.Segmented
 import com.grid.app.core.designsystem.components.Tile
+import com.grid.app.core.designsystem.theme.GridText
 import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.core.model.ThemeMode
 import com.grid.app.core.money.Currencies
@@ -117,19 +120,12 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
                 body = state.goalMinor?.let { formatter.format(it, s.currency) } ?: "—",
                 onClick = { goalDialog = true },
             )
-            Column {
-                SettingRow(
-                    icon = Icons.Rounded.CalendarMonth,
-                    title = stringResource(R.string.settings_period_start),
-                    body = stringResource(R.string.settings_period_start_body, s.periodStartDay),
-                    onClick = { dayMenu = true },
-                )
-                DropdownMenu(expanded = dayMenu, onDismissRequest = { dayMenu = false }) {
-                    (BudgetPeriods.MIN_START_DAY..BudgetPeriods.MAX_START_DAY).forEach { day ->
-                        DropdownMenuItem(text = { Text(day.toString()) }, onClick = { viewModel.setPeriodStartDay(day); dayMenu = false })
-                    }
-                }
-            }
+            SettingRow(
+                icon = Icons.Rounded.CalendarMonth,
+                title = stringResource(R.string.settings_period_start),
+                body = stringResource(R.string.settings_period_start_body, s.periodStartDay),
+                onClick = { dayMenu = true },
+            )
         }
 
         CapsLabel(stringResource(R.string.settings_privacy), Modifier.padding(start = 4.dp, top = 8.dp))
@@ -154,6 +150,9 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
             CurrencyPicker(s.currency, { viewModel.setCurrency(it); currencySheet = false }, Modifier.padding(horizontal = 16.dp).height(520.dp))
         }
     }
+    if (dayMenu) {
+        StartDayDialog(selected = s.periodStartDay, onPick = { viewModel.setPeriodStartDay(it); dayMenu = false }, onDismiss = { dayMenu = false })
+    }
     if (goalDialog) {
         var text by remember { mutableStateOf(moneyFieldText(state.goalMinor, s.currency)) }
         AlertDialog(
@@ -169,6 +168,37 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
             dismissButton = { TextButton(onClick = { goalDialog = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
+}
+
+/** Days 1–28 as a 7×4 grid — every option visible at once (no scrolling a 28-item menu). */
+@Composable
+private fun StartDayDialog(selected: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    val colors = GridTheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_period_start)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                (BudgetPeriods.MIN_START_DAY..BudgetPeriods.MAX_START_DAY).chunked(7).forEach { week ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        week.forEach { day ->
+                            val isSelected = day == selected
+                            Surface(
+                                onClick = { onPick(day) },
+                                modifier = Modifier.weight(1f).aspectRatio(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else colors.raised,
+                                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else colors.text,
+                            ) {
+                                Box(contentAlignment = Alignment.Center) { Text(day.toString(), style = GridText.moneySmall) }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }
 
 @Composable

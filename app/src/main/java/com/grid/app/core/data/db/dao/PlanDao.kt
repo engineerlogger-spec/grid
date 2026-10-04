@@ -17,8 +17,6 @@ interface PlanDao {
     @Query("SELECT * FROM period_plans WHERE periodStartEpochDay = :startEpochDay")
     suspend fun getPlan(startEpochDay: Long): PeriodPlanEntity?
 
-    @Query("SELECT * FROM period_plans WHERE periodStartEpochDay < :startEpochDay ORDER BY periodStartEpochDay DESC LIMIT 1")
-    suspend fun latestBefore(startEpochDay: Long): PeriodPlanEntity?
 
     @Query("SELECT * FROM period_plans ORDER BY periodStartEpochDay DESC")
     fun observeAllPlans(): Flow<List<PeriodPlanEntity>>
