@@ -1,9 +1,9 @@
-package com.vaulty.app.di
+package com.grid.app.di
 
 import android.content.Context
 import androidx.room.Room
-import com.vaulty.app.data.db.TransactionDao
-import com.vaulty.app.data.db.VaultyDatabase
+import com.grid.app.data.db.TransactionDao
+import com.grid.app.data.db.GridDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -17,16 +17,16 @@ object DatabaseModule {
 
     @Provides
     @Singleton
-    fun provideDatabase(@ApplicationContext context: Context): VaultyDatabase {
+    fun provideDatabase(@ApplicationContext context: Context): GridDatabase {
         return Room.databaseBuilder(
             context,
-            VaultyDatabase::class.java,
-            "vaulty_database"
+            GridDatabase::class.java,
+            "grid_database"
         ).fallbackToDestructiveMigration().build()
     }
 
     @Provides
-    fun provideTransactionDao(database: VaultyDatabase): TransactionDao {
+    fun provideTransactionDao(database: GridDatabase): TransactionDao {
         return database.transactionDao()
     }
 }

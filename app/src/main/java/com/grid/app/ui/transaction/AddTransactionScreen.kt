@@ -1,4 +1,4 @@
-package com.vaulty.app.ui.transaction
+package com.grid.app.ui.transaction
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -10,9 +10,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vaulty.app.data.db.TransactionDao
-import com.vaulty.app.data.model.Category
-import com.vaulty.app.data.model.Transaction
+import com.grid.app.data.db.TransactionDao
+import com.grid.app.data.model.Category
+import com.grid.app.data.model.Transaction
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject

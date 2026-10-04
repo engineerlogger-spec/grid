@@ -1,12 +1,12 @@
-package com.vaulty.app.ui.home
+package com.grid.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vaulty.app.data.db.TransactionDao
-import com.vaulty.app.data.model.MonthlyGoal
-import com.vaulty.app.data.model.Subscription
-import com.vaulty.app.data.model.Transaction
-import com.vaulty.app.sync.DriveSyncManager
+import com.grid.app.data.db.TransactionDao
+import com.grid.app.data.model.MonthlyGoal
+import com.grid.app.data.model.Subscription
+import com.grid.app.data.model.Transaction
+import com.grid.app.sync.DriveSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

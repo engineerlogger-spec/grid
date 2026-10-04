@@ -1,4 +1,4 @@
-package com.vaulty.app
+package com.grid.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -10,10 +10,10 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.vaulty.app.ui.theme.VaultyTheme
-import com.vaulty.app.ui.home.HomeScreen
-import com.vaulty.app.ui.transaction.AddTransactionScreen
-import com.vaulty.app.ui.analysis.AnalysisScreen
+import com.grid.app.ui.theme.GridTheme
+import com.grid.app.ui.home.HomeScreen
+import com.grid.app.ui.transaction.AddTransactionScreen
+import com.grid.app.ui.analysis.AnalysisScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            VaultyTheme {
+            GridTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

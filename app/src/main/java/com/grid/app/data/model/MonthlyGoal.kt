@@ -1,4 +1,4 @@
-package com.vaulty.app.data.model
+package com.grid.app.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey

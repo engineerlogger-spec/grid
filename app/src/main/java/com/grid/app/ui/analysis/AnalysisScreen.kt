@@ -1,4 +1,4 @@
-package com.vaulty.app.ui.analysis
+package com.grid.app.ui.analysis
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,8 +12,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vaulty.app.data.db.TransactionDao
-import com.vaulty.app.data.model.Transaction
+import com.grid.app.data.db.TransactionDao
+import com.grid.app.data.model.Transaction
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

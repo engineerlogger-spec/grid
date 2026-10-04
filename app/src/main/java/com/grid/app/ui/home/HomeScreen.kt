@@ -1,4 +1,4 @@
-package com.vaulty.app.ui.home
+package com.grid.app.ui.home
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,7 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.vaulty.app.data.model.Transaction
+import com.grid.app.data.model.Transaction
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,7 +67,7 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Vaulty Dashboard") },
+                title = { Text("Grid Dashboard") },
                 actions = {
                     IconButton(onClick = {
                         scope.launch { viewModel.performBackup() }

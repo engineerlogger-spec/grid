@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Vaulty"
+rootProject.name = "Grid"
 include(":app")

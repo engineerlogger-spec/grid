@@ -1,10 +1,10 @@
-package com.vaulty.app.service
+package com.grid.app.service
 
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
-import com.vaulty.app.data.db.TransactionDao
-import com.vaulty.app.data.model.Transaction
+import com.grid.app.data.db.TransactionDao
+import com.grid.app.data.model.Transaction
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

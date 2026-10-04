@@ -1,7 +1,7 @@
-package com.vaulty.app
+package com.grid.app
 
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
-class VaultyApplication : Application()
+class GridApplication : Application()

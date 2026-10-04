@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.vaulty.app"
+    namespace = "com.grid.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.vaulty.app"
+        applicationId = "com.grid.app"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

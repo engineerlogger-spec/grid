@@ -1,4 +1,4 @@
-package com.vaulty.app.data.model
+package com.grid.app.data.model
 
 object Category {
     val predefinedCategories = listOf(

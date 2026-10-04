@@ -1,12 +1,12 @@
-package com.vaulty.app.data.db
+package com.grid.app.data.db
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.vaulty.app.data.model.MonthlyGoal
-import com.vaulty.app.data.model.Subscription
-import com.vaulty.app.data.model.Transaction
+import com.grid.app.data.model.MonthlyGoal
+import com.grid.app.data.model.Subscription
+import com.grid.app.data.model.Transaction
 import kotlinx.coroutines.flow.Flow
 
 @Dao

@@ -1,4 +1,4 @@
-package com.vaulty.app.sync
+package com.grid.app.sync
 
 import android.content.Context
 import android.util.Log
@@ -18,7 +18,7 @@ class DriveSyncManager @Inject constructor(
         withContext(Dispatchers.IO) {
             Log.d("DriveSyncManager", "Starting backup to Google Drive...")
             try {
-                val dbFile = context.getDatabasePath("vaulty_database")
+                val dbFile = context.getDatabasePath("grid_database")
                 if (dbFile.exists()) {
                     Log.d("DriveSyncManager", "Found database to backup: \${dbFile.absolutePath}, size: \${dbFile.length()} bytes")
                     // Real implementation would use Google Drive REST API to upload this file
