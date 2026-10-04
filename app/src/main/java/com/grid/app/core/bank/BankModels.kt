@@ -1,0 +1,43 @@
+package com.grid.app.core.bank
+
+/** A bank reachable through the aggregator ("ASPSP" in PSD2 terms). */
+data class Aspsp(val name: String, val country: String, val maxConsentSeconds: Long?)
+
+data class AuthStart(val url: String, val authorizationId: String?)
+
+data class RemoteAccount(val uid: String, val identificationHash: String, val currency: String, val name: String?, val iban: String?)
+
+data class BankSession(val sessionId: String, val validUntil: Long?, val accounts: List<RemoteAccount>)
+
+/** One transaction as the bank reports it; every field is optional because banks fill them differently. */
+data class RemoteTx(
+    val transactionId: String? = null,
+    val entryReference: String? = null,
+    val amount: String,
+    val currency: String,
+    /** "DBIT" (money out) or "CRDT" (money in). */
+    val creditDebit: String? = null,
+    /** "BOOK" (settled) or "PDNG" (pending). */
+    val status: String? = null,
+    val bookingDate: String? = null,
+    val valueDate: String? = null,
+    val transactionDate: String? = null,
+    val creditorName: String? = null,
+    val creditorIban: String? = null,
+    val debtorName: String? = null,
+    val debtorIban: String? = null,
+    val remittance: List<String> = emptyList(),
+    val mcc: String? = null,
+    val bankTxCode: String? = null,
+    val rawJson: String = "{}",
+) {
+    val isCredit: Boolean get() = creditDebit.equals("CRDT", ignoreCase = true)
+
+    /** Who the money went to (or came from), falling back to the first remittance line. */
+    val counterparty: String?
+        get() = (if (isCredit) debtorName else creditorName)?.takeIf { it.isNotBlank() } ?: remittance.firstOrNull { it.isNotBlank() }
+
+    val counterpartyIban: String? get() = if (isCredit) debtorIban else creditorIban
+}
+
+data class TxPage(val transactions: List<RemoteTx>, val continuationKey: String?)
