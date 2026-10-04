@@ -208,7 +208,7 @@ The mockup is in `.superpowers/brainstorm/*/content/visual-direction.html` (loca
 | Concern | Choice |
 |---|---|
 | Build | Gradle 9.8.0, AGP 9.4.1 (built-in Kotlin), Kotlin 2.4.20, KSP 2.3.12, version catalog |
-| Targets | `minSdk 26`, `targetSdk 36`, `compileSdk 36`, Java 17 bytecode |
+| Targets | `minSdk 26`, `targetSdk 36`, `compileSdk 37` (current AndroidX/OkHttp require it), Java 17 bytecode |
 | UI | Compose BOM 2026.09.00, Material 3, Navigation Compose 2.10.2 (type-safe routes), core-splashscreen 1.2.0 |
 | DI | Hilt 2.60.1 + hilt-navigation-compose / hilt-work 1.4.0 |
 | Persistence | Room 2.8.5 (exported schemas, explicit migrations), DataStore Preferences 1.2.1 |
