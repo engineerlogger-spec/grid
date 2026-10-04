@@ -333,16 +333,21 @@ private fun statusLine(status: BankStatus, lastSyncAt: Long?, validUntil: Long?)
 }
 
 @Composable
-private fun errorText(error: BankSetupError): String = stringResource(
-    when (error) {
-        BankSetupError.BAD_KEY -> R.string.bank_err_bad_key
-        BankSetupError.NEED_APP_ID -> R.string.bank_err_app_id
-        BankSetupError.KEY_REFUSED -> R.string.bank_err_refused
-        BankSetupError.NO_REVOLUT -> R.string.bank_err_no_revolut
-        BankSetupError.NOT_GRANTED -> R.string.bank_err_not_granted
-        BankSetupError.NETWORK -> R.string.bank_err_network
-    },
-)
+private fun errorText(failure: BankFailure): String {
+    if (failure.kind == BankSetupError.BANK_REFUSED) return stringResource(R.string.bank_err_bank, failure.detail.orEmpty())
+    val text = stringResource(
+        when (failure.kind) {
+            BankSetupError.BAD_KEY -> R.string.bank_err_bad_key
+            BankSetupError.NEED_APP_ID -> R.string.bank_err_app_id
+            BankSetupError.KEY_REFUSED -> R.string.bank_err_refused
+            BankSetupError.NO_REVOLUT -> R.string.bank_err_no_revolut
+            BankSetupError.NOT_GRANTED -> R.string.bank_err_not_granted
+            BankSetupError.NETWORK, BankSetupError.BANK_REFUSED -> R.string.bank_err_network
+        },
+    )
+    // The bank's own words help tell a wrong key from a wrong setting.
+    return failure.detail?.takeIf { failure.kind == BankSetupError.KEY_REFUSED }?.let { "$text ($it)" } ?: text
+}
 
 private fun accountName(account: BankAccountEntity): String =
     account.name ?: account.iban?.let { "•••• " + it.takeLast(4) } ?: account.currency

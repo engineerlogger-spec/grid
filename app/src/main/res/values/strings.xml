@@ -219,6 +219,7 @@
     <string name="bank_err_no_revolut">Revolut isn\'t available for this country.</string>
     <string name="bank_err_not_granted">Revolut access wasn\'t granted.</string>
     <string name="bank_err_network">Can\'t reach Enable Banking. Check your connection.</string>
+    <string name="bank_err_bank">Enable Banking refused: %1$s</string>
     <string name="home_bank_expired">%1$s access expired</string>
     <string name="home_savings">Savings</string>
     <string name="moved_title">Moved to Revolut</string>
