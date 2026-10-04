@@ -19,6 +19,7 @@ import com.grid.app.feature.lock.AppLock
 import com.grid.app.feature.lock.LockScreen
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.grid.app.core.bank.BankAuthInbox
 import com.grid.app.core.designsystem.components.LocalHideAmounts
 import com.grid.app.core.designsystem.components.LocalMoneyFormatter
 import com.grid.app.core.designsystem.theme.GridTheme
@@ -36,6 +37,7 @@ class MainActivity : FragmentActivity() {
 
     @Inject lateinit var moneyFormatter: MoneyFormatter
     @Inject lateinit var appLock: AppLock
+    @Inject lateinit var bankAuthInbox: BankAuthInbox
 
     /** Set from notification taps, widget, tile and shortcuts; consumed once by the UI. */
     private var launchTarget by mutableStateOf<LaunchTarget?>(null)
@@ -45,7 +47,7 @@ class MainActivity : FragmentActivity() {
         splash.setKeepOnScreenCondition { appViewModel.state.value is AppUiState.Loading }
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) launchTarget = LaunchTarget.from(intent)
+        if (savedInstanceState == null) launchTarget = bankCallback(intent) ?: LaunchTarget.from(intent)
         appLock.attach()
 
         setContent {
@@ -100,6 +102,13 @@ class MainActivity : FragmentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        LaunchTarget.from(intent)?.let { launchTarget = it }
+        (bankCallback(intent) ?: LaunchTarget.from(intent))?.let { launchTarget = it }
+    }
+
+    /** The bank's login sent the user back: hand the code to bank setup and open it. */
+    private fun bankCallback(intent: Intent?): LaunchTarget? {
+        val data = intent?.data ?: return null
+        if (!BankAuthInbox.isCallback(data.scheme, data.host)) return null
+        return if (bankAuthInbox.post(data.toString())) LaunchTarget.BANK else null
     }
 }

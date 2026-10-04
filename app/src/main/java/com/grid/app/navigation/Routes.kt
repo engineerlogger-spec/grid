@@ -15,3 +15,4 @@ import kotlinx.serialization.Serializable
 @Serializable data object CaptureSetupRoute
 @Serializable data object BackupRoute
 @Serializable data object CategoriesRoute
+@Serializable data object BankSetupRoute
