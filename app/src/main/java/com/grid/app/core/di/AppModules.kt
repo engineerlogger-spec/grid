@@ -8,6 +8,8 @@ import com.grid.app.core.data.prefs.SentLog
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.BudgetAlertListener
 import com.grid.app.core.data.repo.LedgerListener
+import com.grid.app.feature.capture.CaptureAlerts
+import com.grid.app.feature.capture.NotificationCaptureAlerts
 import dagger.Binds
 import dagger.multibindings.IntoSet
 import com.grid.app.core.money.MoneyFormatter
@@ -67,4 +69,7 @@ abstract class LedgerListenerModule {
 
     @Binds @IntoSet
     abstract fun budgetAlerts(listener: BudgetAlertListener): LedgerListener
+
+    @Binds
+    abstract fun captureAlerts(impl: NotificationCaptureAlerts): CaptureAlerts
 }

@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.grid.app.core.data.db.dao.CaptureDao
 import com.grid.app.core.data.db.dao.CategoryDao
 import com.grid.app.core.data.db.dao.MerchantRuleDao
 import com.grid.app.core.data.db.dao.PaymentMethodDao
@@ -44,6 +45,7 @@ abstract class GridDatabase : RoomDatabase() {
     abstract fun merchantRuleDao(): MerchantRuleDao
     abstract fun subscriptionDao(): SubscriptionDao
     abstract fun pendingDao(): PendingDao
+    abstract fun captureDao(): CaptureDao
 
     companion object {
         const val NAME = "grid.db"

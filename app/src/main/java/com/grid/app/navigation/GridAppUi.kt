@@ -51,6 +51,8 @@ import com.grid.app.feature.add.QuickAddViewModel
 import com.grid.app.feature.bills.BillsScreen
 import com.grid.app.feature.bills.PendingEditorScreen
 import com.grid.app.feature.bills.SubscriptionEditorScreen
+import com.grid.app.feature.capture.CaptureSetupScreen
+import com.grid.app.feature.capture.DetectedScreen
 import com.grid.app.feature.checkin.CheckInScreen
 import com.grid.app.feature.common.LocalMessenger
 import com.grid.app.feature.common.LocalQuickAdd
@@ -97,7 +99,8 @@ fun GridAppUi(
             LaunchTarget.CHECK_IN -> nav.navigate(CheckInRoute) { launchSingleTop = true }
             LaunchTarget.ADD_EXPENSE -> quickAdd.add(TxType.EXPENSE)
             LaunchTarget.ADD_INCOME -> quickAdd.add(TxType.INCOME)
-            LaunchTarget.DETECTED, LaunchTarget.BACKUP -> nav.navigateToTab("home")
+            LaunchTarget.DETECTED -> nav.navigate(DetectedRoute) { launchSingleTop = true }
+            LaunchTarget.BACKUP -> nav.navigateToTab("home")
         }
         onLaunchHandled()
     }
@@ -167,6 +170,7 @@ fun GridAppUi(
                             onOpenActivity = { day -> nav.navigate(ActivityRoute(dayEpoch = day)) },
                             onOpenCheckIn = { nav.navigate(CheckInRoute) { launchSingleTop = true } },
                             onOpenBills = { nav.navigateToTab("bills") },
+                            onOpenDetected = { nav.navigate(DetectedRoute) },
                         )
                     }
                     composable<ActivityRoute> { ActivityScreen(contentPadding = padding) }
@@ -188,7 +192,11 @@ fun GridAppUi(
                             onLater = { onDismissCheckIn(); nav.popBackStack() },
                         )
                     }
-                    composable<SettingsRoute> { SettingsScreen(onBack = { nav.popBackStack() }) }
+                    composable<SettingsRoute> {
+                        SettingsScreen(onBack = { nav.popBackStack() }, onOpenCapture = { nav.navigate(CaptureSetupRoute) })
+                    }
+                    composable<DetectedRoute> { DetectedScreen(onBack = { nav.popBackStack() }) }
+                    composable<CaptureSetupRoute> { CaptureSetupScreen(onBack = { nav.popBackStack() }) }
                 }
             }
             quickAdd.request?.let { request ->

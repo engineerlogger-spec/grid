@@ -262,6 +262,51 @@
     <string name="alert_category_over">%1$s is over budget</string>
     <string name="alert_body">%1$s of %2$s spent so far</string>
 
+    <!-- Payment detection -->
+    <string name="source_wallet">Google Wallet</string>
+    <string name="source_paypal">PayPal</string>
+    <string name="source_revolut">Revolut</string>
+    <string name="capture_at">%1$s at %2$s</string>
+    <string name="capture_from">%1$s from %2$s</string>
+    <string name="capture_detected_body">%1$s · pick a category</string>
+    <string name="capture_review">Review</string>
+    <string name="capture_added_title">Added %1$s · %2$s</string>
+    <string name="capture_added_body">%1$s · from %2$s</string>
+    <string name="detected_title">Detected</string>
+    <string name="detected_tile_title">Detected payments</string>
+    <plurals name="detected_tile_count">
+        <item quantity="one">%d new payment to review</item>
+        <item quantity="other">%d new payments to review</item>
+    </plurals>
+    <string name="detected_review">Review</string>
+    <string name="detected_empty_title">All caught up</string>
+    <string name="detected_empty_body">Payments from Google Wallet, PayPal and Revolut appear here as they happen.</string>
+    <string name="detected_more">More…</string>
+    <string name="detected_dismiss">Not a spend</string>
+    <string name="detected_foreign">In %1$s — check the amount in your currency after adding</string>
+    <string name="detected_added_recently">Added automatically</string>
+    <string name="detected_unparsed">Not recognised</string>
+    <string name="detected_unparsed_body">These looked like payments but Grid couldn\'t read them. Share them to improve detection.</string>
+    <string name="detected_share">Share samples</string>
+    <string name="detected_clear">Clear</string>
+    <string name="detected_added_snack">Added to %1$s</string>
+    <string name="capture_setup_title">Payment detection</string>
+    <string name="capture_setup_body">Grid can read the payment notifications from Google Wallet, PayPal and Revolut and turn them into transactions. Only those three apps are read, and nothing leaves your phone.</string>
+    <string name="capture_status_on">On</string>
+    <string name="capture_status_off">Off — notification access needed</string>
+    <string name="capture_grant">Allow notification access</string>
+    <string name="capture_restricted_title">Switch greyed out?</string>
+    <string name="capture_restricted_body">Android blocks this for apps installed outside the Play Store. Open App info, tap ⋮ (top right) → Allow restricted settings, then try again.</string>
+    <string name="capture_app_info">Open App info</string>
+    <string name="capture_sources">Read payments from</string>
+    <string name="capture_installed">Installed</string>
+    <string name="capture_not_installed">Not installed</string>
+    <string name="capture_auto_add">Add known merchants automatically</string>
+    <string name="capture_auto_add_body">Once you\'ve categorised a merchant, its next payments are added for you (with Undo)</string>
+    <string name="capture_diagnostics">Keep unrecognised notifications</string>
+    <string name="capture_diagnostics_body">Stored on this phone for 30 days to help improve detection</string>
+    <string name="settings_capture_body_on">Reading Google Wallet, PayPal and Revolut</string>
+
     <!-- Insights -->
     <string name="insights_title">Insights</string>
     <string name="insights_spent">Spent</string>

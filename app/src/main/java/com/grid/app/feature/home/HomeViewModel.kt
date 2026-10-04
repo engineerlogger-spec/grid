@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.grid.app.core.bills.UpcomingItem
 import com.grid.app.core.bills.UpcomingPlanner
 import com.grid.app.core.data.prefs.SettingsRepository
+import com.grid.app.core.data.repo.CaptureRepository
 import com.grid.app.core.data.repo.CategoryRepository
+import com.grid.app.core.model.CaptureSource
 import com.grid.app.core.data.repo.PendingRepository
 import com.grid.app.core.data.repo.PlanRepository
 import com.grid.app.core.data.repo.SubscriptionRepository
@@ -54,6 +56,9 @@ data class HomeUiState(
     val upcoming: List<UpcomingItem> = emptyList(),
     /** What the upcoming outgoing items add up to (app currency only). */
     val upcomingDueMinor: Long = 0,
+    /** Detected payments waiting for a category. */
+    val detectedCount: Int = 0,
+    val detectedSources: List<CaptureSource> = emptyList(),
 )
 
 @HiltViewModel
@@ -64,6 +69,7 @@ class HomeViewModel @Inject constructor(
     categories: CategoryRepository,
     subscriptions: SubscriptionRepository,
     pendings: PendingRepository,
+    captures: CaptureRepository,
     clock: AppClock,
 ) : ViewModel() {
 
@@ -103,10 +109,12 @@ class HomeViewModel @Inject constructor(
             }
         }
 
-    val state: StateFlow<HomeUiState> = combine(base, upcoming) { home, items ->
+    val state: StateFlow<HomeUiState> = combine(base, upcoming, captures.observeInbox()) { home, items, inbox ->
         home.copy(
             upcoming = items,
             upcomingDueMinor = items.filter { it.direction == PendingDirection.I_OWE && it.currency == home.currency }.sumOf { it.amountMinor },
+            detectedCount = inbox.size,
+            detectedSources = inbox.map { it.source }.distinct(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 

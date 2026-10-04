@@ -28,6 +28,21 @@
             </intent-filter>
         </activity>
 
+        <!-- Payment detection: reads notifications from Google Wallet, PayPal and Revolut only. -->
+        <service
+            android:name=".feature.capture.PaymentCaptureService"
+            android:exported="true"
+            android:label="@string/capture_setup_title"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".feature.capture.CaptureActionReceiver"
+            android:exported="false" />
+
         <!-- WorkManager is initialised on demand with Hilt's worker factory (see GridApp). -->
         <provider
             android:name="androidx.startup.InitializationProvider"

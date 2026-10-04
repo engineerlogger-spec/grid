@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -66,7 +67,7 @@ import com.grid.app.feature.common.moneyFieldText
 import com.grid.app.feature.common.parseMoney
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(onBack: () -> Unit, onOpenCapture: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val s = state.settings ?: return
     val colors = GridTheme.colors
@@ -125,6 +126,22 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
                 title = stringResource(R.string.settings_period_start),
                 body = stringResource(R.string.settings_period_start_body, s.periodStartDay),
                 onClick = { dayMenu = true },
+            )
+        }
+
+        CapsLabel(stringResource(R.string.capture_setup_title), Modifier.padding(start = 4.dp, top = 8.dp))
+        Tile(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            var captureOn by remember { mutableStateOf(com.grid.app.feature.capture.PaymentCaptureService.isEnabled(context)) }
+            androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+                captureOn = com.grid.app.feature.capture.PaymentCaptureService.isEnabled(context)
+                onPauseOrDispose {}
+            }
+            SettingRow(
+                icon = Icons.Rounded.NotificationsActive,
+                title = stringResource(R.string.capture_setup_title),
+                body = stringResource(if (captureOn) R.string.settings_capture_body_on else R.string.capture_status_off),
+                onClick = onOpenCapture,
             )
         }
 

@@ -63,6 +63,7 @@ import com.grid.app.core.bills.UpcomingKind
 import com.grid.app.core.insights.DashboardSummary
 import com.grid.app.core.model.PendingDirection
 import com.grid.app.feature.bills.relativeDay
+import com.grid.app.feature.capture.sourceName
 import com.grid.app.feature.common.LocalQuickAdd
 import com.grid.app.feature.common.TransactionRow
 import java.time.LocalDate
@@ -75,6 +76,7 @@ fun HomeScreen(
     onOpenActivity: (dayEpoch: Long?) -> Unit,
     onOpenCheckIn: () -> Unit,
     onOpenBills: () -> Unit,
+    onOpenDetected: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -97,6 +99,9 @@ fun HomeScreen(
         }
         if (state.needsCheckIn) {
             item { CheckInBanner(onOpenCheckIn) }
+        }
+        if (state.detectedCount > 0) {
+            item { DetectedTile(state, onOpenDetected) }
         }
         item {
             HeroCard(state, summary, onDayClick = { onOpenActivity(it.toEpochDay()) })
@@ -163,6 +168,25 @@ private fun CheckInBanner(onClick: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.home_checkin_banner), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             Text(stringResource(R.string.home_checkin_banner_action), style = GridText.caps, color = colors.accentText)
+            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.accentText)
+        }
+    }
+}
+
+@Composable
+private fun DetectedTile(state: HomeUiState, onClick: () -> Unit) {
+    val colors = GridTheme.colors
+    Tile(onClick = onClick, borderColor = colors.accentText.copy(alpha = 0.6f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                CapsLabel(stringResource(R.string.detected_title), color = colors.accentText)
+                Text(
+                    pluralStringResource(R.plurals.detected_tile_count, state.detectedCount, state.detectedCount),
+                    style = MaterialTheme.typography.titleSmall, color = colors.text,
+                )
+                Text(state.detectedSources.map { sourceName(it) }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = colors.muted)
+            }
+            Text(stringResource(R.string.detected_review), style = GridText.caps, color = colors.accentText)
             Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.accentText)
         }
     }

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.grid.app.core.model.CaptureSource
 import com.grid.app.core.model.ThemeMode
 import com.grid.app.core.money.Currencies
 import com.grid.app.core.time.BudgetPeriods
@@ -23,7 +24,25 @@ data class AppSettings(
     val onboardingDone: Boolean = false,
     val hideAmounts: Boolean = false,
     val appLock: Boolean = false,
+    val capture: CaptureSettings = CaptureSettings(),
 )
+
+/** Payment detection preferences. All sources on by default; nothing happens until access is granted. */
+data class CaptureSettings(
+    val wallet: Boolean = true,
+    val paypal: Boolean = true,
+    val revolut: Boolean = true,
+    /** Add payments from known merchants straight away (with an Undo notification). */
+    val autoAdd: Boolean = true,
+    /** Keep unrecognised notifications from these apps (locally, 30 days) to improve parsing. */
+    val diagnostics: Boolean = true,
+) {
+    fun enabled(source: CaptureSource): Boolean = when (source) {
+        CaptureSource.GOOGLE_WALLET -> wallet
+        CaptureSource.PAYPAL -> paypal
+        CaptureSource.REVOLUT -> revolut
+    }
+}
 
 /** User preferences in DataStore. Ledger data lives in Room; this is configuration only. */
 class SettingsRepository(
@@ -38,6 +57,11 @@ class SettingsRepository(
         val onboardingDone = booleanPreferencesKey("onboarding_done")
         val hideAmounts = booleanPreferencesKey("hide_amounts")
         val appLock = booleanPreferencesKey("app_lock")
+        val captureWallet = booleanPreferencesKey("capture_wallet")
+        val capturePaypal = booleanPreferencesKey("capture_paypal")
+        val captureRevolut = booleanPreferencesKey("capture_revolut")
+        val captureAutoAdd = booleanPreferencesKey("capture_auto_add")
+        val captureDiagnostics = booleanPreferencesKey("capture_diagnostics")
     }
 
     val settings: Flow<AppSettings> = store.data.map { p ->
@@ -49,8 +73,27 @@ class SettingsRepository(
             onboardingDone = p[Keys.onboardingDone] ?: false,
             hideAmounts = p[Keys.hideAmounts] ?: false,
             appLock = p[Keys.appLock] ?: false,
+            capture = CaptureSettings(
+                wallet = p[Keys.captureWallet] ?: true,
+                paypal = p[Keys.capturePaypal] ?: true,
+                revolut = p[Keys.captureRevolut] ?: true,
+                autoAdd = p[Keys.captureAutoAdd] ?: true,
+                diagnostics = p[Keys.captureDiagnostics] ?: true,
+            ),
         )
     }.distinctUntilChanged()
+
+    suspend fun setCaptureSource(source: CaptureSource, enabled: Boolean) = store.edit {
+        it[
+            when (source) {
+                CaptureSource.GOOGLE_WALLET -> Keys.captureWallet
+                CaptureSource.PAYPAL -> Keys.capturePaypal
+                CaptureSource.REVOLUT -> Keys.captureRevolut
+            },
+        ] = enabled
+    }
+    suspend fun setCaptureAutoAdd(enabled: Boolean) = store.edit { it[Keys.captureAutoAdd] = enabled }
+    suspend fun setCaptureDiagnostics(enabled: Boolean) = store.edit { it[Keys.captureDiagnostics] = enabled }
 
     suspend fun setCurrency(code: String) = store.edit { it[Keys.currency] = code }
     suspend fun setThemeMode(mode: ThemeMode) = store.edit { it[Keys.theme] = mode.name }
