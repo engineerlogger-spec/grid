@@ -110,6 +110,8 @@ class TransactionRepository @Inject constructor(
     suspend fun lastPaymentMethodId(): Long? = dao.lastManualPaymentMethodId()
 
     private suspend fun learnMerchant(draft: TransactionDraft, now: Long) {
+        // A placeholder category ("Other" until reviewed) must not become the merchant's rule.
+        if (draft.needsReview) return
         val key = draft.merchant?.let(MerchantKey::of) ?: return
         val rules = db.merchantRuleDao()
         val hits = (rules.get(key)?.hits ?: 0) + 1

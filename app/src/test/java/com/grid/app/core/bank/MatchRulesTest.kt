@@ -58,6 +58,11 @@ class MatchRulesTest {
         assertThat(MatchRules.bestMatch(bank(90_000, "J. Dupont", kind = BankTxKind.TRANSFER_OUT), listOf(rent))).isNull()
     }
 
+    @Test fun cardPaymentNeverMatchesABillOnAmountAlone() {
+        val netflix = cand(1, TxSource.SUBSCRIPTION, 1349, "Netflix")
+        assertThat(MatchRules.bestMatch(bank(1349, "Café Lola"), listOf(netflix))).isNull()
+    }
+
     @Test fun salaryMatchesTheCheckInWithinAWeek() {
         val checkIn = cand(1, TxSource.CHECKIN, 250_000, "Salary", at = t0 - 4 * day)
         assertThat(MatchRules.bestMatch(bank(246_300, "ACME SAS", type = TxType.INCOME, kind = BankTxKind.MONEY_IN), listOf(checkIn))?.id).isEqualTo(1)

@@ -20,6 +20,11 @@ data class Candidate(val id: Long, val source: TxSource, val amountMinor: Long, 
 object MatchRules {
     private const val DAY = 86_400_000L
 
+    /** Amount-only bill matching is allowed for these (they name a person, not the bill). */
+    fun isTransfer(kind: BankTxKind) = kind == BankTxKind.TRANSFER_OUT || kind == BankTxKind.MONEY_IN
+
+    fun relativeDiff(bank: Long, other: Long): Double = if (bank == 0L) Double.MAX_VALUE else abs(bank - other).toDouble() / bank
+
     fun similar(a: String?, b: String?): Boolean {
         if (a.isNullOrBlank() || b.isNullOrBlank()) return true
         val left = tokens(a)
@@ -37,13 +42,17 @@ object MatchRules {
         val named = similar(bank.merchant, c.merchant)
         return when (c.source) {
             TxSource.CAPTURE, TxSource.MANUAL -> days in -5.0..1.0 && named && diff <= 0.05
-            TxSource.SUBSCRIPTION, TxSource.PENDING -> abs(days) <= 3.0 && (diff <= 0.02 || (named && diff <= 0.10))
+            // Transfers name a person ("J. Dupont"), not the bill ("Rent"), so they may match on amount alone;
+            // card payments must name the same merchant (a €13.49 café bill is not Netflix).
+            TxSource.SUBSCRIPTION, TxSource.PENDING -> abs(days) <= 3.0 && when {
+                named && diff <= 0.10 -> true
+                isTransfer(bank.kind) -> diff <= 0.02
+                else -> false
+            }
             TxSource.CHECKIN -> bank.type == TxType.INCOME && abs(days) <= 7.0 && diff <= 0.10
             TxSource.BANK -> false
         }
     }
-
-    private fun relativeDiff(bank: Long, other: Long): Double = if (bank == 0L) Double.MAX_VALUE else abs(bank - other).toDouble() / bank
 
     private fun tokens(text: String): Set<String> = MerchantKey.of(text)?.split(' ')?.toSet().orEmpty()
 }
