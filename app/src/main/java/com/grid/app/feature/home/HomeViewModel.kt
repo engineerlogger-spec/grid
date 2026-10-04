@@ -22,8 +22,11 @@ import com.grid.app.core.insights.LedgerEntry
 import com.grid.app.core.model.Category
 import com.grid.app.core.model.Transaction
 import com.grid.app.core.time.AppClock
+import com.grid.app.core.bank.MovedMoney
+import com.grid.app.core.time.BudgetPeriod
 import com.grid.app.core.time.BudgetPeriods
 import com.grid.app.core.time.todayFlow
+import com.grid.app.feature.bank.MovedViewModel
 import com.grid.app.feature.common.title
 import com.grid.app.feature.common.toLocalDate
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -63,6 +66,11 @@ data class HomeUiState(
     val detectedSources: List<CaptureSource> = emptyList(),
     /** The bank connection's name when its access expired and needs the user to reconnect. */
     val bankToReconnect: String? = null,
+    /** Income the user entered (salary) and what was moved from it to Revolut this period; null when there's no bank sync. */
+    val salaryMinor: Long = 0,
+    val movedMinor: Long? = null,
+    val period: BudgetPeriod? = null,
+    val periodStartDay: Int = 1,
 )
 
 @HiltViewModel
@@ -110,19 +118,28 @@ class HomeViewModel @Inject constructor(
                     },
                     recent = recent,
                     needsCheckIn = needsCheckIn && s.onboardingDone,
+                    period = period,
+                    periodStartDay = s.periodStartDay,
+                    salaryMinor = MovedViewModel.salaryOf(periodTx),
                 )
             }
         }
 
-    val state: StateFlow<HomeUiState> = combine(
-        base, upcoming, captures.observeInbox(), bank.observeReviewGroups(), bank.observeConnection(),
-    ) { home, items, inbox, bankGroups, connection ->
+    private val bankState = combine(bank.observeReviewGroups(), bank.observeConnection(), bank.observeOwnTransfers()) { groups, connection, transfers ->
+        Triple(groups, connection, transfers)
+    }
+
+    val state: StateFlow<HomeUiState> = combine(base, upcoming, captures.observeInbox(), bankState) { home, items, inbox, (bankGroups, connection, transfers) ->
+        val period = home.period
         home.copy(
             upcoming = items,
             upcomingDueMinor = items.filter { it.direction == PendingDirection.I_OWE && it.currency == home.currency }.sumOf { it.amountMinor },
             detectedCount = inbox.size + bankGroups.size,
             detectedSources = (inbox.map { it.source } + if (bankGroups.isNotEmpty()) listOf(CaptureSource.REVOLUT) else emptyList()).distinct(),
             bankToReconnect = connection?.takeIf { it.sessionId != null && it.status == BankStatus.EXPIRED }?.aspspName,
+            movedMinor = if (period != null && (connection?.sessionId != null || transfers.isNotEmpty())) {
+                MovedMoney.moved(transfers, period, home.periodStartDay)
+            } else null,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 

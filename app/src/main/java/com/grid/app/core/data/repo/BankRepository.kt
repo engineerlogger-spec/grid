@@ -231,14 +231,13 @@ class BankRepository @Inject constructor(
      * counted as money moved to Revolut, not income or spending.
      */
     suspend fun markOwnAccount(group: BankReviewGroup) {
-        group.ids.forEach { id ->
-            val row = dao.staged(id)?.takeIf { it.state == BankTxState.NEEDS_DECISION } ?: return@forEach
-            dao.updateStaged(row.copy(state = BankTxState.OWN_TRANSFER))
-        }
-        val key = group.counterpartyKey
-        if (group.kind != ReviewKind.CATEGORISE && key != null && key != "?") {
-            dao.insertOwnAccountRule(OwnAccountRuleEntity(key, clock.millis()))
-        }
+        if (group.kind == ReviewKind.CATEGORISE) return
+        val key = group.counterpartyKey?.takeIf { it != "?" }
+        // The account is the user's either way: money moved in and money sent back are both covered.
+        val rows = if (key != null) dao.stagedByState(BankTxState.NEEDS_DECISION).filter { it.counterpartyKey == key }
+        else group.ids.mapNotNull { dao.staged(it) }.filter { it.state == BankTxState.NEEDS_DECISION }
+        rows.forEach { dao.updateStaged(it.copy(state = BankTxState.OWN_TRANSFER)) }
+        if (key != null) dao.insertOwnAccountRule(OwnAccountRuleEntity(key, clock.millis()))
     }
 
     /** Every transfer between the user's own accounts, in the app currency. */

@@ -162,21 +162,25 @@ class BankRepositoryTest {
     @Test fun myOwnAccountTracksTransfersAsMovedAndLearns() = runTest {
         val account = connected()
         stage(account, "t1", 150_000, "SAM TAYLOR", CaptureDirection.IN, BankTxKind.MONEY_IN)
-        bank.markOwnAccount(bank.observeReviewGroups().first().single())
+        stage(account, "t2", 20_000, "Sam Taylor", CaptureDirection.OUT, BankTxKind.TRANSFER_OUT)
+        // Two groups (money in, money back out); marking either covers every transfer with that account.
+        assertThat(bank.observeReviewGroups().first()).hasSize(2)
+        bank.markOwnAccount(bank.observeReviewGroups().first().first { it.kind == ReviewKind.DECIDE_IN })
         assertThat(db.bankDao().ownAccountRule("sam taylor")).isNotNull()
         assertThat(bank.observeReviewGroups().first()).isEmpty()
         assertThat(transactions.observeAll().first()).isEmpty() // not income
+        assertThat(bank.observeOwnTransfers().first().map { it.incoming }).containsExactly(true, false)
 
-        val moved = bank.observeOwnTransfers().first().single()
+        val moved = bank.observeOwnTransfers().first().first { it.incoming }
         assertThat(moved.amountMinor).isEqualTo(150_000)
         assertThat(moved.incoming).isTrue()
         assertThat(moved.counterparty).isEqualTo("Sam Taylor")
         assertThat(moved.countIn).isNull()
 
         bank.countIn(moved.id, LocalDate.parse("2026-11-01"))
-        assertThat(bank.observeOwnTransfers().first().single().countIn).isEqualTo(LocalDate.parse("2026-11-01"))
+        assertThat(bank.observeOwnTransfers().first().first { it.id == moved.id }.countIn).isEqualTo(LocalDate.parse("2026-11-01"))
         bank.countIn(moved.id, null)
-        assertThat(bank.observeOwnTransfers().first().single().countIn).isNull()
+        assertThat(bank.observeOwnTransfers().first().first { it.id == moved.id }.countIn).isNull()
     }
 
     @Test fun ignoreIsJustThisOnce() = runTest {

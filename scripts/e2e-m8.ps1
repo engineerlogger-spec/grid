@@ -36,6 +36,11 @@ function Resolve-Group([string]$Title, [string]$Category) {
     $groupNode = $nodes | Where-Object { $_.Text -ceq $Title } | Select-Object -First 1
     for ($i = 0; -not $groupNode -and $i -lt 3; $i++) { SwipeUp; $nodes = Get-UiNodes; $groupNode = $nodes | Where-Object { $_.Text -ceq $Title } | Select-Object -First 1 }
     if (-not $groupNode) { throw "No review group '$Title'" }
+    if ($groupNode.Y -gt 1200) {
+        # Near the bottom edge its chips may be off-screen: bring the card up first.
+        & $Adb shell input swipe 540 1400 540 900 300; Start-Sleep 0.8
+        $nodes = Get-UiNodes; $groupNode = $nodes | Where-Object { $_.Text -ceq $Title } | Select-Object -First 1
+    }
     $more = $nodes | Where-Object { $_.Text -match '^More' -and $_.Y -gt $groupNode.Y } | Sort-Object Y | Select-Object -First 1
     & $Adb shell input tap $more.X $more.Y; Start-Sleep 1.2
     Invoke-TapCase "^$Category$"; Start-Sleep 1.5
@@ -77,7 +82,7 @@ Step 'Review groups payments by merchant and person' {
     Launch 'DETECTED'; Start-Sleep 2
     $t = ScreenText
     & "$PSScriptRoot\screenshot.ps1" e2e-bank-review | Out-Null
-    SwipeUp; $t += ScreenText
+    1..3 | ForEach-Object { SwipeUp; $t += ScreenText }
     ($t -match 'From Revolut') -and ($t -match 'Lidl') -and ($t -match 'J\. Dupont') -and ($t -match 'Acme SAS') -and ($t -match '3 payments')
 }
 Step 'One tap settles a whole group' {
@@ -87,6 +92,33 @@ Step 'One tap settles a whole group' {
     Launch 'DETECTED'; Start-Sleep 2
     $t = ScreenText; SwipeUp; $t += ScreenText
     ($t -notmatch '\bLidl\b') -and ($t -notmatch 'J\. Dupont') -and ($t -notmatch 'Acme SAS')
+}
+Step '"My own account" counts salary-account transfers as money moved' {
+    & $Adb shell am force-stop $AppId; Launch 'DETECTED'; Wait-ForText '^Detected$' 15 | Out-Null; Start-Sleep 1
+    $nodes = Get-UiNodes
+    $group = $nodes | Where-Object { $_.Text -ceq 'Sam Taylor' } | Select-Object -First 1
+    for ($i = 0; -not $group -and $i -lt 3; $i++) { SwipeUp; $nodes = Get-UiNodes; $group = $nodes | Where-Object { $_.Text -ceq 'Sam Taylor' } | Select-Object -First 1 }
+    $own = $nodes | Where-Object { $_.Text -ceq 'My own account' -and $_.Y -gt $group.Y } | Sort-Object Y | Select-Object -First 1
+    & $Adb shell input tap $own.X $own.Y; Start-Sleep 1.5
+    Home
+    Invoke-Tap '^Savings$'; Wait-ForText 'Moved to Revolut' 10 | Out-Null
+    Invoke-TapCase '^Show previous month$'; Start-Sleep 1.5
+    $t = ScreenText
+    & "$PSScriptRoot\screenshot.ps1" e2e-moved | Out-Null
+    # Previous month: +1,500 in on the 29th, +100 card top-up, −200 sent back on the 20th.
+    ($t -match 'Sam Taylor') -and ($t -match '€1,400\.00')
+}
+Step 'Ticking "Next month" moves a transfer into the following month' {
+    $nodes = Get-UiNodes
+    $row = $nodes | Where-Object { $_.Text -match '\b29\b' -and $_.Text -notmatch 'last month|next month' } | Select-Object -First 1
+    $box = $nodes | Where-Object { $_.Text -ceq 'Next month' -and [math]::Abs($_.Y - $row.Y) -lt 90 } | Select-Object -First 1
+    & $Adb shell input tap $box.X ($box.Y - 45); Start-Sleep 1.5
+    $before = ScreenText   # previous month now: moved 100 − 200 = −100 (so saved = +100 with no salary entered)
+    Invoke-TapCase '^Show next month$'; Start-Sleep 1.5
+    $after = ScreenText    # this month: the 1,500 moved in
+    & "$PSScriptRoot\screenshot.ps1" e2e-moved-next | Out-Null
+    # Negative money is written with a typographic minus (U+2212) or a hyphen depending on the locale.
+    ($before -match '[−-]€100\.00') -and ($before -notmatch '€1,400\.00') -and ($after -match '€1,500\.00') -and ($after -match 'from last month')
 }
 Step 'The bank copy of a captured payment is merged, not added' {
     $after = Get-ActivityRowCount 'Starbucks'

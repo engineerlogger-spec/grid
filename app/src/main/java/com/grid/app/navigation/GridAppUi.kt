@@ -45,6 +45,7 @@ import com.grid.app.core.designsystem.components.LocalMoneyFormatter
 import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.feature.activity.ActivityScreen
 import com.grid.app.feature.bank.BankSetupScreen
+import com.grid.app.feature.bank.MovedScreen
 import com.grid.app.core.model.TxType
 import com.grid.app.core.notify.LaunchTarget
 import com.grid.app.feature.add.QuickAddSheet
@@ -176,6 +177,7 @@ fun GridAppUi(
                             onOpenBills = { nav.navigateToTab("bills") },
                             onOpenDetected = { nav.navigate(DetectedRoute) },
                             onOpenBank = { nav.navigate(BankSetupRoute) },
+                            onOpenMoved = { nav.navigate(MovedRoute) },
                         )
                     }
                     composable<ActivityRoute> { ActivityScreen(contentPadding = padding) }
@@ -204,6 +206,7 @@ fun GridAppUi(
                         )
                     }
                     composable<BankSetupRoute> { BankSetupScreen(onBack = { nav.popBackStack() }) }
+                    composable<MovedRoute> { MovedScreen(onBack = { nav.popBackStack() }) }
                     composable<DetectedRoute> { DetectedScreen(onBack = { nav.popBackStack() }) }
                     composable<CaptureSetupRoute> { CaptureSetupScreen(onBack = { nav.popBackStack() }) }
                     composable<BackupRoute> { BackupScreen(onBack = { nav.popBackStack() }) }

@@ -16,3 +16,4 @@ import kotlinx.serialization.Serializable
 @Serializable data object BackupRoute
 @Serializable data object CategoriesRoute
 @Serializable data object BankSetupRoute
+@Serializable data object MovedRoute
