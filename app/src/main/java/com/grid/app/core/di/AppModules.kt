@@ -3,7 +3,10 @@ package com.grid.app.core.di
 import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.grid.app.core.bank.BankKeyStore
+import com.grid.app.core.bank.KeystoreSecretBox
 import com.grid.app.core.data.db.GridDatabase
+import java.io.File
 import com.grid.app.core.data.prefs.SentLog
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.BudgetAlertListener
@@ -72,6 +75,11 @@ object AppModule {
 
     @Provides @Singleton
     fun driveClient(http: OkHttpClient): DriveClient = DriveClient(http)
+
+    /** noBackupFilesDir: bank credentials never travel with any backup. */
+    @Provides @Singleton
+    fun bankKeyStore(@ApplicationContext context: Context): BankKeyStore =
+        BankKeyStore(File(context.noBackupFilesDir, "bank.key"), KeystoreSecretBox())
 }
 
 @Module
