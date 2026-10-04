@@ -189,6 +189,18 @@ class BankReconcilerTest {
         assertThat(ledger().single().amountMinor).isEqualTo(246_300)
     }
 
+    @Test fun learnedSalaryReplacesTheCheckInEstimateWhateverTheAmount() = runTest {
+        val salary = cat("salary", CategoryKind.INCOME)
+        // Last month's salary from ACME was booked as Salary, so the rule exists.
+        transactions.add(TransactionDraft(TxType.INCOME, 240_000, "EUR", salary, merchant = "Acme SAS", occurredAt = now - 35 * day, source = TxSource.BANK))
+        val estimate = transactions.add(TransactionDraft(TxType.INCOME, 250_000, "EUR", salary, note = "Salary", occurredAt = now - 3 * day, source = TxSource.CHECKIN))
+        val (state, row) = bankRow(190_000, "ACME SAS", kind = BankTxKind.MONEY_IN)
+        assertThat(state).isEqualTo(BankTxState.BOOKED)
+        assertThat(row.transactionId).isEqualTo(estimate)
+        assertThat(transactions.get(estimate)!!.amountMinor).isEqualTo(190_000)
+        assertThat(ledger().filter { it.type == TxType.INCOME }).hasSize(2) // last month + this month, no duplicate
+    }
+
     @Test fun otherCurrencyWaitsForTheUser() = runTest {
         assertThat(bankRow(1000, "Tesco", currency = "GBP").first).isEqualTo(BankTxState.NEEDS_DECISION)
     }

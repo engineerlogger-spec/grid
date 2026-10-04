@@ -142,6 +142,23 @@ class BankRepositoryTest {
         assertThat(bank.observeReviewGroups().first()).isEmpty()
     }
 
+    @Test fun bookingTheSalaryReplacesTheCheckInEstimate() = runTest {
+        val account = connected()
+        val salary = cat("salary", CategoryKind.INCOME)
+        val estimate = transactions.add(
+            TransactionDraft(TxType.INCOME, 250_000, "EUR", salary, note = "Salary", occurredAt = clock.millis() - 3 * 86_400_000L, source = TxSource.CHECKIN),
+        )
+        stage(account, "s1", 187_500, "ACME SAS", CaptureDirection.IN, BankTxKind.MONEY_IN)
+        bank.book(bank.observeReviewGroups().first().single(), salary)
+
+        val income = transactions.observeAll().first().single()
+        assertThat(income.id).isEqualTo(estimate)
+        assertThat(income.amountMinor).isEqualTo(187_500)
+        assertThat(income.merchant).isEqualTo("Acme SAS")
+        assertThat(db.merchantRuleDao().get("acme sas")!!.categoryId).isEqualTo(salary)
+        assertThat(db.bankDao().stagedLinkedTo(estimate)!!.state).isEqualTo(BankTxState.BOOKED)
+    }
+
     @Test fun alwaysIgnoreStoresARule() = runTest {
         val account = connected()
         stage(account, "t1", 5_000, "My Other Bank", CaptureDirection.OUT, BankTxKind.TRANSFER_OUT)

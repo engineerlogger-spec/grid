@@ -224,7 +224,10 @@ private fun BankGroupTile(card: BankGroupCard, onPick: (Category) -> Unit, onMor
         if (group.kind != ReviewKind.CATEGORISE) {
             Row(Modifier.padding(top = 4.dp)) {
                 TextButton(onClick = { onIgnore(false) }) { Text(stringResource(R.string.bank_ignore), color = colors.muted) }
-                TextButton(onClick = { onIgnore(true) }) { Text(stringResource(R.string.bank_always_ignore), color = colors.muted) }
+                TextButton(onClick = { onIgnore(true) }) { Text(stringResource(R.string.bank_always_ignore), color = colors.accentText) }
+            }
+            if (incoming) {
+                Text(stringResource(R.string.bank_own_account_hint), style = MaterialTheme.typography.bodySmall, color = colors.muted, modifier = Modifier.padding(horizontal = 4.dp))
             }
         }
     }
