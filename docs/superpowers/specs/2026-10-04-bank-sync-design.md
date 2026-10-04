@@ -48,7 +48,8 @@ New package `core/bank` (pure Kotlin, apart from the client and the key store):
   - Title-cases the result.
 - `TxClassifier`, a pure function that sorts a bank transaction into one of:
   - `CARD_SPEND` (debit to a merchant)
-  - `TRANSFER_OUT` (debit to a person or IBAN)
+  - `DIRECT_DEBIT`: a creditor-initiated SEPA debit (utilities, phone, insurance). Detected from `bank_transaction_code` or the descriptor.
+  - `TRANSFER_OUT` (debit to a person or IBAN, including standing orders such as rent)
   - `MONEY_IN` (salary, transfers in, refunds)
   - `INTERNAL`: own accounts or pockets, vaults, exchanges, top-ups. Detected from the user's own account identifiers plus Revolut descriptors ("To EUR Vault", "Exchanged to", "Top-Up by").
 - `MccCategories`, a pure lookup: merchant category code → seed category (5411 → Groceries, 5812/5814 → Restaurants, 4111/4121/5541 → Transport, 5651/5691 → Clothing…). It's used only when Revolut supplies `merchant_category_code`.
@@ -70,12 +71,17 @@ A ledger entry's date is `transaction_date` when present, else `booking_date`. O
 
 ## 5. Reconciler (each new booked transaction, in order)
 1. **INTERNAL** → `IGNORED`.
-2. **CARD_SPEND** → book an expense, after checking for duplicates. It is matched against unlinked ledger expenses in the same currency, dated from 1 day before to 5 days after the booking date:
+2. **CARD_SPEND and DIRECT_DEBIT** → book an expense, after checking for duplicates. It is matched against unlinked ledger expenses in the same currency, dated from 1 day before to 5 days after the booking date:
    - A **capture or manual** entry with the same amount and a similar merchant (or none): link it. The bank amount wins, and a Wallet or PayPal method on the capture is kept.
    - A **subscription or pending-payment** entry with an amount within 10% and a similar merchant: link it, and the bank amount wins.
    - Otherwise: create a `BANK` transaction. Its category comes from the merchant rule, then the MCC category; failing both it goes to *Other* with `needsReview = 1`.
-3. **TRANSFER_OUT** and **MONEY_IN** → `NEEDS_DECISION`. These are never booked silently. A known counterparty rule auto-books them, so rent to the same IBAN is learned.
-4. "Similar merchant" means the `MerchantKey`s share at least one token of 3 or more characters, or either side has no merchant.
+3. **TRANSFER_OUT** is booked automatically, without asking, in two cases:
+   - It matches a Grid bill (subscription or pending payment) by amount within 10%, a ±3-day window and a similar name. It is linked to that bill, so rent tracked in Bills is never counted twice.
+   - Its counterparty has a learned rule (`MerchantKey` of the creditor name, or the creditor IBAN).
+
+   Otherwise it goes to `NEEDS_DECISION`. Review groups these by counterparty ("J. Dupont · 3 × €850"). One tap books the whole group and learns the rule, so every later rent payment is automatic.
+4. **MONEY_IN** → `NEEDS_DECISION`, unless a counterparty rule exists. Salary is learned the same way.
+5. "Similar merchant" means the `MerchantKey`s share at least one token of 3 or more characters, or either side has no merchant.
 
 ## 6. UX (all strings in `strings.xml`, short)
 - **Settings → Bank sync** guides setup in 4 steps:
@@ -90,7 +96,7 @@ A ledger entry's date is `transaction_date` when present, else `booking_date`. O
 - **Connection card** in Settings and Home: last sync time, days of consent left, *Sync now* (which counts as a user-present fetch) and *Reconnect*.
 - **Review** (the Detected screen gains a *Bank* section):
   - Uncategorised merchants are **grouped**, e.g. "Lidl · 14 payments · €312". One category tap fixes them all and teaches the rule.
-  - Money in and transfers out offer *Book as…*, *Ignore* and *Always ignore*. Salary-like credits are offered to the monthly check-in.
+  - Transfers out and money in are grouped by counterparty, with *Book as…* (which learns the rule), *Ignore* and *Always ignore*. Salary-like credits are offered to the monthly check-in.
 - **Consent reminders:** a notification 7 days and 1 day before expiry. Once expired, Home shows a *Reconnect Revolut* card.
 
 **Redirect URL:** register `grid://bank-callback` if Enable Banking accepts custom schemes. Otherwise use a static `https://engineerlogger-spec.github.io/grid/bank-callback/` page (GitHub Pages) that forwards the query to `grid://bank-callback` and has a *Return to Grid* button. The last resort is pasting the final URL into Grid.
