@@ -40,7 +40,11 @@ object DescriptorCleaner {
         return Cleaned(if (text.none { it.isLowerCase() }) titleCase(text) else text, via)
     }
 
-    private fun titleCase(text: String): String = text.lowercase(Locale.ROOT).split(' ').joinToString(" ") { word ->
-        word.replaceFirstChar { it.titlecase(Locale.ROOT) }
+    /** Company-form suffixes keep their usual spelling: "ACME SAS" → "Acme SAS", not "Acme Sas". */
+    private val legalForms = listOf("SA", "SAS", "SARL", "SASU", "EURL", "SNC", "AB", "AG", "BV", "NV", "SL", "SPA", "SRL", "LTD", "LLC", "INC", "PLC", "UAB", "AS", "OY")
+        .associateBy { it } + ("GMBH" to "GmbH")
+
+    private fun titleCase(text: String): String = text.split(' ').joinToString(" ") { word ->
+        legalForms[word.uppercase(Locale.ROOT)] ?: word.lowercase(Locale.ROOT).replaceFirstChar { it.titlecase(Locale.ROOT) }
     }
 }

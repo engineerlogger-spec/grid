@@ -376,7 +376,7 @@ sealed class BankError(message: String) : Exception(message) {
   - `setEnabled(accountId, enabled)`.
   - `markStatus(status, error: String?)`.
   - `recordSync(at)`.
-  - `disconnect()` deletes the connection; accounts and staged rows cascade, and ledger rows stay.
+  - `disconnect()` clears the session (status `NEEDS_SETUP`) but **keeps** the accounts and staged rows. The fetched history is what prevents duplicates when the same accounts are connected again. (Changed during execution; the plan originally deleted it.)
 - **Review groups:** `observeReviewGroups(): Flow<List<BankReviewGroup>>`.
   - The data shape is `data class BankReviewGroup(val key: String, val kind: ReviewKind, val title: String, val count: Int, val totalMinor: Long, val currency: String, val latestAt: Long, val ids: List<Long>)`.
   - `enum class ReviewKind { CATEGORISE, DECIDE_OUT, DECIDE_IN }`.

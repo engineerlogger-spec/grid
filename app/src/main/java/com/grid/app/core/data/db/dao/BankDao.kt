@@ -30,9 +30,6 @@ interface BankDao {
     @Update
     suspend fun updateConnection(connection: BankConnectionEntity)
 
-    @Query("DELETE FROM bank_connections WHERE id = :id")
-    suspend fun deleteConnection(id: Long)
-
     @Query("SELECT * FROM bank_accounts WHERE connectionId = :connectionId ORDER BY id")
     suspend fun accounts(connectionId: Long): List<BankAccountEntity>
 

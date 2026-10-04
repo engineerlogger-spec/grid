@@ -63,13 +63,21 @@ class TransactionRepository @Inject constructor(
         return id
     }
 
+    /** A user edit is a review: it clears [TransactionDraft.needsReview]. */
     suspend fun update(id: Long, draft: TransactionDraft) {
         val existing = dao.get(id) ?: return
         val now = clock.millis()
         db.withTransaction {
-            dao.update(draft.toEntity(id = id, createdAt = existing.createdAt, updatedAt = now))
+            dao.update(draft.copy(needsReview = false).toEntity(id = id, createdAt = existing.createdAt, updatedAt = now))
             learnMerchant(draft, now)
         }
+        listeners.notifyAll()
+    }
+
+    /** Bank sync found the settled version of this entry: the bank's amount wins; [methodId] replaces the method when given. */
+    suspend fun applyBank(id: Long, amountMinor: Long, methodId: Long?) {
+        val existing = dao.get(id) ?: return
+        dao.update(existing.copy(amountMinor = amountMinor, paymentMethodId = methodId ?: existing.paymentMethodId, updatedAt = clock.millis()))
         listeners.notifyAll()
     }
 

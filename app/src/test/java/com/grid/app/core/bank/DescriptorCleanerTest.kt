@@ -32,6 +32,12 @@ class DescriptorCleanerTest {
         check("MONOPRIX #0456", "Monoprix")
     }
 
+    @Test fun legalFormsKeepTheirSpelling() {
+        check("ACME SAS", "Acme SAS")
+        check("SIEMENS GMBH", "Siemens GmbH")
+        check("JEAN DUPONT", "Jean Dupont")
+    }
+
     @Test fun mixedCaseIsKept() {
         check("Amazon.fr", "Amazon.fr")
         check("  Uber   Eats ", "Uber Eats")
