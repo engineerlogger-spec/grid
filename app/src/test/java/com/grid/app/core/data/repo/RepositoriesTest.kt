@@ -93,7 +93,7 @@ class RepositoriesTest {
         transactions.add(draft(100, icon = "transport"))
         val order = categories.orderedByUsage(CategoryKind.EXPENSE, transactions.categoryUsage(TxType.EXPENSE))
         assertThat(order.take(3).map { it.iconKey }).containsExactly("groceries", "transport", "restaurant").inOrder()
-        assertThat(order).hasSize(16)
+        assertThat(order).hasSize(18)
     }
 
     @Test fun merchantRuleLearnedFromMerchant() = runTest {

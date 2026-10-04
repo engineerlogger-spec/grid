@@ -44,6 +44,20 @@ class TxClassifierTest {
         assertThat(kind(out("Free Mobile", iban = "FR7612345", remittance = listOf("Prélèvement SEPA")))).isEqualTo(BankTxKind.DIRECT_DEBIT)
     }
 
+    @Test fun revolutCodesDecide() {
+        assertThat(kind(out("Cash at Lcl", code = "ATM"))).isEqualTo(BankTxKind.CASH_WITHDRAWAL)
+        assertThat(kind(inn("ABDELHAMID MOULOUD").copy(bankTxCode = "CARD_REFUND"))).isEqualTo(BankTxKind.REFUND)
+        assertThat(kind(inn("MOULOUD ABDELHAMID").copy(bankTxCode = "TOPUP"))).isEqualTo(BankTxKind.TOP_UP)
+        assertThat(kind(inn("ENGIE S.A.").copy(bankTxCode = "TOPUP"))).isEqualTo(BankTxKind.TOP_UP) // owner check happens later
+        assertThat(kind(out("Starbucks", code = "CARD_PAYMENT"))).isEqualTo(BankTxKind.CARD_SPEND)
+        assertThat(kind(out("Premium Repricing 1 plan fee", code = "CHARGE"))).isEqualTo(BankTxKind.CARD_SPEND)
+    }
+
+    @Test fun currencyPocketsAndMoneyBoxesAreInternal() {
+        assertThat(kind(inn(remittance = listOf("To EUR")))).isEqualTo(BankTxKind.INTERNAL)
+        assertThat(kind(out(remittance = listOf("To EUR MB:7f1e04e5-5285-45ff-bad0-35cce5f92365"), code = "TRANSFER"))).isEqualTo(BankTxKind.INTERNAL)
+    }
+
     @Test fun moneyIn() {
         assertThat(kind(inn("ACME SAS", iban = "FR7699999"))).isEqualTo(BankTxKind.MONEY_IN)
         assertThat(kind(inn(remittance = listOf("Payment from Sam")))).isEqualTo(BankTxKind.MONEY_IN)

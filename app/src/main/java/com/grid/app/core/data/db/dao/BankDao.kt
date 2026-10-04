@@ -36,6 +36,10 @@ interface BankDao {
     @Query("SELECT * FROM bank_accounts WHERE connectionId = :connectionId ORDER BY id")
     fun observeAccounts(connectionId: Long): Flow<List<BankAccountEntity>>
 
+    /** Revolut reports the account holder's name as the account name. */
+    @Query("SELECT DISTINCT name FROM bank_accounts WHERE name IS NOT NULL")
+    suspend fun accountHolderNames(): List<String>
+
     @Query("SELECT * FROM bank_accounts WHERE id = :id")
     suspend fun account(id: Long): BankAccountEntity?
 

@@ -32,6 +32,17 @@ class DescriptorCleanerTest {
         check("MONOPRIX #0456", "Monoprix")
     }
 
+    @Test fun revolutDescriptorsFromRealData() {
+        check("Paypal *bolt.eu/o/2609261", "Bolt", PaymentKind.PAYPAL)
+        check("Paypal *openai *chatgpt S", "Openai", PaymentKind.PAYPAL)
+        check("Anthropic* Claude Sub", "Anthropic")
+        check("Sunday*vapiano Villages N", "Vapiano Villages N")
+        check("Nyx*caffenero", "Caffenero")
+        check("Sc-boul Du Ctre", "Boul Du Ctre")
+        check("Restaurant Royau2164469", "Restaurant Royau")
+        check("Kocak           4018250", "Kocak")
+    }
+
     @Test fun legalFormsKeepTheirSpelling() {
         check("ACME SAS", "Acme SAS")
         check("SIEMENS GMBH", "Siemens GmbH")

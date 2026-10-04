@@ -24,6 +24,8 @@ object Seed {
         SeedCategory("Gifts", "gifts", "yellow", CategoryKind.EXPENSE),
         SeedCategory("Personal care", "personal_care", "peach", CategoryKind.EXPENSE),
         SeedCategory("Services", "services", "slate", CategoryKind.EXPENSE),
+        SeedCategory("Cash", "cash", "green", CategoryKind.EXPENSE),
+        SeedCategory("Insurance", "insurance", "blue", CategoryKind.EXPENSE),
         SeedCategory("Other", "other", "gray", CategoryKind.EXPENSE),
         SeedCategory("Salary", "salary", "lime", CategoryKind.INCOME),
         SeedCategory("Freelance", "freelance", "green", CategoryKind.INCOME),

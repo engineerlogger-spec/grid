@@ -43,7 +43,9 @@ import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Receipt
 import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.LocalAtm
 import androidx.compose.material.icons.rounded.Savings
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material.icons.rounded.Spa
@@ -82,6 +84,8 @@ object CategoryIcons {
         "freelance" to Icons.Rounded.Work,
         "refund" to Icons.Rounded.Replay,
         "other_income" to Icons.Rounded.Savings,
+        "cash" to Icons.Rounded.LocalAtm,
+        "insurance" to Icons.Rounded.Shield,
         // Extra choices for custom categories
         "cafe" to Icons.Rounded.LocalCafe,
         "fastfood" to Icons.Rounded.Fastfood,

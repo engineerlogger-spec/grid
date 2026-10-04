@@ -20,7 +20,7 @@ class DemoBankConnector(private val clock: AppClock) : BankConnector {
         sessionId = "demo-session",
         validUntil = clock.millis() + TimeUnit.DAYS.toMillis(180),
         accounts = listOf(
-            RemoteAccount("demo-eur", "demo-hash-eur", "EUR", "Main", IBAN),
+            RemoteAccount("demo-eur", "demo-hash-eur", "EUR", "Sam Taylor", IBAN),
             RemoteAccount("demo-usd", "demo-hash-usd", "USD", "Dollars", null),
         ),
     )

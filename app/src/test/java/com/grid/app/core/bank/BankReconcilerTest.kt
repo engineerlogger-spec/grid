@@ -8,6 +8,7 @@ import com.grid.app.core.data.db.entities.OwnAccountRuleEntity
 import com.grid.app.core.data.db.entities.BankTransactionEntity
 import com.grid.app.core.data.repo.BankRepository
 import com.grid.app.core.data.repo.PendingRepository
+import com.grid.app.core.data.repo.CategoryRepository
 import com.grid.app.core.data.repo.SubscriptionRepository
 import com.grid.app.core.data.repo.TransactionRepository
 import com.grid.app.core.model.BankTxKind
@@ -54,7 +55,7 @@ class BankReconcilerTest {
         transactions = TransactionRepository(db, clock, emptySet())
         pendings = PendingRepository(db, clock, emptySet())
         subs = SubscriptionRepository(db, clock, emptySet())
-        reconciler = BankReconciler(db, transactions, pendings, clock)
+        reconciler = BankReconciler(db, transactions, pendings, CategoryRepository(db), clock)
         val bank = BankRepository(db, transactions, clock)
         bank.beginAuth(Aspsp("Revolut", "FR", null), "st", null)
         accountId = bank.completeAuth("st", BankSession("s", null, listOf(RemoteAccount("u", "h", "EUR", null, "LT1"))), "EUR").accounts.single().id
@@ -70,7 +71,7 @@ class BankReconcilerTest {
         amount: Long, counterparty: String, kind: BankTxKind = BankTxKind.CARD_SPEND, at: Long = now,
         currency: String = "EUR", mcc: String? = null, via: PaymentKind? = null,
     ): Pair<BankTxState, BankTransactionEntity> {
-        val direction = if (kind == BankTxKind.MONEY_IN) CaptureDirection.IN else CaptureDirection.OUT
+        val direction = if (kind in setOf(BankTxKind.MONEY_IN, BankTxKind.REFUND, BankTxKind.TOP_UP)) CaptureDirection.IN else CaptureDirection.OUT
         val cleaned = DescriptorCleaner.clean(counterparty)
         val row = BankTransactionEntity(
             accountId = accountId, externalId = "x${ext++}", bookingEpochDay = today.toEpochDay(), occurredAt = at, amountMinor = amount,
@@ -148,16 +149,40 @@ class BankReconcilerTest {
         assertThat(ledger()).isEmpty() // neither income nor spending
     }
 
-    @Test fun unknownCardPaymentGoesToOtherForReviewWithoutTeachingARule() = runTest {
-        val (state, row) = bankRow(2340, "LIDL 1234")
+    @Test fun unknownCardPaymentIsCountedUnderOtherWithoutTeachingARule() = runTest {
+        val (state, row) = bankRow(2340, "BERFIN 1234")
         assertThat(state).isEqualTo(BankTxState.BOOKED)
         val tx = transactions.get(row.transactionId!!)!!
-        assertThat(tx.merchant).isEqualTo("Lidl")
+        assertThat(tx.merchant).isEqualTo("Berfin")
         assertThat(tx.category.iconKey).isEqualTo("other")
         assertThat(tx.needsReview).isTrue()
         assertThat(tx.source).isEqualTo(TxSource.BANK)
         assertThat(tx.method?.kind).isEqualTo(PaymentKind.REVOLUT)
-        assertThat(db.merchantRuleDao().get("lidl")).isNull()
+        assertThat(db.merchantRuleDao().get("berfin")).isNull()
+    }
+
+    @Test fun knownMerchantsAndBankCodesAreCategorisedAutomatically() = runTest {
+        assertThat(transactions.get(bankRow(2340, "LIDL 1234").second.transactionId!!)!!.category.iconKey).isEqualTo("groceries")
+        val sfr = transactions.get(bankRow(2599, "SFR", kind = BankTxKind.TRANSFER_OUT).second.transactionId!!)!!
+        assertThat(sfr.category.iconKey).isEqualTo("bills")
+        assertThat(sfr.needsReview).isFalse()
+        // Cash and Insurance didn't exist on older installs: created on first need.
+        assertThat(transactions.get(bankRow(10_000, "Cash at Lcl", kind = BankTxKind.CASH_WITHDRAWAL).second.transactionId!!)!!.category.name).isEqualTo("Cash")
+        assertThat(transactions.get(bankRow(3_534, "Allianz Direct Vers.", kind = BankTxKind.TRANSFER_OUT).second.transactionId!!)!!.category.name).isEqualTo("Insurance")
+        val refund = transactions.get(bankRow(2_228, "Some shop", kind = BankTxKind.REFUND).second.transactionId!!)!!
+        assertThat(refund.type).isEqualTo(TxType.INCOME)
+        assertThat(refund.category.iconKey).isEqualTo("refund")
+    }
+
+    @Test fun theHoldersOwnMoneyIsAMoveNotIncome() = runTest {
+        // The account is named after its holder (Revolut does this); setUp's account has no name, so add one.
+        db.bankDao().updateAccount(db.bankDao().account(accountId)!!.copy(name = "Abdelhamid Mouloud"))
+        assertThat(bankRow(150_000, "MOULOUD ABDELHAMID", kind = BankTxKind.TOP_UP).first).isEqualTo(BankTxState.OWN_TRANSFER)
+        assertThat(bankRow(50_800, "Abdelhamid N26", kind = BankTxKind.TRANSFER_OUT).first).isEqualTo(BankTxState.OWN_TRANSFER)
+        // An insurer paying back through a "top-up" is a refund, not the user's own money.
+        val (state, row) = bankRow(3_781, "ALLSECUR", kind = BankTxKind.TOP_UP)
+        assertThat(state).isEqualTo(BankTxState.BOOKED)
+        assertThat(transactions.get(row.transactionId!!)!!.category.iconKey).isEqualTo("refund")
     }
 
     @Test fun merchantCategoryCodeCategorisesWithoutReview() = runTest {
@@ -173,8 +198,10 @@ class BankReconcilerTest {
         assertThat(transactions.get(row.transactionId!!)!!.category.iconKey).isEqualTo("groceries")
     }
 
-    @Test fun transfersWaitUntilTheCounterpartyIsLearned() = runTest {
-        assertThat(bankRow(85_000, "J. Dupont", kind = BankTxKind.TRANSFER_OUT).first).isEqualTo(BankTxState.NEEDS_DECISION)
+    @Test fun transfersToPeopleAreCountedAndFollowWhatTheUserTaught() = runTest {
+        val first = bankRow(85_000, "J. Dupont", kind = BankTxKind.TRANSFER_OUT)
+        assertThat(first.first).isEqualTo(BankTxState.BOOKED)
+        assertThat(transactions.get(first.second.transactionId!!)!!.category.iconKey).isEqualTo("other")
         transactions.add(TransactionDraft(TxType.EXPENSE, 85_000, "EUR", cat("housing"), merchant = "J. Dupont", occurredAt = now - 40 * day, source = TxSource.BANK))
         val (state, row) = bankRow(85_000, "J. Dupont", kind = BankTxKind.TRANSFER_OUT, at = now)
         assertThat(state).isEqualTo(BankTxState.BOOKED)
