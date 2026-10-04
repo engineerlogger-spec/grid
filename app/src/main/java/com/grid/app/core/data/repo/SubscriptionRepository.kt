@@ -103,9 +103,10 @@ class SubscriptionRepository @Inject constructor(
                 val cycle = sub.cycle()
                 if (sub.autoLog) {
                     for (date in BillingSchedule.chargesThrough(anchor, cycle, LocalDate.ofEpochDay(sub.nextChargeEpochDay), today)) {
-                        val dayStart = date.atStartOfDay(clock.zone).toInstant().toEpochMilli()
-                        val dayEnd = date.plusDays(1).atStartOfDay(clock.zone).toInstant().toEpochMilli()
-                        if (txDao.countForSubscriptionBetween(sub.id, dayStart, dayEnd) > 0) continue
+                        // ±3 days: bank sync may already have booked the real charge a little early or late.
+                        val windowStart = date.minusDays(CHARGE_SLACK_DAYS).atStartOfDay(clock.zone).toInstant().toEpochMilli()
+                        val windowEnd = date.plusDays(CHARGE_SLACK_DAYS + 1).atStartOfDay(clock.zone).toInstant().toEpochMilli()
+                        if (txDao.countForSubscriptionBetween(sub.id, windowStart, windowEnd) > 0) continue
                         val at = if (date == today) clock.millis() else date.atTime(9, 0).atZone(clock.zone).toInstant().toEpochMilli()
                         txDao.insert(
                             TransactionEntity(
@@ -126,6 +127,10 @@ class SubscriptionRepository @Inject constructor(
     }
 
     private fun SubscriptionEntity.cycle() = Cycle(cycleUnit, cycleCount)
+
+    private companion object {
+        const val CHARGE_SLACK_DAYS = 3L
+    }
 
     private fun SubscriptionEntity.toDomain(cats: Map<Long, Category>): Subscription? {
         val category = cats[categoryId] ?: return null

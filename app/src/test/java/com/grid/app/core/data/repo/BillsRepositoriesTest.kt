@@ -65,6 +65,20 @@ class BillsRepositoriesTest {
         assertThat(dates).containsExactly(LocalDate.parse("2026-09-30"), LocalDate.parse("2026-08-31"), LocalDate.parse("2026-07-31")).inOrder()
     }
 
+    @Test fun chargeAlreadyBookedByBankSyncIsNotLoggedAgain() = runTest {
+        val id = subs.add(netflix("2026-10-06"))
+        // The bank charged it two days early and bank sync linked it to the subscription.
+        transactions.add(
+            com.grid.app.core.model.TransactionDraft(
+                type = TxType.EXPENSE, amountMinor = 1399, currency = "EUR", categoryId = cat("subscriptions"),
+                merchant = "Netflix", occurredAt = clock.millis(), source = TxSource.BANK, subscriptionId = id,
+            ),
+        )
+        assertThat(subs.processDueCharges(LocalDate.parse("2026-10-06"))).isEqualTo(0)
+        assertThat(transactions.observeAll().first()).hasSize(1)
+        assertThat(subs.get(id)!!.nextCharge).isEqualTo(LocalDate.parse("2026-11-06"))
+    }
+
     @Test fun autoLogOffOnlyAdvances() = runTest {
         val id = subs.add(netflix("2026-10-01", autoLog = false))
         assertThat(subs.processDueCharges(today)).isEqualTo(0)

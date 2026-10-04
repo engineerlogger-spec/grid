@@ -1,5 +1,6 @@
 package com.grid.app.core.data.db.entities
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -61,4 +62,6 @@ data class TransactionEntity(
     val subscriptionId: Long? = null,
     val pendingId: Long? = null,
     val captureId: Long? = null,
+    /** Booked from the bank without a known category: shown in the review list until the user picks one. */
+    @ColumnInfo(defaultValue = "0") val needsReview: Boolean = false,
 )

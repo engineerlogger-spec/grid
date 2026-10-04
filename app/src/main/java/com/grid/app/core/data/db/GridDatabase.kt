@@ -1,11 +1,17 @@
 package com.grid.app.core.data.db
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.grid.app.core.data.db.dao.BankDao
 import com.grid.app.core.data.db.dao.CaptureDao
+import com.grid.app.core.data.db.entities.BankAccountEntity
+import com.grid.app.core.data.db.entities.BankConnectionEntity
+import com.grid.app.core.data.db.entities.BankIgnoreRuleEntity
+import com.grid.app.core.data.db.entities.BankTransactionEntity
 import com.grid.app.core.data.db.dao.CategoryDao
 import com.grid.app.core.data.db.dao.MerchantRuleDao
 import com.grid.app.core.data.db.dao.PaymentMethodDao
@@ -24,7 +30,7 @@ import com.grid.app.core.data.db.entities.SubscriptionEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
 
 /**
- * Schema v1. Every schema change must bump the version and ship a tested Migration —
+ * Schema v2 (v1 + bank sync). Every schema change must bump the version and ship a tested Migration —
  * never fall back to destructive migration: this is people's financial history.
  */
 @Database(
@@ -33,9 +39,11 @@ import com.grid.app.core.data.db.entities.TransactionEntity
         PeriodPlanEntity::class, IncomeSourceEntity::class,
         SubscriptionEntity::class, PendingPaymentEntity::class,
         CaptureEntity::class, MerchantRuleEntity::class,
+        BankConnectionEntity::class, BankAccountEntity::class, BankTransactionEntity::class, BankIgnoreRuleEntity::class,
     ],
     version = GridDatabase.VERSION,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 abstract class GridDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
@@ -46,11 +54,12 @@ abstract class GridDatabase : RoomDatabase() {
     abstract fun subscriptionDao(): SubscriptionDao
     abstract fun pendingDao(): PendingDao
     abstract fun captureDao(): CaptureDao
+    abstract fun bankDao(): BankDao
 
     companion object {
         const val NAME = "grid.db"
         /** Schema version. Bump together with a Migration and an exported schema; backups record it. */
-        const val VERSION = 1
+        const val VERSION = 2
 
         fun build(context: Context): GridDatabase =
             Room.databaseBuilder(context, GridDatabase::class.java, NAME).addCallback(SeedCallback).build()

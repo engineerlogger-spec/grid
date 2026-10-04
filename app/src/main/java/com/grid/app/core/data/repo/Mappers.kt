@@ -30,7 +30,7 @@ internal fun TransactionEntity.toDomain(categories: Map<Long, Category>, methods
         id = id, type = type, amountMinor = amountMinor, currency = currency, category = category,
         method = paymentMethodId?.let { methods[it] }, merchant = merchant, note = note,
         occurredAt = occurredAt, createdAt = createdAt, source = source,
-        subscriptionId = subscriptionId, pendingId = pendingId, captureId = captureId,
+        subscriptionId = subscriptionId, pendingId = pendingId, captureId = captureId, needsReview = needsReview,
     )
 }
 
@@ -38,5 +38,5 @@ internal fun TransactionDraft.toEntity(id: Long = 0, createdAt: Long, updatedAt:
     id = id, type = type, amountMinor = amountMinor, currency = currency, categoryId = categoryId,
     paymentMethodId = paymentMethodId, merchant = merchant?.trim()?.ifBlank { null }, note = note?.trim()?.ifBlank { null },
     occurredAt = occurredAt, createdAt = createdAt, updatedAt = updatedAt, source = source,
-    subscriptionId = subscriptionId, pendingId = pendingId, captureId = captureId,
+    subscriptionId = subscriptionId, pendingId = pendingId, captureId = captureId, needsReview = needsReview,
 )
