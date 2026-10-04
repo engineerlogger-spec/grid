@@ -2,13 +2,19 @@ package com.grid.app.feature.capture
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grid.app.core.data.db.Seed
 import com.grid.app.core.data.prefs.SettingsRepository
+import com.grid.app.core.data.repo.BankRepository
+import com.grid.app.core.data.repo.BankReviewGroup
 import com.grid.app.core.data.repo.CaptureItem
 import com.grid.app.core.data.repo.CaptureRepository
 import com.grid.app.core.data.repo.CategoryRepository
+import com.grid.app.core.data.repo.ReviewKind
+import com.grid.app.core.data.repo.TransactionRepository
 import com.grid.app.core.model.CaptureDirection
 import com.grid.app.core.model.Category
 import com.grid.app.core.model.CategoryKind
+import com.grid.app.core.model.TxType
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,9 +27,13 @@ import javax.inject.Inject
 
 data class DetectedCard(val item: CaptureItem, val suggestions: List<Category>)
 
+/** A group of bank items settled with one tap. */
+data class BankGroupCard(val group: BankReviewGroup, val suggestions: List<Category>)
+
 data class DetectedUiState(
     val loading: Boolean = true,
     val currency: String = "EUR",
+    val bankGroups: List<BankGroupCard> = emptyList(),
     val inbox: List<DetectedCard> = emptyList(),
     val recentlyAdded: List<CaptureItem> = emptyList(),
     val unparsed: List<CaptureItem> = emptyList(),
@@ -35,8 +45,10 @@ data class DetectedUiState(
 class DetectedViewModel @Inject constructor(
     settings: SettingsRepository,
     private val captures: CaptureRepository,
-    categories: CategoryRepository,
+    private val categories: CategoryRepository,
     private val processor: CaptureProcessor,
+    private val bank: BankRepository,
+    private val transactions: TransactionRepository,
 ) : ViewModel() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -44,12 +56,20 @@ class DetectedViewModel @Inject constructor(
         items.map { item -> DetectedCard(item, processor.suggestionsFor(item, captures.ruleFor(item.merchant)?.categoryId, count = 4)) }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val bankCards = bank.observeReviewGroups().mapLatest { groups ->
+        val expense = categories.orderedByUsage(CategoryKind.EXPENSE, transactions.categoryUsage(TxType.EXPENSE)).filter { !it.archived && it.iconKey != Seed.ICON_OTHER }
+        val income = categories.orderedByUsage(CategoryKind.INCOME, transactions.categoryUsage(TxType.INCOME)).filter { !it.archived }
+        groups.map { g -> BankGroupCard(g, (if (g.kind == ReviewKind.DECIDE_IN) income else expense).take(3)) }
+    }
+
     val state: StateFlow<DetectedUiState> = combine(
-        settings.settings, inboxCards, captures.observeRecentlyAdded(), captures.observeUnparsed(), categories.observeAll(),
-    ) { s, inbox, added, unparsed, cats ->
+        combine(settings.settings, bankCards) { s, b -> s to b }, inboxCards, captures.observeRecentlyAdded(), captures.observeUnparsed(), categories.observeAll(),
+    ) { (s, bankGroups), inbox, added, unparsed, cats ->
         DetectedUiState(
             loading = false,
             currency = s.currency,
+            bankGroups = bankGroups,
             inbox = inbox,
             recentlyAdded = added,
             unparsed = unparsed,
@@ -65,6 +85,16 @@ class DetectedViewModel @Inject constructor(
 
     fun categoriesFor(item: CaptureItem): List<Category> =
         if (item.direction == CaptureDirection.IN) state.value.incomeCategories else state.value.expenseCategories
+
+    fun categoriesFor(group: BankReviewGroup): List<Category> =
+        if (group.kind == ReviewKind.DECIDE_IN) state.value.incomeCategories else state.value.expenseCategories
+
+    /** Categorises (already booked) or books (waiting) the whole group; either way the merchant is learned. */
+    fun resolve(group: BankReviewGroup, category: Category) = viewModelScope.launch {
+        if (group.kind == ReviewKind.CATEGORISE) bank.categorise(group, category.id) else bank.book(group, category.id)
+    }
+
+    fun ignore(group: BankReviewGroup, always: Boolean) = viewModelScope.launch { bank.ignore(group, always) }
 
     /** Plain-text dump of unrecognised notifications, for sharing so parsers can be improved. */
     fun diagnosticsText(): String = state.value.unparsed.joinToString("\n\n") { "[${it.source}] ${it.title}\n${it.text}" }

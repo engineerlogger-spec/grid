@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.grid.app.core.bills.UpcomingItem
 import com.grid.app.core.bills.UpcomingPlanner
 import com.grid.app.core.data.prefs.SettingsRepository
+import com.grid.app.core.data.repo.BankRepository
 import com.grid.app.core.data.repo.CaptureRepository
 import com.grid.app.core.data.repo.CategoryRepository
+import com.grid.app.core.model.BankStatus
 import com.grid.app.core.model.CaptureSource
 import com.grid.app.core.data.repo.PendingRepository
 import com.grid.app.core.data.repo.PlanRepository
@@ -59,6 +61,8 @@ data class HomeUiState(
     /** Detected payments waiting for a category. */
     val detectedCount: Int = 0,
     val detectedSources: List<CaptureSource> = emptyList(),
+    /** The bank connection's name when its access expired and needs the user to reconnect. */
+    val bankToReconnect: String? = null,
 )
 
 @HiltViewModel
@@ -70,6 +74,7 @@ class HomeViewModel @Inject constructor(
     subscriptions: SubscriptionRepository,
     pendings: PendingRepository,
     captures: CaptureRepository,
+    bank: BankRepository,
     clock: AppClock,
 ) : ViewModel() {
 
@@ -109,12 +114,15 @@ class HomeViewModel @Inject constructor(
             }
         }
 
-    val state: StateFlow<HomeUiState> = combine(base, upcoming, captures.observeInbox()) { home, items, inbox ->
+    val state: StateFlow<HomeUiState> = combine(
+        base, upcoming, captures.observeInbox(), bank.observeReviewGroups(), bank.observeConnection(),
+    ) { home, items, inbox, bankGroups, connection ->
         home.copy(
             upcoming = items,
             upcomingDueMinor = items.filter { it.direction == PendingDirection.I_OWE && it.currency == home.currency }.sumOf { it.amountMinor },
-            detectedCount = inbox.size,
-            detectedSources = inbox.map { it.source }.distinct(),
+            detectedCount = inbox.size + bankGroups.size,
+            detectedSources = (inbox.map { it.source } + if (bankGroups.isNotEmpty()) listOf(CaptureSource.REVOLUT) else emptyList()).distinct(),
+            bankToReconnect = connection?.takeIf { it.sessionId != null && it.status == BankStatus.EXPIRED }?.aspspName,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 

@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,7 +52,9 @@ import com.grid.app.core.designsystem.components.MoneyText
 import com.grid.app.core.designsystem.components.Tile
 import com.grid.app.core.designsystem.theme.GridText
 import com.grid.app.core.designsystem.theme.GridTheme
+import com.grid.app.core.data.repo.BankReviewGroup
 import com.grid.app.core.data.repo.CaptureItem
+import com.grid.app.core.data.repo.ReviewKind
 import com.grid.app.core.model.CaptureDirection
 import com.grid.app.core.model.CaptureSource
 import com.grid.app.core.model.Category
@@ -70,9 +73,15 @@ fun DetectedScreen(onBack: () -> Unit, viewModel: DetectedViewModel = hiltViewMo
     val messenger = LocalMessenger.current
     val addedTemplate = stringResource(R.string.detected_added_snack, "%s")
     var morePickerFor by remember { mutableStateOf<CaptureItem?>(null) }
+    var moreForGroup by remember { mutableStateOf<BankReviewGroup?>(null) }
 
     fun accept(item: CaptureItem, category: Category) {
         viewModel.accept(item, category)
+        messenger.show(addedTemplate.replace("%s", category.name))
+    }
+
+    fun resolve(group: BankReviewGroup, category: Category) {
+        viewModel.resolve(group, category)
         messenger.show(addedTemplate.replace("%s", category.name))
     }
 
@@ -87,8 +96,22 @@ fun DetectedScreen(onBack: () -> Unit, viewModel: DetectedViewModel = hiltViewMo
                 Text(stringResource(R.string.detected_title), style = MaterialTheme.typography.headlineMedium, color = colors.text)
             }
         }
-        if (!state.loading && state.inbox.isEmpty()) {
+        if (!state.loading && state.inbox.isEmpty() && state.bankGroups.isEmpty()) {
             item { EmptyState(Icons.Rounded.DoneAll, stringResource(R.string.detected_empty_title), stringResource(R.string.detected_empty_body)) }
+        }
+        if (state.bankGroups.isNotEmpty()) {
+            item { CapsLabel(stringResource(R.string.detected_bank_section), Modifier.padding(start = 4.dp, top = 4.dp)) }
+            items(state.bankGroups, key = { "b${it.group.key}" }) { card ->
+                BankGroupTile(
+                    card,
+                    onPick = { resolve(card.group, it) },
+                    onMore = { moreForGroup = card.group },
+                    onIgnore = { always -> viewModel.ignore(card.group, always) },
+                )
+            }
+            if (state.inbox.isNotEmpty()) {
+                item { CapsLabel(stringResource(R.string.detected_notifications_section), Modifier.padding(start = 4.dp, top = 10.dp)) }
+            }
         }
         items(state.inbox, key = { "n${it.item.id}" }) { card ->
             DetectedCardTile(card, state.currency, onAccept = { accept(card.item, it) }, onMore = { morePickerFor = card.item }, onDismiss = { viewModel.dismiss(card.item) })
@@ -139,14 +162,69 @@ fun DetectedScreen(onBack: () -> Unit, viewModel: DetectedViewModel = hiltViewMo
     }
 
     morePickerFor?.let { item ->
-        ModalBottomSheet(onDismissRequest = { morePickerFor = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.tile) {
-            Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
-                viewModel.categoriesFor(item).forEach { c ->
-                    TextButton(onClick = { accept(item, c); morePickerFor = null }, modifier = Modifier.fillMaxWidth()) {
-                        CategoryBadge(c.iconKey, c.colorKey, size = 28.dp)
-                        Text(c.name, color = colors.text, modifier = Modifier.weight(1f).padding(start = 12.dp))
-                    }
+        CategorySheet(viewModel.categoriesFor(item), onPick = { accept(item, it) }, onDismiss = { morePickerFor = null })
+    }
+    moreForGroup?.let { group ->
+        CategorySheet(viewModel.categoriesFor(group), onPick = { resolve(group, it) }, onDismiss = { moreForGroup = null })
+    }
+}
+
+@Composable
+private fun CategorySheet(categories: List<Category>, onPick: (Category) -> Unit, onDismiss: () -> Unit) {
+    val colors = GridTheme.colors
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.tile) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
+            categories.forEach { c ->
+                TextButton(onClick = { onPick(c); onDismiss() }, modifier = Modifier.fillMaxWidth()) {
+                    CategoryBadge(c.iconKey, c.colorKey, size = 28.dp)
+                    Text(c.name, color = colors.text, modifier = Modifier.weight(1f).padding(start = 12.dp))
                 }
+            }
+        }
+    }
+}
+
+/** "Lidl · 3 payments · €70.20": one tap on a category settles every payment in the group. */
+@Composable
+private fun BankGroupTile(card: BankGroupCard, onPick: (Category) -> Unit, onMore: () -> Unit, onIgnore: (always: Boolean) -> Unit) {
+    val colors = GridTheme.colors
+    val group = card.group
+    val incoming = group.kind == ReviewKind.DECIDE_IN
+    Tile(borderColor = colors.accentText.copy(alpha = 0.45f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MethodBadge(PaymentKind.REVOLUT, size = 22.dp)
+            Text(
+                stringResource(
+                    when (group.kind) {
+                        ReviewKind.CATEGORISE -> R.string.bank_group_categorise
+                        ReviewKind.DECIDE_OUT -> R.string.bank_group_out
+                        ReviewKind.DECIDE_IN -> R.string.bank_group_in
+                    },
+                ) + " · " + whenLabel(group.latestAt),
+                style = MaterialTheme.typography.labelMedium, color = colors.muted, modifier = Modifier.weight(1f).padding(start = 8.dp),
+            )
+        }
+        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 6.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(group.title, style = MaterialTheme.typography.titleLarge, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(pluralStringResource(R.plurals.bank_group_count, group.count, group.count), style = MaterialTheme.typography.bodySmall, color = colors.muted)
+            }
+            MoneyText(
+                group.totalMinor, group.currency, style = GridText.moneyLarge, signed = incoming,
+                color = if (incoming) colors.income else colors.text, fractionColor = colors.muted,
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            card.suggestions.forEach { c ->
+                GridChip(label = c.name, leading = { CategoryBadge(c.iconKey, c.colorKey, size = 20.dp) }, onClick = { onPick(c) })
+            }
+            GridChip(label = stringResource(R.string.detected_more), onClick = onMore)
+        }
+        if (group.kind != ReviewKind.CATEGORISE) {
+            Row(Modifier.padding(top = 4.dp)) {
+                TextButton(onClick = { onIgnore(false) }) { Text(stringResource(R.string.bank_ignore), color = colors.muted) }
+                TextButton(onClick = { onIgnore(true) }) { Text(stringResource(R.string.bank_always_ignore), color = colors.muted) }
             }
         }
     }

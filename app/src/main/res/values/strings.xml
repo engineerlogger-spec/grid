@@ -219,6 +219,18 @@
     <string name="bank_err_no_revolut">Revolut isn\'t available for this country.</string>
     <string name="bank_err_not_granted">Revolut access wasn\'t granted.</string>
     <string name="bank_err_network">Can\'t reach Enable Banking. Check your connection.</string>
+    <string name="home_bank_expired">%1$s access expired</string>
+    <string name="detected_bank_section">From Revolut</string>
+    <string name="detected_notifications_section">From notifications</string>
+    <string name="bank_group_categorise">Pick a category</string>
+    <string name="bank_group_out">Transfer</string>
+    <string name="bank_group_in">Money in</string>
+    <plurals name="bank_group_count">
+        <item quantity="one">%d payment</item>
+        <item quantity="other">%d payments</item>
+    </plurals>
+    <string name="bank_ignore">Ignore</string>
+    <string name="bank_always_ignore">Always ignore</string>
     <string name="settings_bank_off">Not connected</string>
     <string name="settings_bank_expired">Revolut · access expired</string>
     <string name="notif_sub_today">%1$s renews today · %2$s</string>

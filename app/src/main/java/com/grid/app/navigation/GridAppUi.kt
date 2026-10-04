@@ -175,6 +175,7 @@ fun GridAppUi(
                             onOpenCheckIn = { nav.navigate(CheckInRoute) { launchSingleTop = true } },
                             onOpenBills = { nav.navigateToTab("bills") },
                             onOpenDetected = { nav.navigate(DetectedRoute) },
+                            onOpenBank = { nav.navigate(BankSetupRoute) },
                         )
                     }
                     composable<ActivityRoute> { ActivityScreen(contentPadding = padding) }
