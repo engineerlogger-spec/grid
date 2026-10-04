@@ -40,6 +40,14 @@ function Invoke-Tap([string]$Pattern) {
     Start-Sleep -Milliseconds 800
 }
 
+# Case-sensitive tap: "Bank sync" (a row) must not hit "BANK SYNC" (its section label).
+function Invoke-TapCase([string]$Pattern) {
+    $n = Get-UiNodes | Where-Object { $_.Text -cmatch $Pattern -or $_.Desc -cmatch $Pattern } | Select-Object -First 1
+    if (-not $n) { throw "No UI element matching '$Pattern' (case-sensitive)" }
+    & $Adb shell input tap $n.X $n.Y
+    Start-Sleep -Milliseconds 800
+}
+
 function Send-Text([string]$Text) {
     # One character per command: bulk `input text` drops keystrokes on fields that recompose per change.
     foreach ($ch in $Text.ToCharArray()) {

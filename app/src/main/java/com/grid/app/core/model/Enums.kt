@@ -4,7 +4,7 @@ package com.grid.app.core.model
 
 enum class TxType { EXPENSE, INCOME }
 
-enum class TxSource { MANUAL, CAPTURE, SUBSCRIPTION, PENDING, CHECKIN }
+enum class TxSource { MANUAL, CAPTURE, SUBSCRIPTION, PENDING, CHECKIN, BANK }
 
 enum class CategoryKind { EXPENSE, INCOME }
 
@@ -25,3 +25,11 @@ enum class CaptureSource { GOOGLE_WALLET, PAYPAL, REVOLUT }
 enum class CaptureDirection { OUT, IN }
 
 enum class CaptureStatus { NEW, ADDED, DISMISSED, UNPARSED }
+
+enum class BankStatus { ACTIVE, EXPIRED, NEEDS_SETUP, ERROR }
+
+/** What a bank transaction is, which decides whether it is booked automatically. */
+enum class BankTxKind { CARD_SPEND, DIRECT_DEBIT, TRANSFER_OUT, MONEY_IN, INTERNAL }
+
+/** NEW = fetched but not reconciled yet (a sync interrupted midway resumes from these). */
+enum class BankTxState { NEW, BOOKED, NEEDS_DECISION, IGNORED }

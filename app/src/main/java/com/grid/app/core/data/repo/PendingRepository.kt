@@ -66,12 +66,15 @@ class PendingRepository @Inject constructor(
     /** Deleting the reminder keeps any transaction it produced: that money really moved. */
     suspend fun delete(id: Long) = dao.delete(id)
 
-    /** Marks paid/received and books the matching expense or income, linked both ways. */
-    suspend fun settle(id: Long) {
-        val pending = dao.get(id) ?: return
-        if (pending.status == PendingStatus.DONE) return
+    /**
+     * Marks paid/received and books the matching expense or income, linked both ways. Bank sync passes the real
+     * [amountMinor] and date [at]. Returns the transaction id, or null if it was already settled.
+     */
+    suspend fun settle(id: Long, amountMinor: Long? = null, at: Long? = null): Long? {
+        val pending = dao.get(id) ?: return null
+        if (pending.status == PendingStatus.DONE) return null
         val now = clock.millis()
-        db.withTransaction {
+        val txId = db.withTransaction {
             val type = if (pending.direction == PendingDirection.I_OWE) TxType.EXPENSE else TxType.INCOME
             val wantedKind = if (type == TxType.EXPENSE) CategoryKind.EXPENSE else CategoryKind.INCOME
             val chosen = pending.categoryId?.let { db.categoryDao().get(it) }?.takeIf { it.kind == wantedKind }
@@ -79,14 +82,16 @@ class PendingRepository @Inject constructor(
                 ?: db.categoryDao().byIconKey(if (type == TxType.EXPENSE) Seed.ICON_OTHER else Seed.ICON_OTHER_INCOME, wantedKind)!!.id
             val txId = db.transactionDao().insert(
                 TransactionEntity(
-                    type = type, amountMinor = pending.amountMinor, currency = pending.currency, categoryId = categoryId,
-                    merchant = pending.counterparty, note = pending.title, occurredAt = now, createdAt = now, updatedAt = now,
+                    type = type, amountMinor = amountMinor ?: pending.amountMinor, currency = pending.currency, categoryId = categoryId,
+                    merchant = pending.counterparty, note = pending.title, occurredAt = at ?: now, createdAt = now, updatedAt = now,
                     source = TxSource.PENDING, pendingId = pending.id,
                 ),
             )
-            dao.update(pending.copy(status = PendingStatus.DONE, settledAt = now, transactionId = txId))
+            dao.update(pending.copy(status = PendingStatus.DONE, settledAt = at ?: now, transactionId = txId))
+            txId
         }
         listeners.notifyAll()
+        return txId
     }
 
     /** Undo a settle: removes the booked transaction and makes the item pending again. */

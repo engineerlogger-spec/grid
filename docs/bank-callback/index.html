@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Back to Grid</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0f1110; color: #eef1ea;
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 24px; box-sizing: border-box; }
+  main { max-width: 420px; width: 100%; text-align: center; }
+  .mark { width: 56px; height: 56px; margin: 0 auto 20px; border-radius: 16px; background: #c8f560;
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 10px; box-sizing: border-box; }
+  .mark i { background: #0f1110; border-radius: 3px; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p { color: #a9b0a3; margin: 0 0 24px; }
+  a.button { display: block; padding: 16px; border-radius: 14px; background: #c8f560; color: #0f1110;
+             font-weight: 600; text-decoration: none; }
+  .fallback { margin-top: 28px; font-size: 13px; color: #8a9185; }
+  code { display: block; margin-top: 8px; padding: 10px; border-radius: 10px; background: #1b1e1b;
+         color: #d7dcd2; word-break: break-all; user-select: all; }
+  .error { color: #ff8a7a; }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <h1 id="title">Bank connected</h1>
+  <p id="body">Returning to Grid…</p>
+  <a class="button" id="open" href="#">Return to Grid</a>
+  <div class="fallback">
+    Nothing happened? In Grid, choose <b>Paste link</b> and paste this:
+    <code id="link"></code>
+  </div>
+</main>
+<script>
+  // The bank (via Enable Banking) redirects here with ?code=…&state=… — hand them to the Grid app.
+  var query = location.search || "";
+  var appLink = "grid://bank-callback" + query;
+  var intentLink = "intent://bank-callback" + query + "#Intent;scheme=grid;package=com.grid.app;end";
+  var isAndroid = /Android/i.test(navigator.userAgent);
+  document.getElementById("open").href = isAndroid ? intentLink : appLink;
+  document.getElementById("link").textContent = location.href;
+  if (/[?&]error=/.test(query)) {
+    document.getElementById("title").textContent = "Access not granted";
+    document.getElementById("title").className = "error";
+    document.getElementById("body").textContent = "Return to Grid to try again.";
+  }
+  if (/[?&](code|error)=/.test(query)) {
+    location.replace(isAndroid ? intentLink : appLink);
+  }
+</script>
+</body>
+</html>

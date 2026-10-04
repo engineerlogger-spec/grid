@@ -44,6 +44,7 @@ import com.grid.app.core.designsystem.components.GridSurface
 import com.grid.app.core.designsystem.components.LocalMoneyFormatter
 import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.feature.activity.ActivityScreen
+import com.grid.app.feature.bank.BankSetupScreen
 import com.grid.app.core.model.TxType
 import com.grid.app.core.notify.LaunchTarget
 import com.grid.app.feature.add.QuickAddSheet
@@ -103,6 +104,7 @@ fun GridAppUi(
             LaunchTarget.ADD_INCOME -> quickAdd.add(TxType.INCOME)
             LaunchTarget.DETECTED -> nav.navigate(DetectedRoute) { launchSingleTop = true }
             LaunchTarget.BACKUP -> nav.navigate(BackupRoute) { launchSingleTop = true }
+            LaunchTarget.BANK -> nav.navigate(BankSetupRoute) { launchSingleTop = true }
         }
         onLaunchHandled()
     }
@@ -173,6 +175,7 @@ fun GridAppUi(
                             onOpenCheckIn = { nav.navigate(CheckInRoute) { launchSingleTop = true } },
                             onOpenBills = { nav.navigateToTab("bills") },
                             onOpenDetected = { nav.navigate(DetectedRoute) },
+                            onOpenBank = { nav.navigate(BankSetupRoute) },
                         )
                     }
                     composable<ActivityRoute> { ActivityScreen(contentPadding = padding) }
@@ -195,8 +198,12 @@ fun GridAppUi(
                         )
                     }
                     composable<SettingsRoute> {
-                        SettingsScreen(onBack = { nav.popBackStack() }, onOpenCapture = { nav.navigate(CaptureSetupRoute) }, onOpenBackup = { nav.navigate(BackupRoute) }, onOpenCategories = { nav.navigate(CategoriesRoute) })
+                        SettingsScreen(
+                            onBack = { nav.popBackStack() }, onOpenCapture = { nav.navigate(CaptureSetupRoute) }, onOpenBackup = { nav.navigate(BackupRoute) },
+                            onOpenCategories = { nav.navigate(CategoriesRoute) }, onOpenBank = { nav.navigate(BankSetupRoute) },
+                        )
                     }
+                    composable<BankSetupRoute> { BankSetupScreen(onBack = { nav.popBackStack() }) }
                     composable<DetectedRoute> { DetectedScreen(onBack = { nav.popBackStack() }) }
                     composable<CaptureSetupRoute> { CaptureSetupScreen(onBack = { nav.popBackStack() }) }
                     composable<BackupRoute> { BackupScreen(onBack = { nav.popBackStack() }) }

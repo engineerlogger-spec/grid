@@ -77,6 +77,7 @@ fun HomeScreen(
     onOpenCheckIn: () -> Unit,
     onOpenBills: () -> Unit,
     onOpenDetected: () -> Unit,
+    onOpenBank: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -96,6 +97,9 @@ fun HomeScreen(
                 onToggleHidden = viewModel::toggleHideAmounts,
                 onOpenSettings = onOpenSettings,
             )
+        }
+        state.bankToReconnect?.let { bank ->
+            item { ReconnectBanner(bank, onOpenBank) }
         }
         if (state.needsCheckIn) {
             item { CheckInBanner(onOpenCheckIn) }
@@ -169,6 +173,22 @@ private fun CheckInBanner(onClick: () -> Unit) {
             Text(stringResource(R.string.home_checkin_banner), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
             Text(stringResource(R.string.home_checkin_banner_action), style = GridText.caps, color = colors.accentText)
             Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.accentText)
+        }
+    }
+}
+
+/** Open Banking consent ended: sync is paused until the user approves again. */
+@Composable
+private fun ReconnectBanner(bank: String, onClick: () -> Unit) {
+    val colors = GridTheme.colors
+    Tile(onClick = onClick, borderColor = colors.warning.copy(alpha = 0.7f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.home_bank_expired, bank), style = MaterialTheme.typography.titleSmall, color = colors.text)
+                Text(stringResource(R.string.bank_reconnect_body), style = MaterialTheme.typography.bodySmall, color = colors.muted)
+            }
+            Text(stringResource(R.string.bank_reconnect), style = GridText.caps, color = colors.warning)
+            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.warning)
         }
     }
 }

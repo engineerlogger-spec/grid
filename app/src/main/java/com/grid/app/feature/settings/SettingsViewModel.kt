@@ -2,7 +2,9 @@ package com.grid.app.feature.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grid.app.core.data.db.entities.BankConnectionEntity
 import com.grid.app.core.data.prefs.AppSettings
+import com.grid.app.core.data.repo.BankRepository
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.PlanRepository
 import com.grid.app.core.model.ThemeMode
@@ -28,7 +30,10 @@ class SettingsViewModel @Inject constructor(
     private val plans: PlanRepository,
     private val clock: AppClock,
     private val appLock: AppLock,
+    bank: BankRepository,
 ) : ViewModel() {
+
+    val bankConnection: StateFlow<BankConnectionEntity?> = bank.observeConnection().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** False when the phone has no screen lock: enabling the app lock would then be pointless. */
     fun canLock(): Boolean = appLock.canAuthenticate()

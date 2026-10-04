@@ -37,6 +37,7 @@ data class Transaction(
     val subscriptionId: Long? = null,
     val pendingId: Long? = null,
     val captureId: Long? = null,
+    val needsReview: Boolean = false,
 ) {
     /** What to call this transaction in lists: merchant, else note, else the category name. */
     val title: String
@@ -48,7 +49,7 @@ data class Transaction(
     fun toDraft(): TransactionDraft = TransactionDraft(
         type = type, amountMinor = amountMinor, currency = currency, categoryId = category.id,
         paymentMethodId = method?.id, merchant = merchant, note = note, occurredAt = occurredAt,
-        source = source, subscriptionId = subscriptionId, pendingId = pendingId, captureId = captureId,
+        source = source, subscriptionId = subscriptionId, pendingId = pendingId, captureId = captureId, needsReview = needsReview,
     )
 }
 
@@ -66,6 +67,7 @@ data class TransactionDraft(
     val subscriptionId: Long? = null,
     val pendingId: Long? = null,
     val captureId: Long? = null,
+    val needsReview: Boolean = false,
 ) {
     init {
         require(amountMinor > 0) { "Amount must be positive (type carries the direction)" }

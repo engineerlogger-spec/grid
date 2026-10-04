@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.CloudUpload
@@ -74,8 +75,16 @@ import com.grid.app.feature.common.moneyFieldText
 import com.grid.app.feature.common.parseMoney
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onOpenCapture: () -> Unit, onOpenBackup: () -> Unit, onOpenCategories: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    onOpenCapture: () -> Unit,
+    onOpenBackup: () -> Unit,
+    onOpenCategories: () -> Unit,
+    onOpenBank: () -> Unit,
+    viewModel: SettingsViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val bank by viewModel.bankConnection.collectAsStateWithLifecycle()
     val s = state.settings ?: return
     val colors = GridTheme.colors
     val formatter = LocalMoneyFormatter.current
@@ -155,6 +164,24 @@ fun SettingsScreen(onBack: () -> Unit, onOpenCapture: () -> Unit, onOpenBackup: 
                 title = stringResource(R.string.capture_setup_title),
                 body = stringResource(if (captureOn) R.string.settings_capture_body_on else R.string.capture_status_off),
                 onClick = onOpenCapture,
+            )
+        }
+
+        CapsLabel(stringResource(R.string.bank_title), Modifier.padding(start = 4.dp, top = 8.dp))
+        Tile(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)) {
+            val connection = bank
+            SettingRow(
+                icon = Icons.Rounded.AccountBalance,
+                title = stringResource(R.string.bank_title),
+                body = when {
+                    connection?.sessionId == null -> stringResource(R.string.settings_bank_off)
+                    connection.status == com.grid.app.core.model.BankStatus.EXPIRED -> stringResource(R.string.settings_bank_expired)
+                    else -> connection.aspspName + " · " + (connection.lastSyncAt?.let { at ->
+                        val date = at.toLocalDate()
+                        stringResource(R.string.bank_status_synced, if (date == java.time.LocalDate.now()) com.grid.app.feature.common.timeOfDay(at) else shortDate(date))
+                    } ?: stringResource(R.string.bank_status_never))
+                },
+                onClick = onOpenBank,
             )
         }
 
