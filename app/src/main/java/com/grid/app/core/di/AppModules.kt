@@ -3,6 +3,8 @@ package com.grid.app.core.di
 import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.grid.app.core.bank.BankConnectorProvider
+import com.grid.app.core.bank.BankConnectors
 import com.grid.app.core.bank.BankKeyStore
 import com.grid.app.core.bank.KeystoreSecretBox
 import com.grid.app.core.data.db.GridDatabase
@@ -97,4 +99,7 @@ abstract class LedgerListenerModule {
 
     @Binds
     abstract fun captureAlerts(impl: NotificationCaptureAlerts): CaptureAlerts
+
+    @Binds
+    abstract fun bankConnectors(impl: BankConnectors): BankConnectorProvider
 }

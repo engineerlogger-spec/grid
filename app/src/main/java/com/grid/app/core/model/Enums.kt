@@ -31,4 +31,5 @@ enum class BankStatus { ACTIVE, EXPIRED, NEEDS_SETUP, ERROR }
 /** What a bank transaction is, which decides whether it is booked automatically. */
 enum class BankTxKind { CARD_SPEND, DIRECT_DEBIT, TRANSFER_OUT, MONEY_IN, INTERNAL }
 
-enum class BankTxState { BOOKED, NEEDS_DECISION, IGNORED }
+/** NEW = fetched but not reconciled yet (a sync interrupted midway resumes from these). */
+enum class BankTxState { NEW, BOOKED, NEEDS_DECISION, IGNORED }

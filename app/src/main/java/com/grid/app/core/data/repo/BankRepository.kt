@@ -128,6 +128,12 @@ class BankRepository @Inject constructor(
         dao.updateConnection(c.copy(status = status, lastError = error))
     }
 
+    /** A failed sync that keeps the connection usable (network, bank hiccup). */
+    suspend fun recordError(message: String) {
+        val c = dao.connection() ?: return
+        dao.updateConnection(c.copy(lastError = message))
+    }
+
     suspend fun recordSync(at: Long) {
         val c = dao.connection() ?: return
         dao.updateConnection(c.copy(lastSyncAt = at, lastError = null, status = BankStatus.ACTIVE))

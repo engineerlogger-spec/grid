@@ -38,6 +38,13 @@ class DescriptorCleanerTest {
         check("JEAN DUPONT", "Jean Dupont")
     }
 
+    @Test fun acronymsStayCapitalised() {
+        check("EDF", "EDF")
+        check("H&M", "H&M")
+        check("LE COMPTOIR", "Le Comptoir")
+        check("BNP PARIBAS", "BNP Paribas")
+    }
+
     @Test fun mixedCaseIsKept() {
         check("Amazon.fr", "Amazon.fr")
         check("  Uber   Eats ", "Uber Eats")

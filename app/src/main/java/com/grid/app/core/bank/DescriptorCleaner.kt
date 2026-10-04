@@ -44,7 +44,16 @@ object DescriptorCleaner {
     private val legalForms = listOf("SA", "SAS", "SARL", "SASU", "EURL", "SNC", "AB", "AG", "BV", "NV", "SL", "SPA", "SRL", "LTD", "LLC", "INC", "PLC", "UAB", "AS", "OY")
         .associateBy { it } + ("GMBH" to "GmbH")
 
+    /** Short words that are words, not acronyms: "LE COMPTOIR" → "Le Comptoir" while "EDF" stays "EDF". */
+    private val shortWords = setOf("A", "AN", "AU", "AUX", "DE", "DU", "DES", "EL", "EN", "ET", "LA", "LE", "LES", "OF", "ST", "THE", "AND", "Y")
+
     private fun titleCase(text: String): String = text.split(' ').joinToString(" ") { word ->
-        legalForms[word.uppercase(Locale.ROOT)] ?: word.lowercase(Locale.ROOT).replaceFirstChar { it.titlecase(Locale.ROOT) }
+        val upper = word.uppercase(Locale.ROOT)
+        when {
+            upper in legalForms -> legalForms.getValue(upper)
+            word.any { !it.isLetter() && it != '\'' && it != '-' && it != '.' } -> word // H&M
+            word.length <= 3 && upper !in shortWords -> word // acronyms: EDF, BNP
+            else -> word.lowercase(Locale.ROOT).replaceFirstChar { it.titlecase(Locale.ROOT) }
+        }
     }
 }

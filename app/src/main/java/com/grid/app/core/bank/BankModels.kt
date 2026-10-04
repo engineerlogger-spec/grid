@@ -31,7 +31,13 @@ data class RemoteTx(
     val bankTxCode: String? = null,
     val rawJson: String = "{}",
 ) {
-    val isCredit: Boolean get() = creditDebit.equals("CRDT", ignoreCase = true)
+    /** Money in. Without an indicator, a signed amount tells ("-12.50" is money out). */
+    val isCredit: Boolean
+        get() = when {
+            creditDebit.equals("CRDT", ignoreCase = true) -> true
+            creditDebit.equals("DBIT", ignoreCase = true) -> false
+            else -> !amount.trim().startsWith("-")
+        }
 
     /** Who the money went to (or came from), falling back to the first remittance line. */
     val counterparty: String?

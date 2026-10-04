@@ -67,9 +67,10 @@ class TransactionRepository @Inject constructor(
     suspend fun update(id: Long, draft: TransactionDraft) {
         val existing = dao.get(id) ?: return
         val now = clock.millis()
+        val reviewed = draft.copy(needsReview = false)
         db.withTransaction {
-            dao.update(draft.copy(needsReview = false).toEntity(id = id, createdAt = existing.createdAt, updatedAt = now))
-            learnMerchant(draft, now)
+            dao.update(reviewed.toEntity(id = id, createdAt = existing.createdAt, updatedAt = now))
+            learnMerchant(reviewed, now)
         }
         listeners.notifyAll()
     }
