@@ -79,11 +79,13 @@ data class BankTransactionEntity(
     val transactionId: Long? = null,
     val rawJson: String,
     val createdAt: Long,
+    /** For own transfers: a date in the budget period it counts in, when the user moved it (null = its own date's period). */
+    val countInEpochDay: Long? = null,
 )
 
-/** Counterparties the user chose to always ignore (e.g. their own other bank). */
+/** Counterparties that are the user's own accounts (e.g. the bank the salary is paid into). Table name kept from v2. */
 @Entity(tableName = "bank_ignore_rules")
-data class BankIgnoreRuleEntity(
+data class OwnAccountRuleEntity(
     @PrimaryKey val counterpartyKey: String,
     val createdAt: Long,
 )

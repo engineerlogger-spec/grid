@@ -24,7 +24,7 @@ class TxClassifierTest {
     @Test fun movesBetweenOwnPocketsAreInternal() {
         assertThat(kind(out(remittance = listOf("To EUR Vault")))).isEqualTo(BankTxKind.INTERNAL)
         assertThat(kind(out(remittance = listOf("Exchanged to USD")))).isEqualTo(BankTxKind.INTERNAL)
-        assertThat(kind(inn(remittance = listOf("Top-Up by *1234")))).isEqualTo(BankTxKind.INTERNAL)
+        assertThat(kind(inn(remittance = listOf("Top-Up by *1234")))).isEqualTo(BankTxKind.TOP_UP) // from another bank's card
         assertThat(kind(out(remittance = listOf("To pocket EUR Holiday")))).isEqualTo(BankTxKind.INTERNAL)
         assertThat(kind(out("Revolut", remittance = listOf("Stocks purchase")))).isEqualTo(BankTxKind.INTERNAL)
     }

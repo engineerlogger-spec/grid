@@ -4,7 +4,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
 import com.grid.app.core.data.db.GridDatabase
-import com.grid.app.core.data.db.entities.BankIgnoreRuleEntity
+import com.grid.app.core.data.db.entities.OwnAccountRuleEntity
 import com.grid.app.core.data.db.entities.BankTransactionEntity
 import com.grid.app.core.data.repo.BankRepository
 import com.grid.app.core.data.repo.PendingRepository
@@ -139,11 +139,13 @@ class BankReconcilerTest {
         assertThat(settled.transactionId).isEqualTo(row.transactionId)
     }
 
-    @Test fun ownMovesAndIgnoredCounterpartiesAreIgnored() = runTest {
+    @Test fun movesInsideRevolutAreIgnoredAndOwnAccountsAreTrackedAsMoved() = runTest {
         assertThat(bankRow(20_000, "To EUR Vault", kind = BankTxKind.INTERNAL).first).isEqualTo(BankTxState.IGNORED)
-        db.bankDao().insertIgnoreRule(BankIgnoreRuleEntity("my other bank", now))
-        assertThat(bankRow(5_000, "My Other Bank", kind = BankTxKind.TRANSFER_OUT).first).isEqualTo(BankTxState.IGNORED)
-        assertThat(ledger()).isEmpty()
+        db.bankDao().insertOwnAccountRule(OwnAccountRuleEntity("sam taylor", now))
+        assertThat(bankRow(150_000, "SAM TAYLOR", kind = BankTxKind.MONEY_IN).first).isEqualTo(BankTxState.OWN_TRANSFER)
+        assertThat(bankRow(20_000, "Sam Taylor", kind = BankTxKind.TRANSFER_OUT).first).isEqualTo(BankTxState.OWN_TRANSFER)
+        assertThat(bankRow(10_000, "Top-Up by *4421", kind = BankTxKind.TOP_UP).first).isEqualTo(BankTxState.OWN_TRANSFER)
+        assertThat(ledger()).isEmpty() // neither income nor spending
     }
 
     @Test fun unknownCardPaymentGoesToOtherForReviewWithoutTeachingARule() = runTest {

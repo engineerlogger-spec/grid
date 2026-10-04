@@ -103,7 +103,8 @@ class DetectedViewModel @Inject constructor(
         if (group.kind == ReviewKind.CATEGORISE) bank.categorise(group, category.id) else bank.book(group, category.id)
     }
 
-    fun ignore(group: BankReviewGroup, always: Boolean) = viewModelScope.launch { bank.ignore(group, always) }
+    fun ignore(group: BankReviewGroup) = viewModelScope.launch { bank.ignore(group) }
+    fun markOwnAccount(group: BankReviewGroup) = viewModelScope.launch { bank.markOwnAccount(group) }
 
     /** Plain-text dump of unrecognised notifications, for sharing so parsers can be improved. */
     fun diagnosticsText(): String = state.value.unparsed.joinToString("\n\n") { "[${it.source}] ${it.title}\n${it.text}" }

@@ -47,13 +47,21 @@ object DescriptorCleaner {
     /** Short words that are words, not acronyms: "LE COMPTOIR" → "Le Comptoir" while "EDF" stays "EDF". */
     private val shortWords = setOf("A", "AN", "AU", "AUX", "DE", "DU", "DES", "EL", "EN", "ET", "LA", "LE", "LES", "OF", "ST", "THE", "AND", "Y")
 
-    private fun titleCase(text: String): String = text.split(' ').joinToString(" ") { word ->
-        val upper = word.uppercase(Locale.ROOT)
-        when {
-            upper in legalForms -> legalForms.getValue(upper)
-            word.any { !it.isLetter() && it != '\'' && it != '-' && it != '.' } -> word // H&M
-            word.length <= 3 && upper !in shortWords -> word // acronyms: EDF, BNP
-            else -> word.lowercase(Locale.ROOT).replaceFirstChar { it.titlecase(Locale.ROOT) }
+    private val vowels = Regex("[AEIOUY]")
+
+    private fun titleCase(text: String): String {
+        val words = text.split(' ')
+        return words.joinToString(" ") { word ->
+            val upper = word.uppercase(Locale.ROOT)
+            // Short capitals are acronyms when they are the whole name (EDF) or unpronounceable (BNP),
+            // not in people's names ("SAM TAYLOR" → Sam Taylor).
+            val acronym = word.length <= 3 && upper !in shortWords && (words.size == 1 || !vowels.containsMatchIn(upper))
+            when {
+                upper in legalForms -> legalForms.getValue(upper)
+                word.any { !it.isLetter() && it != '\'' && it != '-' && it != '.' } -> word // H&M
+                acronym -> word
+                else -> word.lowercase(Locale.ROOT).replaceFirstChar { it.titlecase(Locale.ROOT) }
+            }
         }
     }
 }

@@ -106,7 +106,7 @@ fun DetectedScreen(onBack: () -> Unit, viewModel: DetectedViewModel = hiltViewMo
                     card,
                     onPick = { resolve(card.group, it) },
                     onMore = { moreForGroup = card.group },
-                    onIgnore = { always -> viewModel.ignore(card.group, always) },
+                    onIgnore = { ownAccount -> if (ownAccount) viewModel.markOwnAccount(card.group) else viewModel.ignore(card.group) },
                 )
             }
             if (state.inbox.isNotEmpty()) {
@@ -186,7 +186,7 @@ private fun CategorySheet(categories: List<Category>, onPick: (Category) -> Unit
 
 /** "Lidl · 3 payments · €70.20": one tap on a category settles every payment in the group. */
 @Composable
-private fun BankGroupTile(card: BankGroupCard, onPick: (Category) -> Unit, onMore: () -> Unit, onIgnore: (always: Boolean) -> Unit) {
+private fun BankGroupTile(card: BankGroupCard, onPick: (Category) -> Unit, onMore: () -> Unit, onIgnore: (ownAccount: Boolean) -> Unit) {
     val colors = GridTheme.colors
     val group = card.group
     val incoming = group.kind == ReviewKind.DECIDE_IN

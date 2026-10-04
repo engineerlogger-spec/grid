@@ -33,12 +33,16 @@ class DemoBankConnector(private val clock: AppClock) : BankConnector {
             add(card("uber", today, "12.00", "Uber", "4121", status = "PDNG"))
             listOf(2L, 9L, 16L).forEach { add(card("lidl", today.minusDays(it), "23.40", "LIDL 1234")) }
             add(own("vault", today.minusDays(5), "200.00", "To EUR Vault"))
+            add(topUp("topup", today.minusDays(6), "100.00"))
             for (back in 0L..3L) {
                 val month = today.minusMonths(back)
                 add(card("netflix", month.withDayOfMonth(15), "13.49", "PAYPAL *NETFLIX"))
                 add(directDebit("edf", month.withDayOfMonth(10), "62.00", "EDF"))
                 add(transfer("rent", month.withDayOfMonth(1), "850.00", "J. Dupont", "FR7630006000011234567890189"))
                 add(salary("salary", month.withDayOfMonth(28), "2500.00", "ACME SAS"))
+                // The owner's own salary account: money moved in on the 29th, a little sent back on the 20th.
+                add(salary("fromsalaryacct", month.withDayOfMonth(29), "1500.00", OWNER).copy(debtorIban = OWNER_IBAN))
+                add(transfer("tosalaryacct", month.withDayOfMonth(20), "200.00", OWNER, OWNER_IBAN))
             }
         }
         return TxPage(all.filter { tx -> LocalDate.parse(tx.bookingDate).let { !it.isBefore(dateFrom) && !it.isAfter(today) } }, null)
@@ -64,7 +68,12 @@ class DemoBankConnector(private val clock: AppClock) : BankConnector {
     private fun salary(tag: String, date: LocalDate, amount: String, from: String) =
         card(tag, date, amount, from).copy(creditDebit = "CRDT", creditorName = null, debtorName = from, debtorIban = "FR7699999000001")
 
+    private fun topUp(tag: String, date: LocalDate, amount: String) =
+        card(tag, date, amount, "Revolut").copy(creditDebit = "CRDT", creditorName = null, remittance = listOf("Top-Up by *4421"))
+
     companion object {
         const val IBAN = "LT00DEMO0000000001"
+        const val OWNER = "SAM TAYLOR"
+        const val OWNER_IBAN = "FR7612345000019876543210"
     }
 }

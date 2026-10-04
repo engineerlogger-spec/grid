@@ -78,6 +78,7 @@ fun HomeScreen(
     onOpenBills: () -> Unit,
     onOpenDetected: () -> Unit,
     onOpenBank: () -> Unit,
+    onOpenMoved: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -115,6 +116,9 @@ fun HomeScreen(
                 SpentTile(summary, state.currency, Modifier.weight(1f).fillMaxHeight())
                 IncomeTile(summary, state.currency, state.needsCheckIn, onOpenCheckIn, Modifier.weight(1f).fillMaxHeight())
             }
+        }
+        state.movedMinor?.let { moved ->
+            item { SavingsTile(state.salaryMinor, moved, state.currency, onClick = onOpenMoved) }
         }
         item { UpcomingTile(state, onClick = onOpenBills) }
         item { CategoriesTile(state, onClick = { onOpenActivity(null) }) }
@@ -174,6 +178,34 @@ private fun CheckInBanner(onClick: () -> Unit) {
             Text(stringResource(R.string.home_checkin_banner_action), style = GridText.caps, color = colors.accentText)
             Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.accentText)
         }
+    }
+}
+
+/** Salary entered − money moved to Revolut = what stayed in the salary account this month. */
+@Composable
+private fun SavingsTile(salaryMinor: Long, movedMinor: Long, currency: String, onClick: () -> Unit) {
+    val colors = GridTheme.colors
+    val saved = salaryMinor - movedMinor
+    Tile(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CapsLabel(stringResource(R.string.home_savings), Modifier.weight(1f))
+            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.muted)
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            SavingsFigure(stringResource(R.string.moved_salary), salaryMinor, currency, colors.text)
+            SavingsFigure(stringResource(R.string.moved_moved), movedMinor, currency, colors.text)
+            SavingsFigure(stringResource(R.string.moved_saved), saved, currency, if (saved < 0) colors.warning else colors.accentText)
+        }
+        Spacer(Modifier.height(10.dp))
+        ProgressBar(if (salaryMinor > 0) movedMinor.toFloat() / salaryMinor else 0f, colors.accentText)
+    }
+}
+
+@Composable
+private fun SavingsFigure(label: String, amountMinor: Long, currency: String, color: Color) {
+    Column {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = GridTheme.colors.muted)
+        MoneyText(amountMinor, currency, style = GridText.moneySmall, color = color, fractionColor = GridTheme.colors.muted)
     }
 }
 

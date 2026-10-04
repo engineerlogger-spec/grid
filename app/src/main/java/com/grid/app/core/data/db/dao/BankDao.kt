@@ -8,7 +8,7 @@ import androidx.room.Update
 import androidx.room.Upsert
 import com.grid.app.core.data.db.entities.BankAccountEntity
 import com.grid.app.core.data.db.entities.BankConnectionEntity
-import com.grid.app.core.data.db.entities.BankIgnoreRuleEntity
+import com.grid.app.core.data.db.entities.OwnAccountRuleEntity
 import com.grid.app.core.data.db.entities.BankTransactionEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
 import com.grid.app.core.model.BankTxState
@@ -68,10 +68,10 @@ interface BankDao {
     suspend fun recent(limit: Int): List<BankTransactionEntity>
 
     @Query("SELECT * FROM bank_ignore_rules WHERE counterpartyKey = :key")
-    suspend fun ignoreRule(key: String): BankIgnoreRuleEntity?
+    suspend fun ownAccountRule(key: String): OwnAccountRuleEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertIgnoreRule(rule: BankIgnoreRuleEntity)
+    suspend fun insertOwnAccountRule(rule: OwnAccountRuleEntity)
 
     /** Ledger entries a bank transaction could be the settled version of: same direction, not yet linked to the bank. */
     @Query(
@@ -82,6 +82,9 @@ interface BankDao {
            ORDER BY t.occurredAt""",
     )
     suspend fun ledgerCandidates(type: TxType, currency: String, fromMs: Long, toMs: Long): List<TransactionEntity>
+
+    @Query("UPDATE bank_transactions SET countInEpochDay = :epochDay WHERE id = :id")
+    suspend fun setCountIn(id: Long, epochDay: Long?)
 
     @Query("SELECT * FROM transactions WHERE needsReview = 1 ORDER BY occurredAt DESC")
     fun observeNeedsReview(): Flow<List<TransactionEntity>>

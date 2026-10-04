@@ -220,6 +220,23 @@
     <string name="bank_err_not_granted">Revolut access wasn\'t granted.</string>
     <string name="bank_err_network">Can\'t reach Enable Banking. Check your connection.</string>
     <string name="home_bank_expired">%1$s access expired</string>
+    <string name="home_savings">Savings</string>
+    <string name="moved_title">Moved to Revolut</string>
+    <string name="moved_previous">Show previous month</string>
+    <string name="moved_next">Show next month</string>
+    <string name="moved_salary">Salary</string>
+    <string name="moved_moved">Moved</string>
+    <string name="moved_saved">Saved</string>
+    <string name="moved_no_salary">No salary entered for this month yet: add it in the monthly check-in.</string>
+    <string name="moved_transfers">Transfers</string>
+    <string name="moved_empty_title">No transfers yet</string>
+    <string name="moved_empty_body">Transfers from your salary account appear here once you mark them as \"My own account\" in Detected.</string>
+    <string name="moved_hint">Each transfer counts in its own month. Tick \"Next month\" for one meant for the month after, like a salary moved on the 29th.</string>
+    <string name="moved_unknown">Transfer</string>
+    <string name="moved_from_previous">%1$s · from last month</string>
+    <string name="moved_counted_next">%1$s · counted next month</string>
+    <string name="moved_return">Move back</string>
+    <string name="moved_next_month">Next month</string>
     <string name="detected_bank_section">From Revolut</string>
     <string name="detected_notifications_section">From notifications</string>
     <string name="bank_group_categorise">Pick a category</string>
@@ -231,7 +248,7 @@
     </plurals>
     <string name="bank_ignore">Ignore</string>
     <string name="bank_always_ignore">My own account</string>
-    <string name="bank_own_account_hint">Money moved between your own accounts isn\'t income or spending. \"My own account\" ignores it from now on.</string>
+    <string name="bank_own_account_hint">From your salary account? Tap \"My own account\": transfers with it count as money moved to Revolut, not income.</string>
     <string name="settings_bank_off">Not connected</string>
     <string name="settings_bank_expired">Revolut · access expired</string>
     <string name="notif_sub_today">%1$s renews today · %2$s</string>

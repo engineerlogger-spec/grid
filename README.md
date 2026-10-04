@@ -45,6 +45,7 @@ Grid shows your month as a grid of days: each cell is coloured by how that day's
 - Wallet payments with a Revolut card and PayPal purchases funded by Revolut arrive too, with the real merchant: "PAYPAL *NETFLIX" becomes Netflix, paid with PayPal.
 - Payments already caught from a notification are merged, not doubled. Bills like rent are matched to their entry in Bills.
 - New merchants and transfers are grouped for one-tap review, and every choice is learned. Moves between your own pockets and vaults are ignored.
+- **Savings:** money moved in from your salary account is tracked as *Moved to Revolut*, not income. Home shows salary − moved = saved. Any transfer can be counted in the next month, for example a salary moved on the 29th.
 - Setup takes 10 minutes and is free for personal use: [docs/BANK_SYNC_SETUP.md](docs/BANK_SYNC_SETUP.md).
 
 **Payment detection (Google Wallet, PayPal, Revolut)**

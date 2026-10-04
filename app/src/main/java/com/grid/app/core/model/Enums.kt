@@ -28,8 +28,14 @@ enum class CaptureStatus { NEW, ADDED, DISMISSED, UNPARSED }
 
 enum class BankStatus { ACTIVE, EXPIRED, NEEDS_SETUP, ERROR }
 
-/** What a bank transaction is, which decides whether it is booked automatically. */
-enum class BankTxKind { CARD_SPEND, DIRECT_DEBIT, TRANSFER_OUT, MONEY_IN, INTERNAL }
+/**
+ * What a bank transaction is, which decides whether it is booked automatically.
+ * TOP_UP = money added to Revolut from another account's card; INTERNAL = moves inside Revolut (pockets, vaults, exchanges).
+ */
+enum class BankTxKind { CARD_SPEND, DIRECT_DEBIT, TRANSFER_OUT, MONEY_IN, TOP_UP, INTERNAL }
 
-/** NEW = fetched but not reconciled yet (a sync interrupted midway resumes from these). */
-enum class BankTxState { NEW, BOOKED, NEEDS_DECISION, IGNORED }
+/**
+ * NEW = fetched but not reconciled yet (a sync interrupted midway resumes from these).
+ * OWN_TRANSFER = money moved between the user's own accounts: not income or spending, summed as "moved to Revolut".
+ */
+enum class BankTxState { NEW, BOOKED, NEEDS_DECISION, IGNORED, OWN_TRANSFER }
