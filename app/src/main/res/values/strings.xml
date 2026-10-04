@@ -45,7 +45,6 @@
     <string name="home_empty_body">Tap + to log your first spend. Amount, category, done.</string>
     <string name="home_checkin_banner">New month — confirm your income</string>
     <string name="home_checkin_banner_action">Check in</string>
-    <string name="home_spent_hidden">Hidden</string>
 
     <!-- Quick add -->
     <string name="add_expense">Expense</string>
@@ -64,7 +63,6 @@
     <string name="add_updated">Updated</string>
     <string name="add_deleted">Deleted %1$s</string>
     <string name="add_edit_title">Edit transaction</string>
-    <string name="add_suggestions">Usual</string>
     <string name="add_no_method">No method</string>
 
     <!-- Activity -->
@@ -143,7 +141,6 @@
     <string name="settings_hide_amounts_body">Mask every amount until you tap the eye on Home</string>
     <string name="settings_about">About</string>
     <string name="settings_version">Version %1$s</string>
-    <string name="settings_coming_soon">Coming soon</string>
 
     <!-- Notifications -->
     <string name="channel_bills">Bills &amp; reminders</string>
@@ -158,10 +155,16 @@
     <string name="channel_checkin_desc">Reminder to confirm your income at the start of each month</string>
     <string name="notif_sub_today">%1$s renews today · %2$s</string>
     <string name="notif_sub_tomorrow">%1$s renews tomorrow · %2$s</string>
-    <string name="notif_sub_in_days">%1$s renews in %3$d days · %2$s</string>
+    <plurals name="notif_sub_in_days">
+        <item quantity="one">%1$s renews in %3$d day · %2$s</item>
+        <item quantity="other">%1$s renews in %3$d days · %2$s</item>
+    </plurals>
     <string name="notif_due_today">%1$s is due today · %2$s</string>
     <string name="notif_due_tomorrow">%1$s is due tomorrow · %2$s</string>
-    <string name="notif_due_in_days">%1$s is due in %3$d days · %2$s</string>
+    <plurals name="notif_due_in_days">
+        <item quantity="one">%1$s is due in %3$d day · %2$s</item>
+        <item quantity="other">%1$s is due in %3$d days · %2$s</item>
+    </plurals>
     <string name="notif_collect_due">Collect %2$s for %1$s</string>
     <string name="notif_overdue">%1$s is overdue · %2$s</string>
     <string name="notif_bills_body">Open Grid to review or mark it paid.</string>
@@ -212,9 +215,18 @@
     <string name="cycle_quarterly">Every 3 months</string>
     <string name="cycle_yearly">Yearly</string>
     <string name="cycle_custom">Custom</string>
-    <string name="cycle_every_weeks">Every %d weeks</string>
-    <string name="cycle_every_months">Every %d months</string>
-    <string name="cycle_every_years">Every %d years</string>
+    <plurals name="cycle_every_weeks">
+        <item quantity="one">Every week</item>
+        <item quantity="other">Every %d weeks</item>
+    </plurals>
+    <plurals name="cycle_every_months">
+        <item quantity="one">Every month</item>
+        <item quantity="other">Every %d months</item>
+    </plurals>
+    <plurals name="cycle_every_years">
+        <item quantity="one">Every year</item>
+        <item quantity="other">Every %d years</item>
+    </plurals>
     <string name="unit_weeks">Weeks</string>
     <string name="unit_months">Months</string>
     <string name="unit_years">Years</string>
@@ -236,7 +248,10 @@
     <string name="sub_cancel">Cancel subscription</string>
     <string name="remind_off">Off</string>
     <string name="remind_same_day">On the day</string>
-    <string name="remind_days_before">%d days before</string>
+    <plurals name="remind_days_before">
+        <item quantity="one">%d day before</item>
+        <item quantity="other">%d days before</item>
+    </plurals>
     <string name="remind_one_day">1 day before</string>
     <string name="remind_week">1 week before</string>
     <string name="pending_new_title">New pending payment</string>
@@ -249,7 +264,6 @@
     <string name="pending_no_due">No due date</string>
     <string name="pending_note">Note (optional)</string>
     <string name="pending_reopen">Mark as not paid</string>
-    <string name="field_required">Required</string>
     <string name="notifications_rationale">Allow notifications so Grid can remind you before bills are due.</string>
     <string name="home_upcoming">Upcoming · 7 days</string>
     <string name="home_upcoming_due">%1$s due</string>
@@ -273,7 +287,6 @@
     <string name="capture_added_title">Added %1$s · %2$s</string>
     <string name="capture_added_body">%1$s · from %2$s</string>
     <string name="detected_title">Detected</string>
-    <string name="detected_tile_title">Detected payments</string>
     <plurals name="detected_tile_count">
         <item quantity="one">%d new payment to review</item>
         <item quantity="other">%d new payments to review</item>
@@ -337,10 +350,12 @@
     <string name="backup_saved_file">Backup saved</string>
     <string name="backup_saved_csv">CSV exported</string>
     <string name="backup_restore_confirm_title">Replace your data?</string>
-    <string name="backup_restore_confirm_body">Backup made %2$s on %1$s, with %3$d transactions. Everything currently in Grid will be replaced and the app will restart.</string>
+    <plurals name="backup_restore_confirm_body">
+        <item quantity="one">Backup made %2$s on %1$s, with %3$d transaction. Everything currently in Grid will be replaced and the app will restart.</item>
+        <item quantity="other">Backup made %2$s on %1$s, with %3$d transactions. Everything currently in Grid will be replaced and the app will restart.</item>
+    </plurals>
     <string name="backup_restore_confirm">Restore</string>
     <string name="backup_restoring">Restoring…</string>
-    <string name="backup_error">%1$s</string>
     <string name="backup_error_corrupt">That file isn\'t a valid Grid backup.</string>
     <string name="backup_error_newer">That backup was made by a newer version of Grid. Update the app first.</string>
     <string name="backup_error_none">No backup found in this Google account.</string>

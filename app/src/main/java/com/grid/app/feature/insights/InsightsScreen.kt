@@ -66,6 +66,7 @@ import com.grid.app.core.designsystem.components.LocalMoneyFormatter
 import com.grid.app.core.designsystem.components.MethodBadge
 import com.grid.app.core.designsystem.components.MoneyText
 import com.grid.app.core.designsystem.components.Tile
+import com.grid.app.core.designsystem.components.currentLocale
 import com.grid.app.core.designsystem.theme.GridText
 import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.core.insights.Insight
@@ -75,7 +76,6 @@ import com.grid.app.feature.common.MoneyField
 import com.grid.app.feature.common.moneyFieldText
 import com.grid.app.feature.common.parseMoney
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -181,7 +181,7 @@ private fun InsightCard(insight: Insight, state: InsightsUiState) {
         )
         is Insight.HighestDay -> Triple(
             Icons.Rounded.EventBusy,
-            stringResource(R.string.insight_highest_day, insight.date.format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault())), money(insight.amountMinor)),
+            stringResource(R.string.insight_highest_day, insight.date.format(DateTimeFormatter.ofPattern("EEE d MMM", currentLocale())), money(insight.amountMinor)),
             colors.muted,
         )
         is Insight.SubscriptionsShare -> Triple(
@@ -254,7 +254,7 @@ private fun PaceTile(state: InsightsUiState, report: InsightsReport) {
         CapsLabel(stringResource(R.string.insights_pace))
         val endDate = state.period?.endExclusive?.minusDays(1)
         Text(
-            if (report.isCurrent && endDate != null) stringResource(R.string.insights_pace_projection, formatter.format(pace.projectedMinor, state.currency, masked = masked), endDate.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())))
+            if (report.isCurrent && endDate != null) stringResource(R.string.insights_pace_projection, formatter.format(pace.projectedMinor, state.currency, masked = masked), endDate.format(DateTimeFormatter.ofPattern("d MMM", currentLocale())))
             else stringResource(R.string.insights_pace_final, formatter.format(report.kpis.spentMinor, state.currency, masked = masked)),
             style = MaterialTheme.typography.titleSmall, color = colors.text, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
         )

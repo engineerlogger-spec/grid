@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -186,7 +187,7 @@ fun ReminderChips(days: Int?, onPick: (Int?) -> Unit) {
         null to stringResource(R.string.remind_off),
         0 to stringResource(R.string.remind_same_day),
         1 to stringResource(R.string.remind_one_day),
-        3 to stringResource(R.string.remind_days_before, 3),
+        3 to pluralStringResource(R.plurals.remind_days_before, 3, 3),
         7 to stringResource(R.string.remind_week),
     )
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

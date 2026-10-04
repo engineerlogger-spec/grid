@@ -3,6 +3,7 @@ package com.grid.app.feature.common
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.grid.app.R
+import com.grid.app.core.designsystem.components.currentLocale
 import com.grid.app.core.time.BudgetPeriod
 import java.time.Instant
 import java.time.LocalDate
@@ -25,7 +26,7 @@ fun BudgetPeriod.title(today: LocalDate, locale: Locale = Locale.getDefault()): 
 fun dayLabel(date: LocalDate, today: LocalDate): String = when (date) {
     today -> stringResource(R.string.activity_today)
     today.minusDays(1) -> stringResource(R.string.activity_yesterday)
-    else -> date.format(DateTimeFormatter.ofPattern(if (date.year == today.year) "EEE d MMM" else "EEE d MMM yyyy", Locale.getDefault()))
+    else -> date.format(DateTimeFormatter.ofPattern(if (date.year == today.year) "EEE d MMM" else "EEE d MMM yyyy", currentLocale()))
 }
 
 fun shortDate(date: LocalDate): String = date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(Locale.getDefault()))

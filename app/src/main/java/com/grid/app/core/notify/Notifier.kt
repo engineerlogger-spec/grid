@@ -29,7 +29,6 @@ object Channels {
     const val CHECKIN = "checkin"
 
     fun createAll(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
         listOf(
             Triple(BILLS, R.string.channel_bills, R.string.channel_bills_desc) to NotificationManager.IMPORTANCE_DEFAULT,
@@ -68,13 +67,13 @@ class Notifier @Inject constructor(
             ReminderKind.SUBSCRIPTION_RENEWS -> when (days) {
                 0 -> context.getString(R.string.notif_sub_today, reminder.title, amount)
                 1 -> context.getString(R.string.notif_sub_tomorrow, reminder.title, amount)
-                else -> context.getString(R.string.notif_sub_in_days, reminder.title, amount, days)
+                else -> context.resources.getQuantityString(R.plurals.notif_sub_in_days, days, reminder.title, amount, days)
             }
             ReminderKind.PENDING_DUE -> when {
                 reminder.direction == PendingDirection.OWED_TO_ME -> context.getString(R.string.notif_collect_due, reminder.title, amount)
                 days == 0 -> context.getString(R.string.notif_due_today, reminder.title, amount)
                 days == 1 -> context.getString(R.string.notif_due_tomorrow, reminder.title, amount)
-                else -> context.getString(R.string.notif_due_in_days, reminder.title, amount, days)
+                else -> context.resources.getQuantityString(R.plurals.notif_due_in_days, days, reminder.title, amount, days)
             }
             ReminderKind.PENDING_OVERDUE -> context.getString(R.string.notif_overdue, reminder.title, amount)
         }

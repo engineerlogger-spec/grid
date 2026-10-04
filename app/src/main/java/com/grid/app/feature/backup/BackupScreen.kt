@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -176,7 +177,8 @@ fun BackupScreen(onBack: () -> Unit, viewModel: BackupViewModel = hiltViewModel(
             onDismissRequest = viewModel::cancelRestore,
             title = { Text(stringResource(R.string.backup_restore_confirm_title)) },
             text = {
-                Text(stringResource(R.string.backup_restore_confirm_body, m.device, dateTimeText(m.createdAt), m.counts["transactions"] ?: 0))
+                val count = m.counts["transactions"] ?: 0
+                Text(pluralStringResource(R.plurals.backup_restore_confirm_body, count, m.device, dateTimeText(m.createdAt), count))
             },
             confirmButton = {
                 TextButton(onClick = viewModel::confirmRestore, enabled = busy == null) {

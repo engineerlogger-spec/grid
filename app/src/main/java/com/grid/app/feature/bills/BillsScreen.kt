@@ -317,7 +317,7 @@ fun cycleLabel(unit: CycleUnit, count: Int): String = when {
     unit == CycleUnit.MONTH && count == 1 -> stringResource(R.string.cycle_monthly)
     unit == CycleUnit.MONTH && count == 3 -> stringResource(R.string.cycle_quarterly)
     unit == CycleUnit.YEAR && count == 1 -> stringResource(R.string.cycle_yearly)
-    unit == CycleUnit.WEEK -> stringResource(R.string.cycle_every_weeks, count)
-    unit == CycleUnit.MONTH -> stringResource(R.string.cycle_every_months, count)
-    else -> stringResource(R.string.cycle_every_years, count)
+    unit == CycleUnit.WEEK -> pluralStringResource(R.plurals.cycle_every_weeks, count, count)
+    unit == CycleUnit.MONTH -> pluralStringResource(R.plurals.cycle_every_months, count, count)
+    else -> pluralStringResource(R.plurals.cycle_every_years, count, count)
 }

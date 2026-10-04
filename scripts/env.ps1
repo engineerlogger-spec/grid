@@ -17,8 +17,10 @@ $AppId      = [regex]::Match($gradleFile, 'applicationId\s*=\s*"([^"]+)"').Group
 $Namespace  = [regex]::Match($gradleFile, 'namespace\s*=\s*"([^"]+)"').Groups[1].Value
 $Apk        = Join-Path $Root 'app\build\outputs\apk\debug\app-debug.apk'
 
-if (-not (Test-Path (Join-Path $Root 'local.properties'))) {
-    Set-Content (Join-Path $Root 'local.properties') "sdk.dir=$($Sdk -replace '\\','/')"
+$localProps = Join-Path $Root 'local.properties'
+# Properties files need ':' escaped (C\:/Users/...); rewrite older unescaped files too.
+if (-not (Test-Path $localProps) -or (Get-Content $localProps -Raw) -notmatch 'sdk\.dir=[A-Za-z]\\:') {
+    Set-Content $localProps ('sdk.dir=' + (($Sdk -replace '\\', '/') -replace ':', '\:'))
 }
 
 function Get-Device {

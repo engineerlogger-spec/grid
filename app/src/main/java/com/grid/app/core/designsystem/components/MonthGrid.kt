@@ -29,7 +29,6 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
-import java.util.Locale
 
 /**
  * One cell of the month grid. [intensity] (0–1) is how much of the day's allowance was used;
@@ -53,7 +52,7 @@ fun MonthGrid(
 ) {
     if (cells.isEmpty()) return
     val colors = GridTheme.colors
-    val locale = Locale.getDefault()
+    val locale = currentLocale()
     val leading = (cells.first().date.dayOfWeek.value - firstDayOfWeek.value + 7) % 7
     val slots: List<MonthCellUi?> = List(leading) { null } + cells
     val dayFormat = DateTimeFormatter.ofPattern("EEEE d MMMM", locale)
