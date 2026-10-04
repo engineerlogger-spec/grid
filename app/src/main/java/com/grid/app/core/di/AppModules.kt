@@ -6,7 +6,10 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import com.grid.app.core.data.db.GridDatabase
 import com.grid.app.core.data.prefs.SentLog
 import com.grid.app.core.data.prefs.SettingsRepository
+import com.grid.app.core.data.repo.BudgetAlertListener
 import com.grid.app.core.data.repo.LedgerListener
+import dagger.Binds
+import dagger.multibindings.IntoSet
 import com.grid.app.core.money.MoneyFormatter
 import com.grid.app.core.time.AppClock
 import com.grid.app.core.time.SystemAppClock
@@ -58,7 +61,10 @@ object AppModule {
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class LedgerListenerModule {
-    /** Declares the (initially empty) set so repositories can inject it before any listener exists. */
+    /** Declares the set so repositories can inject it even if no listener is bound. */
     @Multibinds
     abstract fun ledgerListeners(): Set<LedgerListener>
+
+    @Binds @IntoSet
+    abstract fun budgetAlerts(listener: BudgetAlertListener): LedgerListener
 }

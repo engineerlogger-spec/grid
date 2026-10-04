@@ -45,7 +45,7 @@ object Channels {
 }
 
 /** Where a notification tap should land inside the app. */
-enum class LaunchTarget { BILLS, CHECK_IN, ADD_EXPENSE, ADD_INCOME, DETECTED, BACKUP;
+enum class LaunchTarget { BILLS, INSIGHTS, CHECK_IN, ADD_EXPENSE, ADD_INCOME, DETECTED, BACKUP;
     companion object {
         const val EXTRA = "grid.launch"
         fun from(intent: Intent?): LaunchTarget? = intent?.getStringExtra(EXTRA)?.let { name -> entries.firstOrNull { it.name == name } }

@@ -22,6 +22,16 @@ function Get-UiNodes {
     }
 }
 
+# Wait until any on-screen text/description matches [Pattern] (cold starts after install can be slow).
+function Wait-ForText([string]$Pattern, [int]$TimeoutSeconds = 20) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        if (Get-UiNodes | Where-Object { $_.Text -match $Pattern -or $_.Desc -match $Pattern }) { return $true }
+        Start-Sleep -Milliseconds 700
+    }
+    return $false
+}
+
 # Tap the first element whose text or content description matches the pattern.
 function Invoke-Tap([string]$Pattern) {
     $n = Get-UiNodes | Where-Object { $_.Text -match $Pattern -or $_.Desc -match $Pattern } | Select-Object -First 1

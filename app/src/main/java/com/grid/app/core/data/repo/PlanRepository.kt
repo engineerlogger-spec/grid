@@ -19,6 +19,17 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Exact plan for the period if any; otherwise the most recent plan starting before the period
+ * ends. ("Before it ends", not "before it starts": moving the pay day earlier creates a period
+ * that starts before the current plan, and the goal must still carry over.)
+ */
+internal fun carriedGoal(plansNewestFirst: List<PeriodPlanEntity>, period: BudgetPeriod): Long? {
+    val start = period.start.toEpochDay()
+    val end = period.endExclusive.toEpochDay()
+    return (plansNewestFirst.firstOrNull { it.periodStartEpochDay == start } ?: plansNewestFirst.firstOrNull { it.periodStartEpochDay < end })?.goalMinor
+}
+
 /** Spending goals per budget period and the monthly income check-in. */
 @Singleton
 class PlanRepository @Inject constructor(
@@ -44,16 +55,6 @@ class PlanRepository @Inject constructor(
 
     suspend fun goalFor(period: BudgetPeriod): Long? = carriedGoal(dao.observeAllPlans().first(), period)
 
-    /**
-     * Exact plan for the period if any; otherwise the most recent plan starting before the period
-     * ends. ("Before it ends", not "before it starts": moving the pay day earlier creates a period
-     * that starts before the current plan, and the goal must still carry over.)
-     */
-    private fun carriedGoal(plansNewestFirst: List<PeriodPlanEntity>, period: BudgetPeriod): Long? {
-        val start = period.start.toEpochDay()
-        val end = period.endExclusive.toEpochDay()
-        return (plansNewestFirst.firstOrNull { it.periodStartEpochDay == start } ?: plansNewestFirst.firstOrNull { it.periodStartEpochDay < end })?.goalMinor
-    }
 
     suspend fun setGoal(period: BudgetPeriod, goalMinor: Long) {
         val start = period.start.toEpochDay()

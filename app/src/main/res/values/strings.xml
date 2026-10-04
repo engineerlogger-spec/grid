@@ -255,6 +255,47 @@
     <string name="home_upcoming_due">%1$s due</string>
     <string name="home_nothing_due">Nothing due this week</string>
 
-    <!-- Placeholders until their milestones land -->
+    <!-- Budget alerts -->
+    <string name="alert_total_80" formatted="false">You\'ve used 80% of this month\'s goal</string>
+    <string name="alert_total_over">You\'ve reached this month\'s spending goal</string>
+    <string name="alert_category_80">%1$s is at 80%% of its budget</string>
+    <string name="alert_category_over">%1$s is over budget</string>
+    <string name="alert_body">%1$s of %2$s spent so far</string>
+
+    <!-- Insights -->
     <string name="insights_title">Insights</string>
+    <string name="insights_spent">Spent</string>
+    <string name="insights_income">Income</string>
+    <string name="insights_saved">Saved</string>
+    <string name="insights_daily_avg">Daily average</string>
+    <string name="insights_by_category">Where it went</string>
+    <string name="insights_total_spent">total spent</string>
+    <string name="insights_pace">Pace</string>
+    <string name="insights_pace_projection">On pace for %1$s by %2$s</string>
+    <string name="insights_pace_final">Finished at %1$s</string>
+    <string name="insights_pace_legend_spent">Spent</string>
+    <string name="insights_pace_legend_budget">Goal pace</string>
+    <string name="insights_history">Last 6 months</string>
+    <string name="insights_budgets">Category budgets</string>
+    <string name="insights_set_budget">Set budget</string>
+    <string name="insights_budget_left">%1$s left</string>
+    <string name="insights_budget_over">%1$s over</string>
+    <string name="insights_no_budgets" formatted="false">Give a category a monthly limit and Grid warns you at 80% and 100%.</string>
+    <string name="insights_budget_remove">Remove limit</string>
+    <string name="insights_methods">Paid with</string>
+    <string name="insights_merchants">Top places</string>
+    <plurals name="insights_times">
+        <item quantity="one">%d time</item>
+        <item quantity="other">%d times</item>
+    </plurals>
+    <string name="insights_unknown_method">Not set</string>
+    <string name="insights_empty_title">No spending this month</string>
+    <string name="insights_empty_body">Insights appear as soon as you log a few spends.</string>
+    <string name="insight_category_up">%1$s is up %2$s vs the same point last month</string>
+    <string name="insight_projection_over">At this pace you\'ll spend %1$s — %2$s over your goal</string>
+    <string name="insight_projection_under">On pace for %1$s — %2$s under your goal</string>
+    <string name="insight_highest_day">Your biggest day was %1$s: %2$s</string>
+    <string name="insight_subscriptions">Subscriptions are %1$d%% of spending (%2$s)</string>
+    <string name="insight_saved_rate">You kept %1$d%% of your income</string>
+    <string name="insight_overspent_rate">You spent %1$d%% more than you earned</string>
 </resources>

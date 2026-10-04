@@ -15,7 +15,7 @@ function ScrollTop { 1..3 | ForEach-Object { & $Adb shell input swipe 540 500 54
 
 & $Adb shell pm grant $AppId android.permission.POST_NOTIFICATIONS 2>$null
 & $Adb shell am start -n "$AppId/$Namespace.MainActivity" | Out-Null
-Start-Sleep 2
+Wait-ForText 'Get started|LEFT TO SPEND|Home' | Out-Null; Start-Sleep 1
 
 Step 'Bills tab shows subscriptions empty state' {
     Invoke-Tap '^Bills$'; Start-Sleep 1.2; (ScreenText) -match 'No subscriptions yet'

@@ -52,12 +52,12 @@ import com.grid.app.feature.bills.BillsScreen
 import com.grid.app.feature.bills.PendingEditorScreen
 import com.grid.app.feature.bills.SubscriptionEditorScreen
 import com.grid.app.feature.checkin.CheckInScreen
-import com.grid.app.feature.common.ComingSoonScreen
 import com.grid.app.feature.common.LocalMessenger
 import com.grid.app.feature.common.LocalQuickAdd
 import com.grid.app.feature.common.Messenger
 import com.grid.app.feature.common.QuickAddController
 import com.grid.app.feature.home.HomeScreen
+import com.grid.app.feature.insights.InsightsScreen
 import com.grid.app.feature.onboarding.OnboardingScreen
 import com.grid.app.feature.settings.SettingsScreen
 
@@ -93,6 +93,7 @@ fun GridAppUi(
         if (!onboardingDone) return@LaunchedEffect
         when (target) {
             LaunchTarget.BILLS -> nav.navigateToTab("bills")
+            LaunchTarget.INSIGHTS -> nav.navigateToTab("insights")
             LaunchTarget.CHECK_IN -> nav.navigate(CheckInRoute) { launchSingleTop = true }
             LaunchTarget.ADD_EXPENSE -> quickAdd.add(TxType.EXPENSE)
             LaunchTarget.ADD_INCOME -> quickAdd.add(TxType.INCOME)
@@ -178,7 +179,9 @@ fun GridAppUi(
                     }
                     composable<SubscriptionEditRoute> { SubscriptionEditorScreen(onDone = { nav.popBackStack() }) }
                     composable<PendingEditRoute> { PendingEditorScreen(onDone = { nav.popBackStack() }) }
-                    composable<InsightsRoute> { ComingSoonScreen(stringResource(R.string.insights_title), padding) }
+                    composable<InsightsRoute> {
+                        InsightsScreen(contentPadding = padding, onOpenCategory = { id -> nav.navigate(ActivityRoute(categoryId = id)) })
+                    }
                     composable<CheckInRoute> {
                         CheckInScreen(
                             onDone = { nav.popBackStack() },
