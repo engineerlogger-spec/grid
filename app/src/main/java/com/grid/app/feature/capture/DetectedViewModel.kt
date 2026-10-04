@@ -10,7 +10,9 @@ import com.grid.app.core.data.repo.CaptureItem
 import com.grid.app.core.data.repo.CaptureRepository
 import com.grid.app.core.data.repo.CategoryRepository
 import com.grid.app.core.data.repo.ReviewKind
+import com.grid.app.core.data.repo.SubscriptionRepository
 import com.grid.app.core.data.repo.TransactionRepository
+import com.grid.app.core.model.MerchantKey
 import com.grid.app.core.model.CaptureDirection
 import com.grid.app.core.model.Category
 import com.grid.app.core.model.CategoryKind
@@ -49,6 +51,7 @@ class DetectedViewModel @Inject constructor(
     private val processor: CaptureProcessor,
     private val bank: BankRepository,
     private val transactions: TransactionRepository,
+    private val subscriptions: SubscriptionRepository,
 ) : ViewModel() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -60,7 +63,13 @@ class DetectedViewModel @Inject constructor(
     private val bankCards = bank.observeReviewGroups().mapLatest { groups ->
         val expense = categories.orderedByUsage(CategoryKind.EXPENSE, transactions.categoryUsage(TxType.EXPENSE)).filter { !it.archived && it.iconKey != Seed.ICON_OTHER }
         val income = categories.orderedByUsage(CategoryKind.INCOME, transactions.categoryUsage(TxType.INCOME)).filter { !it.archived }
-        groups.map { g -> BankGroupCard(g, (if (g.kind == ReviewKind.DECIDE_IN) income else expense).take(3)) }
+        val subs = subscriptions.all()
+        groups.map { g ->
+            val pool = if (g.kind == ReviewKind.DECIDE_IN) income else expense
+            // "Netflix" payments when a Netflix subscription exists: offer its category first.
+            val hint = subs.firstOrNull { MerchantKey.of(it.name) == MerchantKey.of(g.title) }?.category?.takeIf { it in pool }
+            BankGroupCard(g, (listOfNotNull(hint) + pool.filter { it.id != hint?.id }).take(3))
+        }
     }
 
     val state: StateFlow<DetectedUiState> = combine(

@@ -40,8 +40,15 @@ Grid shows your month as a grid of days: each cell is coloured by how that day's
 - Category budgets with 80% / 100% alerts, payment methods and top places.
 - Generated insights, e.g. *"Groceries is up €250 vs the same point last month"*.
 
+**Bank sync (Revolut, and Google Wallet and PayPal through it)**
+- Imports settled Revolut transactions through Enable Banking (Open Banking, read-only), straight from your phone. Sync runs three times a day, and history can be imported for up to 12 months.
+- Wallet payments with a Revolut card and PayPal purchases funded by Revolut arrive too, with the real merchant: "PAYPAL *NETFLIX" becomes Netflix, paid with PayPal.
+- Payments already caught from a notification are merged, not doubled. Bills like rent are matched to their entry in Bills.
+- New merchants and transfers are grouped for one-tap review, and every choice is learned. Moves between your own pockets and vaults are ignored.
+- Setup takes 10 minutes and is free for personal use: [docs/BANK_SYNC_SETUP.md](docs/BANK_SYNC_SETUP.md).
+
 **Payment detection (Google Wallet, PayPal, Revolut)**
-- Reads those three apps' payment notifications, on your phone only.
+- Reads those three apps' payment notifications, on your phone only, the moment you pay.
 - New merchants arrive with one-tap category buttons. Merchants you've categorised before are added automatically, with Undo.
 - Unrecognised formats are kept locally so the parsers can be improved.
 
@@ -54,7 +61,7 @@ Grid shows your month as a grid of days: each cell is coloured by how that day's
 - App lock (fingerprint, face or PIN), a hide-amounts mode, and custom categories with icons, colours and budgets.
 
 ## Privacy
-There's no account, no server and no analytics. Data lives in a local database on your phone. The only network traffic is to *your* Google Drive, and only if you turn backup on. Android's automatic cloud backup is disabled for Grid: backups are explicit and under your control.
+There's no account, no server and no analytics. Data lives in a local database on your phone. The only network traffic is to *your* Google Drive (if you turn backup on) and to Enable Banking (if you turn bank sync on, using your own key, which stays encrypted on the phone). Android's automatic cloud backup is disabled for Grid: backups are explicit and under your control.
 
 ## Install on your phone
 1. Enable *Developer options → USB debugging* on the phone and plug it in.
@@ -71,7 +78,7 @@ Installing through `adb` (or Play) avoids Android's "restricted settings" block 
 | Language / UI | Kotlin 2.4, Jetpack Compose (BOM 2026.09), Material 3 |
 | Architecture | Single module; Compose → Hilt ViewModels → repositories → Room / DataStore. Pure-Kotlin domain code (money, periods, billing, insights, parsers) with no Android imports |
 | Build | Gradle 9.8, AGP 9.4, compileSdk 37, targetSdk 36, minSdk 26 |
-| Background | WorkManager (daily bills/reminders, Drive backup), NotificationListenerService (payment detection), Glance (widget) |
+| Background | WorkManager (daily bills/reminders, Drive backup, bank sync), NotificationListenerService (payment detection), Glance (widget) |
 
 Requires Android Studio's bundled JDK 21 and the Android SDK. The scripts handle the rest:
 
@@ -91,6 +98,7 @@ CI (GitHub Actions) builds, runs the unit tests and lint on every push.
 - [Design spec](docs/superpowers/specs/2026-10-04-grid-v2-design.md): product scope, design system and architecture
 - [Implementation plans](docs/superpowers/plans/), one per milestone
 - [Google Drive setup](docs/GOOGLE_DRIVE_SETUP.md)
+- [Bank sync setup](docs/BANK_SYNC_SETUP.md) (Revolut via Enable Banking)
 - [Working with Jules](docs/JULES.md), the AI agent that wrote the first draft, and how to talk to it
 
 Grid v2 replaces the first draft (preserved as the `jules-draft` tag).

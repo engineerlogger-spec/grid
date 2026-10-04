@@ -54,7 +54,7 @@ New package `core/bank` (pure Kotlin, apart from the client and the key store):
   - `INTERNAL`: own accounts or pockets, vaults, exchanges, top-ups. Detected from the user's own account identifiers plus Revolut descriptors ("To EUR Vault", "Exchanged to", "Top-Up by").
 - `MccCategories`, a pure lookup: merchant category code → seed category (5411 → Groceries, 5812/5814 → Restaurants, 4111/4121/5541 → Transport, 5651/5691 → Clothing…). It's used only when Revolut supplies `merchant_category_code`.
 - `Reconciler`: see §5.
-- `BankSyncWorker` (WorkManager): runs every 6 hours on any network, and runs once immediately after connecting.
+- `BankSyncWorker` (WorkManager): runs every 8 hours on any network (3 runs a day, which leaves one of PSD2's ~4 daily fetches for **Sync now**), and runs once immediately after connecting.
 
 ## 4. Data (Room schema v2, migration 1→2 with a test)
 - `bank_connections`: `id`, `provider`, `aspspName`, `aspspCountry`, `sessionId`, `validUntil`, `status` (ACTIVE / EXPIRED / NEEDS_SETUP / ERROR), `lastSyncAt`, `lastError`, `createdAt`.
@@ -108,7 +108,7 @@ A ledger entry's date is `transaction_date` when present, else `booking_date`. O
 | 429 rate limit | Skip this run and retry at the next window |
 | Network or 5xx | WorkManager backs off exponentially; `lastError` is shown on the card |
 | Bad key or app ID during setup | An inline error; nothing is saved |
-| A transaction in another currency | Staged as `NEEDS_DECISION` and never auto-booked (Grid is single-currency) |
+| A transaction in another currency | Only accounts in Grid's currency can be enabled. As a guard, any other currency is staged as `NEEDS_DECISION` and never auto-booked |
 
 ## 8. Testing
 - **Unit tests:**
