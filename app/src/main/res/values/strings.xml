@@ -1,0 +1,432 @@
+<resources>
+    <string name="app_name">Grid</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_activity">Activity</string>
+    <string name="nav_bills">Bills</string>
+    <string name="nav_insights">Insights</string>
+    <string name="nav_add">Add transaction</string>
+    <string name="action_back">Back</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_done">Done</string>
+    <string name="action_next">Next</string>
+    <string name="action_later">Later</string>
+    <string name="action_see_all">See all</string>
+    <string name="action_add_income">Add income</string>
+    <string name="action_hide_amounts">Hide amounts</string>
+    <string name="action_show_amounts">Show amounts</string>
+
+    <!-- Home -->
+    <string name="home_day_of">Day %1$d of %2$d</string>
+    <plurals name="home_days_left">
+        <item quantity="one">%d day left</item>
+        <item quantity="other">%d days left</item>
+    </plurals>
+    <string name="home_left_to_spend">Left to spend</string>
+    <string name="home_over_budget">Over budget</string>
+    <string name="home_per_day">%1$s / day keeps you on track</string>
+    <string name="home_over_by">You\'re over this month\'s goal</string>
+    <string name="home_no_goal">Set a monthly goal to see your daily allowance</string>
+    <string name="home_spent">Spent</string>
+    <string name="home_of_goal">of %1$s goal</string>
+    <string name="home_no_goal_short">No goal set</string>
+    <string name="home_income">Income</string>
+    <string name="home_income_confirmed">Confirmed this month</string>
+    <string name="home_income_missing">Not confirmed yet</string>
+    <string name="home_top_categories">Top categories</string>
+    <string name="home_no_spending_yet">No spending yet</string>
+    <string name="home_recent">Recent</string>
+    <string name="home_empty_title">A fresh grid</string>
+    <string name="home_empty_body">Tap + to log your first spend. Amount, category, done.</string>
+    <string name="home_checkin_banner">New month — confirm your income</string>
+    <string name="home_checkin_banner_action">Check in</string>
+
+    <!-- Quick add -->
+    <string name="add_expense">Expense</string>
+    <string name="add_income">Income</string>
+    <string name="add_today">Today</string>
+    <string name="add_yesterday">Yesterday</string>
+    <string name="add_note">Note</string>
+    <string name="add_note_hint">What was it? (optional)</string>
+    <string name="add_more">More</string>
+    <string name="add_less">Less</string>
+    <string name="add_hint_tap_category">Tap a category to save · long-press to add details</string>
+    <string name="add_hint_selected">Add details, then Save</string>
+    <string name="add_enter_amount">Enter an amount first</string>
+    <string name="add_pick_category">Pick a category</string>
+    <string name="add_saved">Saved %1$s · %2$s</string>
+    <string name="add_updated">Updated</string>
+    <string name="add_deleted">Deleted %1$s</string>
+    <string name="add_edit_title">Edit transaction</string>
+    <string name="add_no_method">No method</string>
+
+    <!-- Activity -->
+    <string name="activity_title">Activity</string>
+    <string name="activity_search">Search</string>
+    <string name="activity_clear_search">Clear search</string>
+    <string name="activity_all">All</string>
+    <string name="activity_expenses">Expenses</string>
+    <string name="activity_incomes">Income</string>
+    <string name="activity_all_categories">Categories</string>
+    <plurals name="activity_categories_selected">
+        <item quantity="one">%d category</item>
+        <item quantity="other">%d categories</item>
+    </plurals>
+    <string name="activity_all_methods">Methods</string>
+    <string name="activity_clear_filters">Clear</string>
+    <string name="activity_spent">Spent</string>
+    <string name="activity_earned">Income</string>
+    <string name="activity_net">Net</string>
+    <string name="activity_today">Today</string>
+    <string name="activity_yesterday">Yesterday</string>
+    <string name="activity_empty_title">Nothing here</string>
+    <string name="activity_empty_body">No transactions match this month and filters.</string>
+    <string name="activity_day_filter">%1$s only</string>
+    <string name="activity_all_time">All months</string>
+
+    <!-- Check-in -->
+    <string name="checkin_eyebrow">%1$s check-in</string>
+    <string name="checkin_title">New month,\nfresh grid.</string>
+    <string name="checkin_body">What\'s coming in this month? Confirm your income and set how much you want to spend.</string>
+    <string name="checkin_income">Income this month</string>
+    <string name="checkin_goal">Spending goal</string>
+    <string name="checkin_goal_hint">%1$d%% of income · leaves %2$s to save</string>
+    <string name="checkin_confirm">Confirm %1$s</string>
+    <string name="checkin_source_name">Source</string>
+    <string name="checkin_amount">Amount</string>
+    <string name="checkin_salary">Salary</string>
+
+    <!-- Onboarding -->
+    <string name="onb_welcome_title">Every euro,\non a grid.</string>
+    <string name="onb_welcome_body">Track spending in two taps, see your month at a glance, never miss a bill.</string>
+    <string name="onb_get_started">Get started</string>
+    <string name="onb_currency_title">Your currency</string>
+    <string name="onb_currency_body">You can change it later in settings.</string>
+    <string name="onb_currency_search">Search currencies</string>
+    <string name="onb_income_title">What comes in each month?</string>
+    <string name="onb_income_body">Grid asks you to confirm this at the start of every month.</string>
+    <string name="onb_goal_title">How much do you want to spend?</string>
+    <string name="onb_goal_body">Your monthly spending goal. Grid turns it into a daily allowance.</string>
+    <string name="onb_goal_custom">Custom</string>
+    <string name="onb_goal_saves">Leaves %1$s to save each month</string>
+    <string name="onb_theme_title">Pick a look</string>
+    <string name="onb_theme_body">Grid is designed dark-first, with a warm light twin.</string>
+    <string name="onb_ready_title">You\'re set.</string>
+    <string name="onb_ready_body">Tap + any time to log a spend. Bills, insights and automatic payment detection are a tap away.</string>
+    <string name="onb_start">Start using Grid</string>
+
+    <!-- Theme -->
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_dynamic_color">Material You colors</string>
+    <string name="settings_dynamic_color_body">Use your wallpaper colors instead of Graphite &amp; Lime</string>
+    <string name="settings_money">Money</string>
+    <string name="settings_currency">Currency</string>
+    <string name="settings_period_start">Month starts on</string>
+    <string name="settings_period_start_body">Day %1$d · handy if you\'re paid on a fixed day</string>
+    <string name="settings_goal">Monthly spending goal</string>
+    <string name="settings_privacy">Privacy</string>
+    <string name="settings_hide_amounts">Hide amounts</string>
+    <string name="settings_hide_amounts_body">Mask every amount until you tap the eye on Home</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version %1$s</string>
+
+    <!-- Notifications -->
+    <string name="channel_bills">Bills &amp; reminders</string>
+    <string name="channel_bills_desc">Upcoming subscription renewals and pending payments</string>
+    <string name="channel_budget">Budget alerts</string>
+    <string name="channel_budget_desc">When you reach 80% or 100% of a goal</string>
+    <string name="channel_detected">Detected payments</string>
+    <string name="channel_detected_desc">Payments read from Google Wallet, PayPal and Revolut</string>
+    <string name="channel_backup">Backup</string>
+    <string name="channel_backup_desc">Google Drive backup status</string>
+    <string name="channel_checkin">Monthly check-in</string>
+    <string name="channel_checkin_desc">Reminder to confirm your income at the start of each month</string>
+    <string name="notif_sub_today">%1$s renews today · %2$s</string>
+    <string name="notif_sub_tomorrow">%1$s renews tomorrow · %2$s</string>
+    <plurals name="notif_sub_in_days">
+        <item quantity="one">%1$s renews in %3$d day · %2$s</item>
+        <item quantity="other">%1$s renews in %3$d days · %2$s</item>
+    </plurals>
+    <string name="notif_due_today">%1$s is due today · %2$s</string>
+    <string name="notif_due_tomorrow">%1$s is due tomorrow · %2$s</string>
+    <plurals name="notif_due_in_days">
+        <item quantity="one">%1$s is due in %3$d day · %2$s</item>
+        <item quantity="other">%1$s is due in %3$d days · %2$s</item>
+    </plurals>
+    <string name="notif_collect_due">Collect %2$s for %1$s</string>
+    <string name="notif_overdue">%1$s is overdue · %2$s</string>
+    <string name="notif_bills_body">Open Grid to review or mark it paid.</string>
+    <string name="notif_checkin_title">New month on your grid</string>
+    <string name="notif_checkin_body">Confirm this month\'s income and spending goal.</string>
+
+    <!-- Bills -->
+    <string name="bills_title">Bills</string>
+    <string name="bills_subscriptions">Subscriptions</string>
+    <string name="bills_pending">Pending</string>
+    <string name="bills_per_month">Per month</string>
+    <string name="bills_per_year">%1$s per year</string>
+    <plurals name="bills_active_count">
+        <item quantity="one">%d active</item>
+        <item quantity="other">%d active</item>
+    </plurals>
+    <string name="bills_next">Next: %1$s · %2$s</string>
+    <string name="bills_add_subscription">Add subscription</string>
+    <string name="bills_add_pending">Add pending payment</string>
+    <string name="bills_paused">Paused</string>
+    <string name="bills_cancelled">Cancelled</string>
+    <string name="bills_inactive">Paused &amp; cancelled</string>
+    <string name="bills_to_pay">To pay</string>
+    <string name="bills_owed_to_me">Owed to me</string>
+    <string name="bills_settled">Settled</string>
+    <string name="bills_mark_paid">Mark paid</string>
+    <string name="bills_mark_received">Mark received</string>
+    <string name="bills_paid_snack">Marked paid · %1$s booked</string>
+    <string name="bills_received_snack">Marked received · %1$s booked</string>
+    <string name="bills_no_subs_title">No subscriptions yet</string>
+    <string name="bills_no_subs_body">Add Netflix, Spotify, your gym… Grid logs each renewal and reminds you before it hits.</string>
+    <string name="bills_no_pending_title">Nothing pending</string>
+    <string name="bills_no_pending_body">Track rent, invoices, or money a friend owes you. Mark paid and Grid books it.</string>
+    <string name="bills_today">Today</string>
+    <string name="bills_tomorrow">Tomorrow</string>
+    <plurals name="bills_in_days">
+        <item quantity="one">In %d day</item>
+        <item quantity="other">In %d days</item>
+    </plurals>
+    <plurals name="bills_days_overdue">
+        <item quantity="one">%d day overdue</item>
+        <item quantity="other">%d days overdue</item>
+    </plurals>
+    <string name="bills_no_due">No due date</string>
+    <string name="bills_overdue">Overdue</string>
+    <string name="cycle_weekly">Weekly</string>
+    <string name="cycle_monthly">Monthly</string>
+    <string name="cycle_quarterly">Every 3 months</string>
+    <string name="cycle_yearly">Yearly</string>
+    <string name="cycle_custom">Custom</string>
+    <plurals name="cycle_every_weeks">
+        <item quantity="one">Every week</item>
+        <item quantity="other">Every %d weeks</item>
+    </plurals>
+    <plurals name="cycle_every_months">
+        <item quantity="one">Every month</item>
+        <item quantity="other">Every %d months</item>
+    </plurals>
+    <plurals name="cycle_every_years">
+        <item quantity="one">Every year</item>
+        <item quantity="other">Every %d years</item>
+    </plurals>
+    <string name="unit_weeks">Weeks</string>
+    <string name="unit_months">Months</string>
+    <string name="unit_years">Years</string>
+    <string name="sub_edit_title">Subscription</string>
+    <string name="sub_new_title">New subscription</string>
+    <string name="sub_popular">Popular</string>
+    <string name="sub_name">Name</string>
+    <string name="sub_amount">Amount</string>
+    <string name="sub_cycle">Billing cycle</string>
+    <string name="sub_next_charge">Next charge</string>
+    <string name="sub_category">Category</string>
+    <string name="sub_method">Paid with</string>
+    <string name="sub_remind">Remind me</string>
+    <string name="sub_auto_log">Log each renewal automatically</string>
+    <string name="sub_auto_log_body">Adds the expense to your grid on the charge day</string>
+    <string name="sub_color">Color</string>
+    <string name="sub_pause">Pause</string>
+    <string name="sub_resume">Resume</string>
+    <string name="sub_cancel">Cancel subscription</string>
+    <string name="remind_off">Off</string>
+    <string name="remind_same_day">On the day</string>
+    <plurals name="remind_days_before">
+        <item quantity="one">%d day before</item>
+        <item quantity="other">%d days before</item>
+    </plurals>
+    <string name="remind_one_day">1 day before</string>
+    <string name="remind_week">1 week before</string>
+    <string name="pending_new_title">New pending payment</string>
+    <string name="pending_edit_title">Pending payment</string>
+    <string name="pending_i_owe">I owe</string>
+    <string name="pending_owed_to_me">Owed to me</string>
+    <string name="pending_title_hint">What is it? (Rent, invoice…)</string>
+    <string name="pending_counterparty">Who? (optional)</string>
+    <string name="pending_due">Due date</string>
+    <string name="pending_no_due">No due date</string>
+    <string name="pending_note">Note (optional)</string>
+    <string name="pending_reopen">Mark as not paid</string>
+    <string name="notifications_rationale">Allow notifications so Grid can remind you before bills are due.</string>
+    <string name="home_upcoming">Upcoming · 7 days</string>
+    <string name="home_upcoming_due">%1$s due</string>
+    <string name="home_nothing_due">Nothing due this week</string>
+
+    <!-- Budget alerts -->
+    <string name="alert_total_80" formatted="false">You\'ve used 80% of this month\'s goal</string>
+    <string name="alert_total_over">You\'ve reached this month\'s spending goal</string>
+    <string name="alert_category_80">%1$s is at 80%% of its budget</string>
+    <string name="alert_category_over">%1$s is over budget</string>
+    <string name="alert_body">%1$s of %2$s spent so far</string>
+
+    <!-- Payment detection -->
+    <string name="source_wallet">Google Wallet</string>
+    <string name="source_paypal">PayPal</string>
+    <string name="source_revolut">Revolut</string>
+    <string name="capture_at">%1$s at %2$s</string>
+    <string name="capture_from">%1$s from %2$s</string>
+    <string name="capture_detected_body">%1$s · pick a category</string>
+    <string name="capture_review">Review</string>
+    <string name="capture_added_title">Added %1$s · %2$s</string>
+    <string name="capture_added_body">%1$s · from %2$s</string>
+    <string name="detected_title">Detected</string>
+    <plurals name="detected_tile_count">
+        <item quantity="one">%d new payment to review</item>
+        <item quantity="other">%d new payments to review</item>
+    </plurals>
+    <string name="detected_review">Review</string>
+    <string name="detected_empty_title">All caught up</string>
+    <string name="detected_empty_body">Payments from Google Wallet, PayPal and Revolut appear here as they happen.</string>
+    <string name="detected_more">More…</string>
+    <string name="detected_dismiss">Not a spend</string>
+    <string name="detected_foreign">In %1$s — check the amount in your currency after adding</string>
+    <string name="detected_added_recently">Added automatically</string>
+    <string name="detected_unparsed">Not recognised</string>
+    <string name="detected_unparsed_body">These looked like payments but Grid couldn\'t read them. Share them to improve detection.</string>
+    <string name="detected_share">Share samples</string>
+    <string name="detected_clear">Clear</string>
+    <string name="detected_added_snack">Added to %1$s</string>
+    <string name="capture_setup_title">Payment detection</string>
+    <string name="capture_setup_body">Grid can read the payment notifications from Google Wallet, PayPal and Revolut and turn them into transactions. Only those three apps are read, and nothing leaves your phone.</string>
+    <string name="capture_status_on">On</string>
+    <string name="capture_status_off">Off — notification access needed</string>
+    <string name="capture_grant">Allow notification access</string>
+    <string name="capture_restricted_title">Switch greyed out?</string>
+    <string name="capture_restricted_body">Android blocks this for apps installed outside the Play Store. Open App info, tap ⋮ (top right) → Allow restricted settings, then try again.</string>
+    <string name="capture_app_info">Open App info</string>
+    <string name="capture_sources">Read payments from</string>
+    <string name="capture_installed">Installed</string>
+    <string name="capture_not_installed">Not installed</string>
+    <string name="capture_auto_add">Add known merchants automatically</string>
+    <string name="capture_auto_add_body">Once you\'ve categorised a merchant, its next payments are added for you (with Undo)</string>
+    <string name="capture_diagnostics">Keep unrecognised notifications</string>
+    <string name="capture_diagnostics_body">Stored on this phone for 30 days to help improve detection</string>
+    <string name="settings_capture_body_on">Reading Google Wallet, PayPal and Revolut</string>
+
+    <!-- Backup -->
+    <string name="backup_title">Backup &amp; restore</string>
+    <string name="backup_drive">Google Drive</string>
+    <string name="backup_drive_body">Like WhatsApp: your data is saved to a hidden folder in your own Google Drive that only Grid can read. Restore it on any phone.</string>
+    <string name="backup_connect">Connect Google Drive</string>
+    <string name="backup_connected_as">Backing up to %1$s</string>
+    <string name="backup_connected">Connected</string>
+    <string name="backup_last">Last backup: %1$s · %2$s</string>
+    <string name="backup_never">No backup yet</string>
+    <string name="backup_now">Back up now</string>
+    <string name="backup_working">Backing up…</string>
+    <string name="backup_done">Backed up · %1$s</string>
+    <string name="backup_restore_drive">Restore from Google Drive</string>
+    <string name="backup_frequency">Back up automatically</string>
+    <string name="backup_off">Off</string>
+    <string name="backup_daily">Daily</string>
+    <string name="backup_weekly">Weekly</string>
+    <string name="backup_monthly">Monthly</string>
+    <string name="backup_wifi_only">Only on Wi-Fi</string>
+    <string name="backup_disconnect">Disconnect</string>
+    <string name="backup_not_configured_title">Drive backup isn\'t set up for this build</string>
+    <string name="backup_not_configured_body">This copy of Grid has no Google sign-in client yet (a 10-minute, one-time setup described in docs/GOOGLE_DRIVE_SETUP.md). Local backup files work meanwhile.</string>
+    <string name="backup_local">Backup file</string>
+    <string name="backup_local_body">Save a complete backup file anywhere (Downloads, a USB stick, another cloud) and restore it later.</string>
+    <string name="backup_save_file">Save backup file</string>
+    <string name="backup_open_file">Restore from file</string>
+    <string name="backup_export_csv">Export transactions (CSV)</string>
+    <string name="backup_saved_file">Backup saved</string>
+    <string name="backup_saved_csv">CSV exported</string>
+    <string name="backup_restore_confirm_title">Replace your data?</string>
+    <plurals name="backup_restore_confirm_body">
+        <item quantity="one">Backup made %2$s on %1$s, with %3$d transaction. Everything currently in Grid will be replaced and the app will restart.</item>
+        <item quantity="other">Backup made %2$s on %1$s, with %3$d transactions. Everything currently in Grid will be replaced and the app will restart.</item>
+    </plurals>
+    <string name="backup_restore_confirm">Restore</string>
+    <string name="backup_restoring">Restoring…</string>
+    <string name="backup_error_corrupt">That file isn\'t a valid Grid backup.</string>
+    <string name="backup_error_newer">That backup was made by a newer version of Grid. Update the app first.</string>
+    <string name="backup_error_none">No backup found in this Google account.</string>
+    <string name="backup_reconnect">Reconnect Google Drive</string>
+    <string name="backup_reconnect_body">Grid needs your permission again to keep backing up.</string>
+    <string name="onb_restore">Restore a backup</string>
+    <string name="settings_backup_body_never">Not backed up yet</string>
+
+    <!-- Shortcuts, tile, widget -->
+    <string name="shortcut_add_expense">Add expense</string>
+    <string name="shortcut_add_income">Add income</string>
+    <string name="shortcut_bills">Bills</string>
+    <string name="widget_name">Grid · this month</string>
+    <string name="widget_description">What\'s left to spend this month, with a one-tap +</string>
+    <string name="widget_per_day">%1$s / day</string>
+
+    <!-- Lock & categories -->
+    <string name="lock_title">Grid is locked</string>
+    <string name="lock_body">Unlock to see your money</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="settings_app_lock">App lock</string>
+    <string name="settings_app_lock_body">Fingerprint, face or screen lock when opening Grid</string>
+    <string name="settings_no_screen_lock">Set a screen lock on your phone first</string>
+    <string name="settings_categories">Categories</string>
+    <string name="settings_categories_body">Add, rename, reorder, set budgets</string>
+    <string name="categories_add">Add category</string>
+    <string name="category_name">Name</string>
+    <string name="category_icon">Icon</string>
+    <string name="category_budget">Monthly budget (optional)</string>
+    <string name="category_budget_value">Budget %1$s / month</string>
+    <string name="category_archive">Remove category</string>
+    <string name="category_archived">Archived</string>
+    <string name="category_restore">Restore</string>
+    <string name="category_move_up">Move up</string>
+    <string name="category_move_down">Move down</string>
+    <string name="category_duplicate">You already have a category with this name</string>
+
+    <!-- Insights -->
+    <string name="insights_title">Insights</string>
+    <string name="insights_spent">Spent</string>
+    <string name="insights_income">Income</string>
+    <string name="insights_saved">Saved</string>
+    <string name="insights_daily_avg">Daily average</string>
+    <string name="insights_by_category">Where it went</string>
+    <string name="insights_total_spent">total spent</string>
+    <string name="insights_pace">Pace</string>
+    <string name="insights_pace_projection">On pace for %1$s by %2$s</string>
+    <string name="insights_pace_final">Finished at %1$s</string>
+    <string name="insights_pace_legend_spent">Spent</string>
+    <string name="insights_pace_legend_budget">Goal pace</string>
+    <string name="insights_history">Last 6 months</string>
+    <string name="insights_budgets">Category budgets</string>
+    <string name="insights_set_budget">Set budget</string>
+    <string name="insights_budget_left">%1$s left</string>
+    <string name="insights_budget_over">%1$s over</string>
+    <string name="insights_no_budgets" formatted="false">Give a category a monthly limit and Grid warns you at 80% and 100%.</string>
+    <string name="insights_budget_remove">Remove limit</string>
+    <string name="insights_methods">Paid with</string>
+    <string name="insights_merchants">Top places</string>
+    <plurals name="insights_times">
+        <item quantity="one">%d time</item>
+        <item quantity="other">%d times</item>
+    </plurals>
+    <string name="insights_unknown_method">Not set</string>
+    <string name="insights_empty_title">No spending this month</string>
+    <string name="insights_empty_body">Insights appear as soon as you log a few spends.</string>
+    <string name="insight_category_up">%1$s is up %2$s vs the same point last month</string>
+    <string name="insight_projection_over">At this pace you\'ll spend %1$s — %2$s over your goal</string>
+    <string name="insight_projection_under">On pace for %1$s — %2$s under your goal</string>
+    <string name="insight_highest_day">Your biggest day was %1$s: %2$s</string>
+    <string name="insight_subscriptions">Subscriptions are %1$d%% of spending (%2$s)</string>
+    <string name="insight_saved_rate">You kept %1$d%% of your income</string>
+    <string name="insight_overspent_rate">You spent %1$d%% more than you earned</string>
+</resources>
