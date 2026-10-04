@@ -14,6 +14,7 @@ import com.grid.app.core.model.BankTxState
 import com.grid.app.core.model.CaptureDirection
 import com.grid.app.core.model.MerchantKey
 import com.grid.app.core.model.PaymentKind
+import com.grid.app.core.model.Transaction
 import com.grid.app.core.model.TransactionDraft
 import com.grid.app.core.model.TxSource
 import com.grid.app.core.model.TxType
@@ -23,8 +24,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.abs
 
 enum class ReviewKind { CATEGORISE, DECIDE_OUT, DECIDE_IN }
 
@@ -183,6 +186,12 @@ class BankRepository @Inject constructor(
         val revolut = methodId(PaymentKind.REVOLUT)
         group.ids.forEach { id ->
             val row = dao.staged(id)?.takeIf { it.state == BankTxState.NEEDS_DECISION } ?: return@forEach
+            // The real salary replaces the amount estimated at the monthly check-in (and teaches who pays it).
+            checkInEstimate(row, categoryId)?.let { estimate ->
+                transactions.update(estimate.id, estimate.toDraft().copy(amountMinor = row.amountMinor, merchant = displayName(row)))
+                dao.updateStaged(row.copy(state = BankTxState.BOOKED, transactionId = estimate.id))
+                return@forEach
+            }
             val txId = transactions.add(
                 TransactionDraft(
                     type = if (row.direction == CaptureDirection.OUT) TxType.EXPENSE else TxType.INCOME,
@@ -193,6 +202,16 @@ class BankRepository @Inject constructor(
             )
             dao.updateStaged(row.copy(state = BankTxState.BOOKED, transactionId = txId))
         }
+    }
+
+    /** The unlinked check-in income of this category within a week of the money arriving, if any. */
+    private suspend fun checkInEstimate(row: BankTransactionEntity, categoryId: Long): Transaction? {
+        if (row.direction != CaptureDirection.IN) return null
+        val week = TimeUnit.DAYS.toMillis(7)
+        val entry = dao.ledgerCandidates(TxType.INCOME, row.currency, row.occurredAt - week, row.occurredAt + week)
+            .filter { it.source == TxSource.CHECKIN && it.categoryId == categoryId }
+            .minByOrNull { abs(it.occurredAt - row.occurredAt) } ?: return null
+        return transactions.get(entry.id)
     }
 
     suspend fun ignore(group: BankReviewGroup, always: Boolean) {

@@ -68,6 +68,15 @@ class MatchRulesTest {
         assertThat(MatchRules.bestMatch(bank(246_300, "ACME SAS", type = TxType.INCOME, kind = BankTxKind.MONEY_IN), listOf(checkIn))?.id).isEqualTo(1)
     }
 
+    @Test fun salaryOfAnyAmountReplacesTheCheckInEstimateOfTheSameCategory() {
+        val estimate = Candidate(1, TxSource.CHECKIN, 250_000, t0 - 3 * day, "Salary", categoryId = 7)
+        val salary = BankFacts(TxType.INCOME, BankTxKind.MONEY_IN, 190_000, t0, "ACME SAS", categoryId = 7)
+        assertThat(MatchRules.bestMatch(salary, listOf(estimate))?.id).isEqualTo(1)
+        // A different income (a refund, a friend paying back) never eats the salary estimate.
+        assertThat(MatchRules.bestMatch(salary.copy(categoryId = 9), listOf(estimate))).isNull()
+        assertThat(MatchRules.bestMatch(salary.copy(categoryId = null), listOf(estimate))).isNull()
+    }
+
     @Test fun bankEntriesNeverMatch() {
         assertThat(MatchRules.bestMatch(bank(450, "Starbucks"), listOf(cand(1, TxSource.BANK, 450, "Starbucks")))).isNull()
     }

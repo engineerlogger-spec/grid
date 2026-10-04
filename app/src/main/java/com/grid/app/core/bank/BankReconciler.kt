@@ -65,11 +65,15 @@ class BankReconciler @Inject constructor(
         val viaMethod = method(row.via)
         val revolut = method(PaymentKind.REVOLUT)
 
+        val wantedKind = if (type == TxType.EXPENSE) CategoryKind.EXPENSE else CategoryKind.INCOME
+        val rule = merchant?.let(MerchantKey::of)?.let { db.merchantRuleDao().get(it) }
+        val ruleCategory = rule?.let { db.categoryDao().get(it.categoryId) }?.takeIf { !it.archived && it.kind == wantedKind }
+
         // 1. Already in the ledger (notification capture, manual entry, logged bill, check-in income).
         val entries = dao.ledgerCandidates(type, row.currency, row.occurredAt - WINDOW, row.occurredAt + WINDOW)
         val hit = MatchRules.bestMatch(
-            BankFacts(type, row.kind, row.amountMinor, row.occurredAt, merchant),
-            entries.map { Candidate(it.id, it.source, it.amountMinor, it.occurredAt, it.merchant ?: it.note) },
+            BankFacts(type, row.kind, row.amountMinor, row.occurredAt, merchant, ruleCategory?.id),
+            entries.map { Candidate(it.id, it.source, it.amountMinor, it.occurredAt, it.merchant ?: it.note, it.categoryId) },
         )
         if (hit != null) {
             val entry = entries.first { it.id == hit.id }
@@ -92,9 +96,6 @@ class BankReconciler @Inject constructor(
         }
 
         // 3. New money: card payments and direct debits are always booked; transfers only once learned.
-        val wantedKind = if (type == TxType.EXPENSE) CategoryKind.EXPENSE else CategoryKind.INCOME
-        val rule = merchant?.let(MerchantKey::of)?.let { db.merchantRuleDao().get(it) }
-        val ruleCategory = rule?.let { db.categoryDao().get(it.categoryId) }?.takeIf { !it.archived && it.kind == wantedKind }
         return when (row.kind) {
             BankTxKind.CARD_SPEND, BankTxKind.DIRECT_DEBIT -> {
                 val mccCategory = MccCategories.iconKeyFor(row.mcc)?.let { db.categoryDao().byIconKey(it, CategoryKind.EXPENSE) }?.takeIf { !it.archived }

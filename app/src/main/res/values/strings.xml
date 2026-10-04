@@ -230,7 +230,8 @@
         <item quantity="other">%d payments</item>
     </plurals>
     <string name="bank_ignore">Ignore</string>
-    <string name="bank_always_ignore">Always ignore</string>
+    <string name="bank_always_ignore">My own account</string>
+    <string name="bank_own_account_hint">Money moved between your own accounts isn\'t income or spending. \"My own account\" ignores it from now on.</string>
     <string name="settings_bank_off">Not connected</string>
     <string name="settings_bank_expired">Revolut · access expired</string>
     <string name="notif_sub_today">%1$s renews today · %2$s</string>

@@ -39,6 +39,7 @@ On the application, choose **Activate by linking accounts** and approve access t
 - **Transfers and money coming in** wait for your OK once per person. Rent to your landlord, for example, is automatic after the first time.
   - If rent is already a bill in Grid, it's matched to that bill and needs no tap at all.
 - **Moves between your own pockets, vaults and currencies** are ignored.
+- **Money you move in from another bank of yours** (for example, topping up Revolut from the account your salary is paid into) isn't income. The first time it appears, tap **My own account** and it's ignored from then on. Your salary itself is entered in the monthly check-in.
 - **Every 180 days**, Open Banking requires you to approve access again. Grid reminds you 7 days and 1 day before. When access has expired, Home shows a **Reconnect** card.
 
 ## Privacy

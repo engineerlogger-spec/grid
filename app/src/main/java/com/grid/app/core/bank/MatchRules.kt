@@ -6,11 +6,15 @@ import com.grid.app.core.model.TxSource
 import com.grid.app.core.model.TxType
 import kotlin.math.abs
 
-/** The settled bank transaction being reconciled. */
-data class BankFacts(val type: TxType, val kind: BankTxKind, val amountMinor: Long, val occurredAt: Long, val merchant: String?)
+/** The settled bank transaction being reconciled; [categoryId] is the category a learned rule gives it, if any. */
+data class BankFacts(
+    val type: TxType, val kind: BankTxKind, val amountMinor: Long, val occurredAt: Long, val merchant: String?, val categoryId: Long? = null,
+)
 
 /** A ledger entry that might be the same money (a notification capture, a manual entry, a logged bill…). */
-data class Candidate(val id: Long, val source: TxSource, val amountMinor: Long, val occurredAt: Long, val merchant: String?)
+data class Candidate(
+    val id: Long, val source: TxSource, val amountMinor: Long, val occurredAt: Long, val merchant: String?, val categoryId: Long? = null,
+)
 
 /**
  * When is a bank transaction the same money as something already in the ledger? Rules per source:
@@ -49,7 +53,9 @@ object MatchRules {
                 isTransfer(bank.kind) -> diff <= 0.02
                 else -> false
             }
-            TxSource.CHECKIN -> bank.type == TxType.INCOME && abs(days) <= 7.0 && diff <= 0.10
+            // The check-in amount is an estimate: income of the same category replaces it whatever it turns out to be.
+            TxSource.CHECKIN -> bank.type == TxType.INCOME && abs(days) <= 7.0 &&
+                if (bank.categoryId != null) bank.categoryId == c.categoryId else diff <= 0.10
             TxSource.BANK -> false
         }
     }
