@@ -5,10 +5,11 @@
 Grid shows your month as a grid of days: each cell is coloured by how that day's spending compared with your daily allowance. Logging a spend takes two taps, and payments made with Google Wallet, PayPal or Revolut can be picked up automatically.
 
 <p>
-  <img src="docs/screenshots/home-dark.png" width="200" alt="Home, dark" />
-  <img src="docs/screenshots/quick-add.png" width="200" alt="Quick add" />
-  <img src="docs/screenshots/insights.png" width="200" alt="Insights" />
-  <img src="docs/screenshots/home-light.png" width="200" alt="Home, light" />
+  <img src="docs/screenshots/home-dark.png" width="160" alt="Home, dark" />
+  <img src="docs/screenshots/quick-add.png" width="160" alt="Quick add" />
+  <img src="docs/screenshots/insights.png" width="160" alt="Insights" />
+  <img src="docs/screenshots/bills.png" width="160" alt="Bills" />
+  <img src="docs/screenshots/home-light.png" width="160" alt="Home, light" />
 </p>
 
 ## What it does

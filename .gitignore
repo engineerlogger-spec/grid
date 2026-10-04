@@ -31,7 +31,7 @@ Thumbs.db
 *.hprof
 .superpowers/
 .playwright-mcp/
-screenshots/
+/screenshots/
 
 # Secrets for dev scripts
 scripts/.env

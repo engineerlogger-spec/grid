@@ -2,7 +2,13 @@
 
 **Date:** 2026-10-04
 **Author:** Claude (lead developer)
-**Status:** Approved under delegation. The owner handed full control to the lead developer ("recreate the whole project the way you see it") and went offline, so the decisions below were made autonomously. Open questions for the owner are listed in §13; none of them block the build.
+**Status:** Approved under delegation, and implemented in milestones M0–M6 (branch `v2`, merged to `main`). The owner handed full control to the lead developer ("recreate the whole project the way you see it") and went offline, so the decisions below were made autonomously. Open questions for the owner are listed in §13; none of them block the build.
+
+**Changes made during implementation:**
+- `compileSdk 37`, because current AndroidX requires it.
+- Projections count fixed bills (subscriptions, settled pending payments) once, instead of extrapolating them.
+- A check-in never books the same income twice in one period.
+- The goal carries over when the pay day moves.
 
 ## 1. Why a rebuild
 
