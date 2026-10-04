@@ -52,13 +52,17 @@ import com.grid.app.core.designsystem.components.EmptyState
 import com.grid.app.core.designsystem.components.HeroTile
 import com.grid.app.core.designsystem.components.LocalHideAmounts
 import com.grid.app.core.designsystem.components.LocalMoneyFormatter
+import com.grid.app.core.designsystem.components.MonogramBadge
 import com.grid.app.core.designsystem.components.MoneyText
 import com.grid.app.core.designsystem.components.MonthGrid
 import com.grid.app.core.designsystem.components.SectionHeader
 import com.grid.app.core.designsystem.components.Tile
 import com.grid.app.core.designsystem.theme.GridText
 import com.grid.app.core.designsystem.theme.GridTheme
+import com.grid.app.core.bills.UpcomingKind
 import com.grid.app.core.insights.DashboardSummary
+import com.grid.app.core.model.PendingDirection
+import com.grid.app.feature.bills.relativeDay
 import com.grid.app.feature.common.LocalQuickAdd
 import com.grid.app.feature.common.TransactionRow
 import java.time.LocalDate
@@ -70,6 +74,7 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenActivity: (dayEpoch: Long?) -> Unit,
     onOpenCheckIn: () -> Unit,
+    onOpenBills: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -102,6 +107,7 @@ fun HomeScreen(
                 IncomeTile(summary, state.currency, state.needsCheckIn, onOpenCheckIn, Modifier.weight(1f).fillMaxHeight())
             }
         }
+        item { UpcomingTile(state, onClick = onOpenBills) }
         item { CategoriesTile(state, onClick = { onOpenActivity(null) }) }
         item { SectionHeader(stringResource(R.string.home_recent), Modifier.padding(top = 6.dp), action = stringResource(R.string.action_see_all), onAction = { onOpenActivity(null) }) }
         item {
@@ -241,6 +247,46 @@ private fun ProgressBar(fraction: Float, color: Color, secondary: Float? = null)
         if (secondary != null && secondary > 0f) {
             // Portion of income not yet spent, drawn brighter on top of the income bar.
             Box(Modifier.align(Alignment.CenterEnd).fillMaxWidth(secondary).fillMaxHeight().background(color.copy(alpha = 0.35f)))
+        }
+    }
+}
+
+@Composable
+private fun UpcomingTile(state: HomeUiState, onClick: () -> Unit) {
+    val colors = GridTheme.colors
+    val formatter = LocalMoneyFormatter.current
+    Tile(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CapsLabel(stringResource(R.string.home_upcoming), Modifier.weight(1f))
+            if (state.upcomingDueMinor > 0) {
+                Text(
+                    stringResource(R.string.home_upcoming_due, formatter.format(state.upcomingDueMinor, state.currency, masked = LocalHideAmounts.current)),
+                    style = GridText.caps, color = colors.warning,
+                )
+            }
+        }
+        if (state.upcoming.isEmpty()) {
+            Text(stringResource(R.string.home_nothing_due), style = MaterialTheme.typography.bodyMedium, color = colors.muted, modifier = Modifier.padding(top = 8.dp))
+        } else {
+            state.upcoming.take(3).forEach { item ->
+                Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (item.kind == UpcomingKind.SUBSCRIPTION || item.iconKey == null) MonogramBadge(item.title, item.colorKey, size = 32.dp)
+                    else CategoryBadge(item.iconKey, item.colorKey, size = 32.dp)
+                    Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+                        Text(item.title, style = MaterialTheme.typography.titleSmall, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            if (item.overdue) stringResource(R.string.bills_overdue) else relativeDay(item.date, state.today),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (item.overdue) colors.danger else colors.muted,
+                        )
+                    }
+                    AmountText(
+                        if (item.direction == PendingDirection.OWED_TO_ME) item.amountMinor else -item.amountMinor,
+                        item.currency, style = GridText.moneySmall, signed = item.direction == PendingDirection.OWED_TO_ME,
+                        color = if (item.direction == PendingDirection.OWED_TO_ME) colors.income else colors.text,
+                    )
+                }
+            }
         }
     }
 }

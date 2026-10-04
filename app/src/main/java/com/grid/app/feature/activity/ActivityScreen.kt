@@ -174,7 +174,9 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
         modifier = Modifier.fillMaxWidth(),
         placeholder = { Text(stringResource(R.string.activity_search)) },
         leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = colors.muted) },
-        trailingIcon = if (text.isNotEmpty()) { { IconButton(onClick = { text = ""; onChange("") }) { Icon(Icons.Rounded.Close, contentDescription = null) } } } else null,
+        trailingIcon = if (text.isNotEmpty()) {
+            { IconButton(onClick = { text = ""; onChange("") }) { Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.activity_clear_search)) } }
+        } else null,
         singleLine = true,
         shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(

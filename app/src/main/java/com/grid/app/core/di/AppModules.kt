@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.grid.app.core.data.db.GridDatabase
+import com.grid.app.core.data.prefs.SentLog
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.LedgerListener
 import com.grid.app.core.money.MoneyFormatter
@@ -37,6 +38,11 @@ object AppModule {
     @Provides @Singleton
     fun settings(@ApplicationContext context: Context): SettingsRepository = SettingsRepository(
         PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("settings") },
+    )
+
+    @Provides @Singleton
+    fun sentLog(@ApplicationContext context: Context): SentLog = SentLog(
+        PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("sent_log") },
     )
 
     @Provides

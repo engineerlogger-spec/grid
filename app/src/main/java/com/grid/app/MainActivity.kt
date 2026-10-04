@@ -1,5 +1,6 @@
 package com.grid.app
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
@@ -9,6 +10,8 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -17,6 +20,7 @@ import com.grid.app.core.designsystem.components.LocalMoneyFormatter
 import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.core.designsystem.theme.isGridDark
 import com.grid.app.core.money.MoneyFormatter
+import com.grid.app.core.notify.LaunchTarget
 import com.grid.app.navigation.GridAppUi
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -28,11 +32,15 @@ class MainActivity : FragmentActivity() {
 
     @Inject lateinit var moneyFormatter: MoneyFormatter
 
+    /** Set from notification taps, widget, tile and shortcuts; consumed once by the UI. */
+    private var launchTarget by mutableStateOf<LaunchTarget?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         splash.setKeepOnScreenCondition { appViewModel.state.value is AppUiState.Loading }
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) launchTarget = LaunchTarget.from(intent)
 
         setContent {
             val state by appViewModel.state.collectAsStateWithLifecycle()
@@ -53,9 +61,20 @@ class MainActivity : FragmentActivity() {
                     LocalMoneyFormatter provides moneyFormatter,
                     LocalHideAmounts provides settings.hideAmounts,
                 ) {
-                    GridAppUi(state = ready, checkInDismissed = dismissed, onDismissCheckIn = appViewModel::dismissCheckIn)
+                    GridAppUi(
+                        state = ready,
+                        checkInDismissed = dismissed,
+                        onDismissCheckIn = appViewModel::dismissCheckIn,
+                        launchTarget = launchTarget,
+                        onLaunchHandled = { launchTarget = null },
+                    )
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        LaunchTarget.from(intent)?.let { launchTarget = it }
     }
 }

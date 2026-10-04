@@ -2,10 +2,15 @@ package com.grid.app.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.grid.app.core.bills.UpcomingItem
+import com.grid.app.core.bills.UpcomingPlanner
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.CategoryRepository
+import com.grid.app.core.data.repo.PendingRepository
 import com.grid.app.core.data.repo.PlanRepository
+import com.grid.app.core.data.repo.SubscriptionRepository
 import com.grid.app.core.data.repo.TransactionRepository
+import com.grid.app.core.model.PendingDirection
 import com.grid.app.core.designsystem.components.MonthCellUi
 import com.grid.app.core.insights.DashboardCalculator
 import com.grid.app.core.insights.DashboardSummary
@@ -45,6 +50,10 @@ data class HomeUiState(
     val topCategories: List<CategorySlice> = emptyList(),
     val recent: List<Transaction> = emptyList(),
     val needsCheckIn: Boolean = false,
+    /** Bills in the next 7 days (subscription charges + pending payments), overdue first. */
+    val upcoming: List<UpcomingItem> = emptyList(),
+    /** What the upcoming outgoing items add up to (app currency only). */
+    val upcomingDueMinor: Long = 0,
 )
 
 @HiltViewModel
@@ -53,11 +62,17 @@ class HomeViewModel @Inject constructor(
     transactions: TransactionRepository,
     plans: PlanRepository,
     categories: CategoryRepository,
+    subscriptions: SubscriptionRepository,
+    pendings: PendingRepository,
     clock: AppClock,
 ) : ViewModel() {
 
+    private val upcoming = combine(subscriptions.observeAll(), pendings.observeAll(), clock.todayFlow()) { subs, pend, today ->
+        UpcomingPlanner.upcoming(today, horizonDays = 7, subscriptions = subs, pendings = pend)
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    val state: StateFlow<HomeUiState> = combine(settings.settings, clock.todayFlow()) { s, today -> s to today }
+    private val base = combine(settings.settings, clock.todayFlow()) { s, today -> s to today }
         .flatMapLatest { (s, today) ->
             val period = BudgetPeriods.periodFor(today, s.periodStartDay)
             combine(
@@ -87,7 +102,13 @@ class HomeViewModel @Inject constructor(
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+
+    val state: StateFlow<HomeUiState> = combine(base, upcoming) { home, items ->
+        home.copy(
+            upcoming = items,
+            upcomingDueMinor = items.filter { it.direction == PendingDirection.I_OWE && it.currency == home.currency }.sumOf { it.amountMinor },
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
     fun toggleHideAmounts() = viewModelScope.launch { settings.setHideAmounts(!state.value.hideAmounts) }
 

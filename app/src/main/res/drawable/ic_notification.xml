@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar icon: the 3x3 month grid, monochrome. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M3,4a1,1 0 0 1 1,-1h4a1,1 0 0 1 1,1v4a1,1 0 0 1 -1,1h-4a1,1 0 0 1 -1,-1z" />
+    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M10,4a1,1 0 0 1 1,-1h2a1,1 0 0 1 1,1v4a1,1 0 0 1 -1,1h-2a1,1 0 0 1 -1,-1z" />
+    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M15,4a1,1 0 0 1 1,-1h4a1,1 0 0 1 1,1v4a1,1 0 0 1 -1,1h-4a1,1 0 0 1 -1,-1z" />
+    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M3,11a1,1 0 0 1 1,-1h4a1,1 0 0 1 1,1v2a1,1 0 0 1 -1,1h-4a1,1 0 0 1 -1,-1z" />
+    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M10,11a1,1 0 0 1 1,-1h2a1,1 0 0 1 1,1v2a1,1 0 0 1 -1,1h-2a1,1 0 0 1 -1,-1z" />
+    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M15,11a1,1 0 0 1 1,-1h4a1,1 0 0 1 1,1v2a1,1 0 0 1 -1,1h-4a1,1 0 0 1 -1,-1z" />
+    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M3,16a1,1 0 0 1 1,-1h4a1,1 0 0 1 1,1v4a1,1 0 0 1 -1,1h-4a1,1 0 0 1 -1,-1z" />
+    <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M10,16a1,1 0 0 1 1,-1h2a1,1 0 0 1 1,1v4a1,1 0 0 1 -1,1h-2a1,1 0 0 1 -1,-1z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M15,16a1,1 0 0 1 1,-1h4a1,1 0 0 1 1,1v4a1,1 0 0 1 -1,1h-4a1,1 0 0 1 -1,-1z" />
+</vector>

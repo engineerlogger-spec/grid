@@ -44,8 +44,13 @@ import com.grid.app.core.designsystem.components.GridSurface
 import com.grid.app.core.designsystem.components.LocalMoneyFormatter
 import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.feature.activity.ActivityScreen
+import com.grid.app.core.model.TxType
+import com.grid.app.core.notify.LaunchTarget
 import com.grid.app.feature.add.QuickAddSheet
 import com.grid.app.feature.add.QuickAddViewModel
+import com.grid.app.feature.bills.BillsScreen
+import com.grid.app.feature.bills.PendingEditorScreen
+import com.grid.app.feature.bills.SubscriptionEditorScreen
 import com.grid.app.feature.checkin.CheckInScreen
 import com.grid.app.feature.common.ComingSoonScreen
 import com.grid.app.feature.common.LocalMessenger
@@ -62,6 +67,8 @@ fun GridAppUi(
     state: AppUiState.Ready,
     checkInDismissed: Boolean,
     onDismissCheckIn: () -> Unit,
+    launchTarget: LaunchTarget?,
+    onLaunchHandled: () -> Unit,
     quickAdd: QuickAddController = remember { QuickAddController() },
 ) {
     val nav = rememberNavController()
@@ -79,6 +86,19 @@ fun GridAppUi(
         if (onboardingDone && destination?.hasRoute<OnboardingRoute>() == true) {
             nav.navigate(HomeRoute) { popUpTo(0) { inclusive = true } }
         }
+    }
+    // Deep entry from notifications, widget, Quick Settings tile and launcher shortcuts.
+    LaunchedEffect(launchTarget, onboardingDone) {
+        val target = launchTarget ?: return@LaunchedEffect
+        if (!onboardingDone) return@LaunchedEffect
+        when (target) {
+            LaunchTarget.BILLS -> nav.navigateToTab("bills")
+            LaunchTarget.CHECK_IN -> nav.navigate(CheckInRoute) { launchSingleTop = true }
+            LaunchTarget.ADD_EXPENSE -> quickAdd.add(TxType.EXPENSE)
+            LaunchTarget.ADD_INCOME -> quickAdd.add(TxType.INCOME)
+            LaunchTarget.DETECTED, LaunchTarget.BACKUP -> nav.navigateToTab("home")
+        }
+        onLaunchHandled()
     }
     // Monthly income check-in gate.
     LaunchedEffect(state.needsCheckIn, checkInDismissed, onboardingDone) {
@@ -145,10 +165,19 @@ fun GridAppUi(
                             onOpenSettings = { nav.navigate(SettingsRoute) },
                             onOpenActivity = { day -> nav.navigate(ActivityRoute(dayEpoch = day)) },
                             onOpenCheckIn = { nav.navigate(CheckInRoute) { launchSingleTop = true } },
+                            onOpenBills = { nav.navigateToTab("bills") },
                         )
                     }
                     composable<ActivityRoute> { ActivityScreen(contentPadding = padding) }
-                    composable<BillsRoute> { ComingSoonScreen(stringResource(R.string.bills_title), padding) }
+                    composable<BillsRoute> {
+                        BillsScreen(
+                            contentPadding = padding,
+                            onEditSubscription = { id -> nav.navigate(SubscriptionEditRoute(id)) },
+                            onEditPending = { id -> nav.navigate(PendingEditRoute(id)) },
+                        )
+                    }
+                    composable<SubscriptionEditRoute> { SubscriptionEditorScreen(onDone = { nav.popBackStack() }) }
+                    composable<PendingEditRoute> { PendingEditorScreen(onDone = { nav.popBackStack() }) }
                     composable<InsightsRoute> { ComingSoonScreen(stringResource(R.string.insights_title), padding) }
                     composable<CheckInRoute> {
                         CheckInScreen(

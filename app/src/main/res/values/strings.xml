@@ -70,6 +70,7 @@
     <!-- Activity -->
     <string name="activity_title">Activity</string>
     <string name="activity_search">Search</string>
+    <string name="activity_clear_search">Clear search</string>
     <string name="activity_all">All</string>
     <string name="activity_expenses">Expenses</string>
     <string name="activity_incomes">Income</string>
@@ -144,7 +145,116 @@
     <string name="settings_version">Version %1$s</string>
     <string name="settings_coming_soon">Coming soon</string>
 
-    <!-- Placeholders until their milestones land -->
+    <!-- Notifications -->
+    <string name="channel_bills">Bills &amp; reminders</string>
+    <string name="channel_bills_desc">Upcoming subscription renewals and pending payments</string>
+    <string name="channel_budget">Budget alerts</string>
+    <string name="channel_budget_desc">When you reach 80% or 100% of a goal</string>
+    <string name="channel_detected">Detected payments</string>
+    <string name="channel_detected_desc">Payments read from Google Wallet, PayPal and Revolut</string>
+    <string name="channel_backup">Backup</string>
+    <string name="channel_backup_desc">Google Drive backup status</string>
+    <string name="channel_checkin">Monthly check-in</string>
+    <string name="channel_checkin_desc">Reminder to confirm your income at the start of each month</string>
+    <string name="notif_sub_today">%1$s renews today · %2$s</string>
+    <string name="notif_sub_tomorrow">%1$s renews tomorrow · %2$s</string>
+    <string name="notif_sub_in_days">%1$s renews in %3$d days · %2$s</string>
+    <string name="notif_due_today">%1$s is due today · %2$s</string>
+    <string name="notif_due_tomorrow">%1$s is due tomorrow · %2$s</string>
+    <string name="notif_due_in_days">%1$s is due in %3$d days · %2$s</string>
+    <string name="notif_collect_due">Collect %2$s for %1$s</string>
+    <string name="notif_overdue">%1$s is overdue · %2$s</string>
+    <string name="notif_bills_body">Open Grid to review or mark it paid.</string>
+    <string name="notif_checkin_title">New month on your grid</string>
+    <string name="notif_checkin_body">Confirm this month\'s income and spending goal.</string>
+
+    <!-- Bills -->
     <string name="bills_title">Bills</string>
+    <string name="bills_subscriptions">Subscriptions</string>
+    <string name="bills_pending">Pending</string>
+    <string name="bills_per_month">Per month</string>
+    <string name="bills_per_year">%1$s per year</string>
+    <plurals name="bills_active_count">
+        <item quantity="one">%d active</item>
+        <item quantity="other">%d active</item>
+    </plurals>
+    <string name="bills_next">Next: %1$s · %2$s</string>
+    <string name="bills_add_subscription">Add subscription</string>
+    <string name="bills_add_pending">Add pending payment</string>
+    <string name="bills_paused">Paused</string>
+    <string name="bills_cancelled">Cancelled</string>
+    <string name="bills_inactive">Paused &amp; cancelled</string>
+    <string name="bills_to_pay">To pay</string>
+    <string name="bills_owed_to_me">Owed to me</string>
+    <string name="bills_settled">Settled</string>
+    <string name="bills_mark_paid">Mark paid</string>
+    <string name="bills_mark_received">Mark received</string>
+    <string name="bills_paid_snack">Marked paid · %1$s booked</string>
+    <string name="bills_received_snack">Marked received · %1$s booked</string>
+    <string name="bills_no_subs_title">No subscriptions yet</string>
+    <string name="bills_no_subs_body">Add Netflix, Spotify, your gym… Grid logs each renewal and reminds you before it hits.</string>
+    <string name="bills_no_pending_title">Nothing pending</string>
+    <string name="bills_no_pending_body">Track rent, invoices, or money a friend owes you. Mark paid and Grid books it.</string>
+    <string name="bills_today">Today</string>
+    <string name="bills_tomorrow">Tomorrow</string>
+    <plurals name="bills_in_days">
+        <item quantity="one">In %d day</item>
+        <item quantity="other">In %d days</item>
+    </plurals>
+    <plurals name="bills_days_overdue">
+        <item quantity="one">%d day overdue</item>
+        <item quantity="other">%d days overdue</item>
+    </plurals>
+    <string name="bills_no_due">No due date</string>
+    <string name="bills_overdue">Overdue</string>
+    <string name="cycle_weekly">Weekly</string>
+    <string name="cycle_monthly">Monthly</string>
+    <string name="cycle_quarterly">Every 3 months</string>
+    <string name="cycle_yearly">Yearly</string>
+    <string name="cycle_custom">Custom</string>
+    <string name="cycle_every_weeks">Every %d weeks</string>
+    <string name="cycle_every_months">Every %d months</string>
+    <string name="cycle_every_years">Every %d years</string>
+    <string name="unit_weeks">Weeks</string>
+    <string name="unit_months">Months</string>
+    <string name="unit_years">Years</string>
+    <string name="sub_edit_title">Subscription</string>
+    <string name="sub_new_title">New subscription</string>
+    <string name="sub_popular">Popular</string>
+    <string name="sub_name">Name</string>
+    <string name="sub_amount">Amount</string>
+    <string name="sub_cycle">Billing cycle</string>
+    <string name="sub_next_charge">Next charge</string>
+    <string name="sub_category">Category</string>
+    <string name="sub_method">Paid with</string>
+    <string name="sub_remind">Remind me</string>
+    <string name="sub_auto_log">Log each renewal automatically</string>
+    <string name="sub_auto_log_body">Adds the expense to your grid on the charge day</string>
+    <string name="sub_color">Color</string>
+    <string name="sub_pause">Pause</string>
+    <string name="sub_resume">Resume</string>
+    <string name="sub_cancel">Cancel subscription</string>
+    <string name="remind_off">Off</string>
+    <string name="remind_same_day">On the day</string>
+    <string name="remind_days_before">%d days before</string>
+    <string name="remind_one_day">1 day before</string>
+    <string name="remind_week">1 week before</string>
+    <string name="pending_new_title">New pending payment</string>
+    <string name="pending_edit_title">Pending payment</string>
+    <string name="pending_i_owe">I owe</string>
+    <string name="pending_owed_to_me">Owed to me</string>
+    <string name="pending_title_hint">What is it? (Rent, invoice…)</string>
+    <string name="pending_counterparty">Who? (optional)</string>
+    <string name="pending_due">Due date</string>
+    <string name="pending_no_due">No due date</string>
+    <string name="pending_note">Note (optional)</string>
+    <string name="pending_reopen">Mark as not paid</string>
+    <string name="field_required">Required</string>
+    <string name="notifications_rationale">Allow notifications so Grid can remind you before bills are due.</string>
+    <string name="home_upcoming">Upcoming · 7 days</string>
+    <string name="home_upcoming_due">%1$s due</string>
+    <string name="home_nothing_due">Nothing due this week</string>
+
+    <!-- Placeholders until their milestones land -->
     <string name="insights_title">Insights</string>
 </resources>
