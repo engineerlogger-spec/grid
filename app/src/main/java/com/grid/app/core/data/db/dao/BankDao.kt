@@ -93,6 +93,10 @@ interface BankDao {
     @Query("SELECT * FROM transactions WHERE needsReview = 1 ORDER BY occurredAt DESC")
     fun observeNeedsReview(): Flow<List<TransactionEntity>>
 
+    /** Bank payments still under the placeholder category, to re-check when the rules improve. */
+    @Query("SELECT * FROM transactions WHERE needsReview = 1 AND source = 'BANK'")
+    suspend fun bankNeedsReview(): List<TransactionEntity>
+
     /** Everything waiting for the user: uncategorised bank bookings plus undecided bank rows. */
     @Query("SELECT (SELECT COUNT(*) FROM transactions WHERE needsReview = 1) + (SELECT COUNT(*) FROM bank_transactions WHERE state = 'NEEDS_DECISION')")
     suspend fun countToReview(): Int

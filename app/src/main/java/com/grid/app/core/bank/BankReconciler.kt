@@ -108,6 +108,33 @@ class BankReconciler @Inject constructor(
         return Outcome(BankTxState.BOOKED, id)
     }
 
+    /**
+     * Re-checks, with today's rules, what earlier versions left undecided or filed under "Other": the user's own
+     * money becomes a move, a recognised merchant gets its category. What the user sorted themselves is never touched.
+     */
+    suspend fun revisit(appCurrency: String, ownIbans: Set<String>) {
+        fun reclassified(row: BankTransactionEntity) =
+            row.copy(kind = RemoteTxJson.parse(row.rawJson)?.let { TxClassifier.classify(it, ownIbans) } ?: row.kind)
+
+        for (row in dao.stagedByState(BankTxState.NEEDS_DECISION)) {
+            if (row.currency == appCurrency) process(reclassified(row).copy(state = BankTxState.NEW), appCurrency)
+        }
+        for (tx in dao.bankNeedsReview()) {
+            val row = dao.stagedLinkedTo(tx.id)?.let(::reclassified) ?: continue
+            if (row.kind == BankTxKind.INTERNAL || isOwnTransfer(row)) {
+                db.withTransaction {
+                    dao.updateStaged(row.copy(state = if (row.kind == BankTxKind.INTERNAL) BankTxState.IGNORED else BankTxState.OWN_TRANSFER, transactionId = null))
+                    db.transactionDao().delete(tx.id)
+                }
+                continue
+            }
+            val wantedKind = if (tx.type == TxType.EXPENSE) CategoryKind.EXPENSE else CategoryKind.INCOME
+            val category = guessCategory(row, BankRepository.displayName(row), wantedKind) ?: continue
+            dao.updateStaged(row)
+            transactions.recategorize(tx.id, category.id)
+        }
+    }
+
     /** Top-ups and transfers with the holder's own name or a learned own account (e.g. the salary bank). */
     private suspend fun isOwnTransfer(row: BankTransactionEntity): Boolean {
         if (row.kind !in setOf(BankTxKind.TOP_UP, BankTxKind.MONEY_IN, BankTxKind.TRANSFER_OUT)) return false

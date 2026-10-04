@@ -80,41 +80,23 @@ class EnableBankingClient(
         )
     }
 
-    override suspend fun transactions(accountUid: String, dateFrom: LocalDate, continuationKey: String?): TxPage {
+    /**
+     * One page of an account's transactions. With [longest], Enable Banking returns everything the bank still offers
+     * (right after the user approves access, that is the whole history) and [dateFrom] is ignored.
+     */
+    override suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean): TxPage {
         val url = base.newBuilder().addPathSegment("accounts").addPathSegment(accountUid).addPathSegment("transactions")
-            .addQueryParameter("date_from", dateFrom.toString())
-            .apply { continuationKey?.let { addQueryParameter("continuation_key", it) } }
+            .apply {
+                if (longest) addQueryParameter("strategy", "longest") else dateFrom?.let { addQueryParameter("date_from", it.toString()) }
+                continuationKey?.let { addQueryParameter("continuation_key", it) }
+            }
             .build()
         val body = call(Request.Builder().url(url).get())
-        return TxPage(body.array("transactions").map { it.jsonObject.toRemoteTx() }, body.str("continuation_key")?.takeIf { it.isNotBlank() })
+        return TxPage(body.array("transactions").map { RemoteTxJson.from(it.jsonObject) }, body.str("continuation_key")?.takeIf { it.isNotBlank() })
     }
 
     override suspend fun deleteSession(sessionId: String) {
         call(Request.Builder().url(base.newBuilder().addPathSegment("sessions").addPathSegment(sessionId).build()).delete())
-    }
-
-    private fun JsonObject.toRemoteTx(): RemoteTx {
-        val amount = obj("transaction_amount")
-        val code = obj("bank_transaction_code")
-        return RemoteTx(
-            transactionId = str("transaction_id"),
-            entryReference = str("entry_reference"),
-            amount = amount?.str("amount") ?: "0",
-            currency = amount?.str("currency") ?: "EUR",
-            creditDebit = str("credit_debit_indicator"),
-            status = str("status"),
-            bookingDate = str("booking_date"),
-            valueDate = str("value_date"),
-            transactionDate = str("transaction_date"),
-            creditorName = obj("creditor")?.str("name"),
-            creditorIban = obj("creditor_account")?.str("iban"),
-            debtorName = obj("debtor")?.str("name"),
-            debtorIban = obj("debtor_account")?.str("iban"),
-            remittance = (this["remittance_information"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content }.orEmpty(),
-            mcc = str("merchant_category_code"),
-            bankTxCode = listOfNotNull(code?.str("code"), code?.str("sub_code"), code?.str("description")).joinToString(" ").ifBlank { null },
-            rawJson = toString(),
-        )
     }
 
     private suspend fun authorization(): String {

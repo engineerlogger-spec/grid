@@ -8,7 +8,8 @@ interface BankConnector {
     suspend fun aspsps(country: String): List<Aspsp>
     suspend fun startAuth(aspsp: Aspsp, validUntil: Long, redirectUrl: String, state: String): AuthStart
     suspend fun createSession(code: String): BankSession
-    suspend fun transactions(accountUid: String, dateFrom: LocalDate, continuationKey: String?): TxPage
+    /** [longest]: everything the bank still offers (the whole history right after the user approves access). */
+    suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean = false): TxPage
     suspend fun deleteSession(sessionId: String)
 }
 

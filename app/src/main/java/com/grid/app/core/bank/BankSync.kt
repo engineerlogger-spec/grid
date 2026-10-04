@@ -60,13 +60,14 @@ class BankSync @Inject constructor(
 
         try {
             for (account in accounts.filter { it.enabled }) {
+                // First fetch after the user approves access: the whole history (banks only allow it in that window).
+                // Afterwards: from a few days before the last sync, so late bookings are caught.
+                val longest = account.syncedThroughEpochDay == null
                 val from = account.syncedThroughEpochDay?.let { LocalDate.ofEpochDay(it).minusDays(OVERLAP_DAYS) }
-                    ?: connection.backfillFromEpochDay?.let(LocalDate::ofEpochDay)
-                    ?: today.minusDays(DEFAULT_BACKFILL_DAYS)
                 val all = mutableListOf<RemoteTx>()
                 var key: String? = null
                 do {
-                    val page = connector.transactions(account.uid, from, key)
+                    val page = connector.transactions(account.uid, from, key, longest)
                     all += page.transactions
                     key = page.continuationKey
                 } while (key != null)
@@ -98,6 +99,8 @@ class BankSync @Inject constructor(
             return SyncResult.Failed(e.message ?: e.javaClass.simpleName)
         }
 
+        // Rules improve between versions: re-check what is still undecided or under Other.
+        reconciler.revisit(currency, ownIbans)
         // Includes rows left NEW by an interrupted run.
         var bookedCount = 0
         for (row in dao.stagedByState(BankTxState.NEW).sortedBy { it.occurredAt }) {
@@ -131,6 +134,5 @@ class BankSync @Inject constructor(
         /** Where the bank's login sends the user back (a static page that forwards to the app). */
         const val REDIRECT_URL = "https://engineerlogger-spec.github.io/grid/bank-callback/"
         private const val OVERLAP_DAYS = 5L
-        private const val DEFAULT_BACKFILL_DAYS = 90L
     }
 }

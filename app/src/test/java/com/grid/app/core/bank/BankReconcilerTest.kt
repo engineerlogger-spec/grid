@@ -230,6 +230,49 @@ class BankReconcilerTest {
         assertThat(ledger().filter { it.type == TxType.INCOME }).hasSize(2) // last month + this month, no duplicate
     }
 
+    /** A row as an older version left it, with the bank's raw JSON so today's rules can re-read it. */
+    private suspend fun oldRow(name: String, amount: String, code: String, credit: Boolean, state: BankTxState, txId: Long? = null): Long {
+        val party = if (credit) """"debtor":{"name":"$name"}""" else """"creditor":{"name":"$name"}"""
+        val raw = """{"transaction_amount":{"currency":"EUR","amount":"$amount"},"credit_debit_indicator":"${if (credit) "CRDT" else "DBIT"}",$party,"bank_transaction_code":{"code":"$code"},"status":"BOOK"}"""
+        return db.bankDao().insertStaged(
+            BankTransactionEntity(
+                accountId = accountId, externalId = "old${ext++}", bookingEpochDay = today.toEpochDay(), occurredAt = now,
+                amountMinor = (amount.toDouble() * 100).toLong(), currency = "EUR", direction = if (credit) CaptureDirection.IN else CaptureDirection.OUT,
+                kind = if (credit) BankTxKind.MONEY_IN else BankTxKind.CARD_SPEND, counterparty = name,
+                counterpartyKey = DescriptorCleaner.clean(name)?.merchant?.let(MerchantKey::of), state = state, transactionId = txId, rawJson = raw, createdAt = now,
+            ),
+        )
+    }
+
+    @Test fun dataFromOlderVersionsIsSortedWithTodaysRules() = runTest {
+        db.bankDao().updateAccount(db.bankDao().account(accountId)!!.copy(name = "Abdelhamid Mouloud"))
+        // An E.Leclerc payment an older version filed under Other.
+        val leclerc = transactions.add(TransactionDraft(TxType.EXPENSE, 2340, "EUR", cat("other"), merchant = "E.leclerc", occurredAt = now, source = TxSource.BANK, needsReview = true))
+        oldRow("E.leclerc", "23.40", "CARD_PAYMENT", credit = false, state = BankTxState.BOOKED, txId = leclerc)
+        // A salary-account top-up an older version booked as income under Other.
+        val topUp = transactions.add(TransactionDraft(TxType.INCOME, 150_000, "EUR", cat("other_income", CategoryKind.INCOME), merchant = "Mouloud Abdelhamid", occurredAt = now, source = TxSource.BANK, needsReview = true))
+        oldRow("MOULOUD ABDELHAMID", "1500.00", "TOPUP", credit = true, state = BankTxState.BOOKED, txId = topUp)
+        // An SFR transfer an older version left waiting for a decision.
+        val sfr = oldRow("SFR", "25.99", "TRANSFER", credit = false, state = BankTxState.NEEDS_DECISION)
+
+        reconciler.revisit("EUR", emptySet())
+
+        assertThat(transactions.get(leclerc)!!.category.iconKey).isEqualTo("groceries")
+        assertThat(transactions.get(leclerc)!!.needsReview).isFalse()
+        assertThat(transactions.get(topUp)).isNull() // not income: money moved from the salary account
+        assertThat(db.bankDao().stagedByState(BankTxState.OWN_TRANSFER).single().counterparty).isEqualTo("MOULOUD ABDELHAMID")
+        val sfrRow = db.bankDao().staged(sfr)!!
+        assertThat(sfrRow.state).isEqualTo(BankTxState.BOOKED)
+        assertThat(transactions.get(sfrRow.transactionId!!)!!.category.iconKey).isEqualTo("bills")
+    }
+
+    @Test fun whatTheUserSortedIsNeverChanged() = runTest {
+        val sorted = transactions.add(TransactionDraft(TxType.EXPENSE, 2340, "EUR", cat("health"), merchant = "E.leclerc", occurredAt = now, source = TxSource.BANK))
+        oldRow("E.leclerc", "23.40", "CARD_PAYMENT", credit = false, state = BankTxState.BOOKED, txId = sorted)
+        reconciler.revisit("EUR", emptySet())
+        assertThat(transactions.get(sorted)!!.category.iconKey).isEqualTo("health")
+    }
+
     @Test fun otherCurrencyWaitsForTheUser() = runTest {
         assertThat(bankRow(1000, "Tesco", currency = "GBP").first).isEqualTo(BankTxState.NEEDS_DECISION)
     }

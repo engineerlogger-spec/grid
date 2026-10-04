@@ -41,11 +41,13 @@ class BankSyncTest {
 
     /** Wraps the demo bank to record requests or fail on demand. */
     private inner class Recording(var failWith: BankError? = null) : BankConnector by DemoBankConnector(clock) {
-        val froms = mutableListOf<LocalDate>()
-        override suspend fun transactions(accountUid: String, dateFrom: LocalDate, continuationKey: String?): TxPage {
+        val froms = mutableListOf<LocalDate?>()
+        val longest = mutableListOf<Boolean>()
+        override suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean): TxPage {
             failWith?.let { throw it }
             froms += dateFrom
-            return DemoBankConnector(clock).transactions(accountUid, dateFrom, continuationKey)
+            this.longest += longest
+            return DemoBankConnector(clock).transactions(accountUid, dateFrom, continuationKey, longest)
         }
     }
 
@@ -97,8 +99,9 @@ class BankSyncTest {
             .containsExactly("Sam Taylor", "Top-Up by *4421")
         assertThat(db.bankDao().stagedByState(BankTxState.NEW)).isEmpty()
         assertThat(bank.connection()!!.lastSyncAt).isEqualTo(clock.millis())
-        // Only the EUR account is synced; the USD one is off by default.
-        assertThat(connector.froms).containsExactly(today.minusMonths(3))
+        // Only the EUR account is synced (the USD one is off by default), and the first fetch asks for the whole history.
+        assertThat(connector.froms).containsExactly(null)
+        assertThat(connector.longest).containsExactly(true)
     }
 
     @Test fun secondSyncAddsNothingAndRereadsAFewDays() = runTest {
@@ -141,7 +144,7 @@ class BankSyncTest {
     }
 
     private val throwingConnector = object : BankConnector by DemoBankConnector(clock) {
-        override suspend fun transactions(accountUid: String, dateFrom: LocalDate, continuationKey: String?): TxPage = error("unexpected shape")
+        override suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean): TxPage = error("unexpected shape")
     }
 
     @Test fun notConnectedWithoutSession() = runTest {
