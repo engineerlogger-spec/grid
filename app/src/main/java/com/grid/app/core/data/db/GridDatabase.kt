@@ -8,7 +8,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.grid.app.core.data.db.dao.CategoryDao
 import com.grid.app.core.data.db.dao.MerchantRuleDao
 import com.grid.app.core.data.db.dao.PaymentMethodDao
+import com.grid.app.core.data.db.dao.PendingDao
 import com.grid.app.core.data.db.dao.PlanDao
+import com.grid.app.core.data.db.dao.SubscriptionDao
 import com.grid.app.core.data.db.dao.TransactionDao
 import com.grid.app.core.data.db.entities.CaptureEntity
 import com.grid.app.core.data.db.entities.CategoryEntity
@@ -40,6 +42,8 @@ abstract class GridDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun planDao(): PlanDao
     abstract fun merchantRuleDao(): MerchantRuleDao
+    abstract fun subscriptionDao(): SubscriptionDao
+    abstract fun pendingDao(): PendingDao
 
     companion object {
         const val NAME = "grid.db"
