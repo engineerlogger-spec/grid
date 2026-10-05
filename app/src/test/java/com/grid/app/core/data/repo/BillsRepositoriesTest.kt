@@ -48,51 +48,45 @@ class BillsRepositoriesTest {
         nextCharge = LocalDate.parse(next), categoryId = cat("subscriptions"), autoLog = autoLog, colorKey = "red",
     )
 
-    @Test fun chargeDueTodayIsLoggedOnceAndAdvances() = runTest {
-        val id = subs.add(netflix("2026-10-04")) // adding books charges already due
-        assertThat(subs.processDueCharges(today)).isEqualTo(0) // idempotent
-        val tx = transactions.observeAll().first().single()
-        assertThat(tx.subscriptionId).isEqualTo(id)
-        assertThat(tx.source).isEqualTo(TxSource.SUBSCRIPTION)
-        assertThat(tx.title).isEqualTo("Netflix")
+    @Test fun aDueChargeAddsNothingToTheLedgerAndAdvances() = runTest {
+        val id = subs.add(netflix("2026-10-04"))
+        subs.processDueCharges(today)
+        assertThat(transactions.observeAll().first()).isEmpty()
         assertThat(subs.get(id)!!.nextCharge).isEqualTo(LocalDate.parse("2026-11-04"))
     }
 
-    @Test fun missedChargesAreCaughtUp() = runTest {
-        subs.add(netflix("2026-07-31")) // Jul 31, Aug 31, Sep 30 booked on add
-        assertThat(subs.processDueCharges(today)).isEqualTo(0)
-        val dates = transactions.observeAll().first().map { java.time.Instant.ofEpochMilli(it.occurredAt).atZone(clock.zone).toLocalDate() }
-        assertThat(dates).containsExactly(LocalDate.parse("2026-09-30"), LocalDate.parse("2026-08-31"), LocalDate.parse("2026-07-31")).inOrder()
+    @Test fun missedChargesAreNotBackfilled() = runTest {
+        val id = subs.add(netflix("2026-07-31"))
+        assertThat(transactions.observeAll().first()).isEmpty()
+        assertThat(subs.get(id)!!.nextCharge).isEqualTo(LocalDate.parse("2026-10-31"))
     }
 
-    @Test fun chargeAlreadyBookedByBankSyncIsNotLoggedAgain() = runTest {
-        val id = subs.add(netflix("2026-10-06"))
-        // The bank charged it two days early and bank sync linked it to the subscription.
-        transactions.add(
+    @Test fun entriesOlderVersionsAutoLoggedAreRemovedUnlessABankPaymentBacksThem() = runTest {
+        val id = subs.add(netflix("2026-11-04"))
+        val logged = transactions.add(
+            com.grid.app.core.model.TransactionDraft(
+                type = TxType.EXPENSE, amountMinor = 1399, currency = "EUR", categoryId = cat("subscriptions"),
+                merchant = "Netflix", occurredAt = clock.millis(), source = TxSource.SUBSCRIPTION, subscriptionId = id,
+            ),
+        )
+        val bankPaid = transactions.add(
             com.grid.app.core.model.TransactionDraft(
                 type = TxType.EXPENSE, amountMinor = 1399, currency = "EUR", categoryId = cat("subscriptions"),
                 merchant = "Netflix", occurredAt = clock.millis(), source = TxSource.BANK, subscriptionId = id,
             ),
         )
-        assertThat(subs.processDueCharges(LocalDate.parse("2026-10-06"))).isEqualTo(0)
-        assertThat(transactions.observeAll().first()).hasSize(1)
-        assertThat(subs.get(id)!!.nextCharge).isEqualTo(LocalDate.parse("2026-11-06"))
+        subs.processDueCharges(today)
+        assertThat(transactions.get(logged)).isNull()
+        assertThat(transactions.get(bankPaid)).isNotNull()
     }
 
-    @Test fun autoLogOffOnlyAdvances() = runTest {
-        val id = subs.add(netflix("2026-10-01", autoLog = false))
-        assertThat(subs.processDueCharges(today)).isEqualTo(0)
-        assertThat(transactions.observeAll().first()).isEmpty()
-        assertThat(subs.get(id)!!.nextCharge).isEqualTo(LocalDate.parse("2026-11-01"))
-    }
-
-    @Test fun pausedIsNotChargedAndResumeDoesNotBackCharge() = runTest {
+    @Test fun pausedIsNotAdvancedAndResumeDoesNotBackCharge() = runTest {
         val id = subs.add(netflix("2026-08-15"))
         subs.setStatus(id, SubscriptionStatus.PAUSED)
-        assertThat(subs.processDueCharges(today)).isEqualTo(0)
+        subs.processDueCharges(today)
         subs.setStatus(id, SubscriptionStatus.ACTIVE)
         assertThat(subs.get(id)!!.nextCharge).isEqualTo(LocalDate.parse("2026-10-15"))
-        assertThat(subs.processDueCharges(today)).isEqualTo(0)
+        assertThat(transactions.observeAll().first()).isEmpty()
     }
 
     @Test fun editKeepsMonthEndAnchorWhenScheduleUnchanged() = runTest {

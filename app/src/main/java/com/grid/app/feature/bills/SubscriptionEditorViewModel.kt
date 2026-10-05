@@ -9,7 +9,6 @@ import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.CategoryRepository
 import com.grid.app.core.data.repo.SubscriptionRepository
 import com.grid.app.core.data.repo.TransactionRepository
-import com.grid.app.core.model.TxSource
 import com.grid.app.core.time.BillingSchedule
 import com.grid.app.feature.common.toLocalDate
 import com.grid.app.core.model.Category
@@ -63,7 +62,6 @@ data class SubscriptionEditorState(
     val methods: List<PaymentMethod> = emptyList(),
     val methodId: Long? = null,
     val remindDays: Int? = 1,
-    val autoLog: Boolean = true,
     val colorKey: String = "violet",
     val note: String = "",
     val status: SubscriptionStatus = SubscriptionStatus.ACTIVE,
@@ -110,8 +108,6 @@ class SubscriptionEditorViewModel @Inject constructor(
                     currency = payment.currency, nextCharge = nextAfterToday(lastPaid, Cycle.Monthly), today = clock.today(),
                     categories = categories, categoryId = payment.category.id.takeIf { id -> categories.any { it.id == id } } ?: defaultCategory,
                     methods = methods, methodId = payment.method?.id,
-                    // Bank sync books each real charge; auto-logging as well would count it twice.
-                    autoLog = payment.source != TxSource.BANK,
                     lastPaid = lastPaid, paymentIds = subscriptions.pastPaymentsLike(payment),
                 )
             } else if (existing != null) {
@@ -119,7 +115,7 @@ class SubscriptionEditorViewModel @Inject constructor(
                     loading = false, id = existing.id, name = existing.name, amount = moneyFieldText(existing.amountMinor, existing.currency),
                     currency = existing.currency, choice = CycleChoice.of(existing.cycle), customUnit = existing.cycle.unit, customCount = existing.cycle.count,
                     nextCharge = existing.nextCharge, today = clock.today(), categories = categories, categoryId = existing.category.id,
-                    methods = methods, methodId = existing.paymentMethodId, remindDays = existing.remindDaysBefore, autoLog = existing.autoLog,
+                    methods = methods, methodId = existing.paymentMethodId, remindDays = existing.remindDaysBefore,
                     colorKey = existing.colorKey, note = existing.note.orEmpty(), status = existing.status,
                 )
             } else {
@@ -153,7 +149,6 @@ class SubscriptionEditorViewModel @Inject constructor(
     fun setCategory(id: Long?) = _state.update { it.copy(categoryId = id ?: it.categoryId) }
     fun setMethod(id: Long?) = _state.update { it.copy(methodId = id) }
     fun setRemind(days: Int?) = _state.update { it.copy(remindDays = days) }
-    fun setAutoLog(on: Boolean) = _state.update { it.copy(autoLog = on) }
     fun setColor(key: String) = _state.update { it.copy(colorKey = key) }
     fun setNote(v: String) = _state.update { it.copy(note = v) }
 
@@ -167,7 +162,7 @@ class SubscriptionEditorViewModel @Inject constructor(
         }
         val draft = SubscriptionDraft(
             name = s.name, amountMinor = amount, currency = s.currency, cycle = s.cycle, nextCharge = s.nextCharge,
-            categoryId = categoryId, paymentMethodId = s.methodId, remindDaysBefore = s.remindDays, autoLog = s.autoLog,
+            categoryId = categoryId, paymentMethodId = s.methodId, remindDaysBefore = s.remindDays, autoLog = false,
             colorKey = s.colorKey, note = s.note,
         )
         viewModelScope.launch {

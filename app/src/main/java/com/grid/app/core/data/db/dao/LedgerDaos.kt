@@ -128,6 +128,13 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE type = :type AND merchant IS NOT NULL")
     suspend fun withMerchant(type: TxType): List<TransactionEntity>
 
+    /** Charges older versions auto-logged for subscriptions, except those a bank payment was merged into. */
+    @Query(
+        """DELETE FROM transactions WHERE source = 'SUBSCRIPTION'
+           AND NOT EXISTS (SELECT 1 FROM bank_transactions b WHERE b.transactionId = transactions.id)""",
+    )
+    suspend fun deleteUnbackedSubscriptionCharges(): Int
+
     @Query("SELECT COUNT(*) FROM transactions WHERE subscriptionId = :subscriptionId AND occurredAt >= :startMs AND occurredAt < :endMs")
     suspend fun countForSubscriptionBetween(subscriptionId: Long, startMs: Long, endMs: Long): Int
 

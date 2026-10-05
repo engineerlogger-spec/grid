@@ -299,6 +299,12 @@
         <item quantity="other">%d active</item>
     </plurals>
     <string name="bills_next">Next: %1$s · %2$s</string>
+    <string name="bills_paid_on">Paid %1$s</string>
+    <string name="bills_due_on">Due %1$s</string>
+    <string name="bills_late">Not paid · due %1$s</string>
+    <string name="bills_month_paid">%1$d of %2$d paid this month</string>
+    <string name="bills_month_left">%1$s still to pay this month</string>
+    <string name="bills_month_all_paid">All paid this month</string>
     <string name="bills_add_subscription">Add subscription</string>
     <string name="bills_add_pending">Add pending payment</string>
     <string name="bills_paused">Paused</string>
@@ -366,8 +372,6 @@
     <string name="sub_category">Category</string>
     <string name="sub_method">Paid with</string>
     <string name="sub_remind">Remind me</string>
-    <string name="sub_auto_log">Log each renewal automatically</string>
-    <string name="sub_auto_log_body">Adds the expense to your grid on the charge day</string>
     <string name="sub_color">Color</string>
     <string name="sub_pause">Pause</string>
     <string name="sub_resume">Resume</string>

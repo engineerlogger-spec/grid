@@ -112,12 +112,14 @@ class BankReconcilerTest {
         assertThat(ledger()).hasSize(2)
     }
 
-    @Test fun loggedSubscriptionIsLinked() = runTest {
-        subs.add(SubscriptionDraft("Netflix", 1349, "EUR", Cycle.Monthly, today, cat("subscriptions"), colorKey = "red"))
-        val logged = ledger().single()
+    @Test fun theBankPaymentOfASubscriptionIsLinkedToIt() = runTest {
+        val netflix = subs.add(SubscriptionDraft("Netflix", 1349, "EUR", Cycle.Monthly, today, cat("subscriptions"), colorKey = "red"))
+        assertThat(ledger()).isEmpty() // a subscription adds nothing by itself
         val (_, row) = bankRow(1399, "PAYPAL *NETFLIX", at = now + day)
-        assertThat(row.transactionId).isEqualTo(logged.id)
-        assertThat(ledger().single().amountMinor).isEqualTo(1399)
+        val paid = ledger().single()
+        assertThat(row.transactionId).isEqualTo(paid.id)
+        assertThat(paid.subscriptionId).isEqualTo(netflix)
+        assertThat(paid.amountMinor).isEqualTo(1399)
     }
 
     @Test fun rentTransferBooksItsBillAndTheBillIsNotLoggedAgain() = runTest {
@@ -127,7 +129,7 @@ class BankReconcilerTest {
         val tx = transactions.get(row.transactionId!!)!!
         assertThat(tx.subscriptionId).isEqualTo(rentId)
         assertThat(tx.category.iconKey).isEqualTo("housing")
-        assertThat(subs.processDueCharges(today.plusDays(2))).isEqualTo(0)
+        subs.processDueCharges(today.plusDays(2))
         assertThat(ledger()).hasSize(1)
     }
 

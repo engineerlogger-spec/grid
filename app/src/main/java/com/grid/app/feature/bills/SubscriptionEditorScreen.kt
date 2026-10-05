@@ -141,15 +141,6 @@ fun SubscriptionEditorScreen(onDone: () -> Unit, viewModel: SubscriptionEditorVi
             FormSection(stringResource(R.string.sub_category)) { CategoryDropdown(s.categories, s.categoryId, viewModel::setCategory) }
             FormSection(stringResource(R.string.sub_method)) { MethodDropdown(s.methods, s.methodId, viewModel::setMethod) }
             FormSection(stringResource(R.string.sub_remind)) { ReminderChips(s.remindDays, viewModel::setRemind) }
-            Tile {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.sub_auto_log), style = MaterialTheme.typography.titleSmall, color = colors.text)
-                        Text(stringResource(R.string.sub_auto_log_body), style = MaterialTheme.typography.bodySmall, color = colors.muted)
-                    }
-                    Switch(checked = s.autoLog, onCheckedChange = viewModel::setAutoLog)
-                }
-            }
             FormSection(stringResource(R.string.sub_color)) { ColorPicker(s.colorKey, viewModel::setColor) }
             if (!s.isNew) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
