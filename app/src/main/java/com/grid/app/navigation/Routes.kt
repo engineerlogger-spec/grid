@@ -8,7 +8,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class ActivityRoute(val categoryId: Long? = null, val dayEpoch: Long? = null, val monthEpoch: Long? = null)
 @Serializable data object DeletedRoute
 @Serializable data object AiRoute
-@Serializable data object AskRoute
+/** [prompt]: sent straight away (a suggestion tapped on Home). */
+@Serializable data class AskRoute(val prompt: String? = null)
 @Serializable data object BillsRoute
 @Serializable data object InsightsRoute
 @Serializable data object CheckInRoute

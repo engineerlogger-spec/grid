@@ -81,37 +81,43 @@ class CaptureRepository @Inject constructor(
     suspend fun ruleFor(merchant: String?): MerchantRuleEntity? = merchant?.let(MerchantKey::of)?.let { db.merchantRuleDao().get(it) }
 
     /**
-     * When the bank already booked this payment, the notification joins the bank's entry instead of adding a second
-     * one. Returns that entry's id, or null when there is no bank twin.
+     * When this payment is already recorded (the bank booked it, or another app's notification did), the
+     * notification joins that entry instead of adding a second one. Returns that entry's id, or null when it's new.
      */
-    suspend fun joinBankTwin(id: Long): Long? {
+    suspend fun joinTwin(id: Long): Long? {
         val capture = dao.get(id) ?: return null
         if (capture.status == CaptureStatus.ADDED) return capture.transactionId
         val amount = capture.amountMinor ?: return null
         val currency = capture.currency ?: return null
         val type = if (capture.direction == CaptureDirection.IN) TxType.INCOME else TxType.EXPENSE
-        val twin = twins.bankEntryFor(type, amount, currency, capture.postedAt, capture.merchant) ?: return null
+        val twin = twins.twinOf(type, amount, currency, capture.postedAt, capture.merchant, EntryOrigin.NOTIFICATION, capture.id) ?: return null
         twins.join(twin, capture.id, capture.postedAt, methodFor(capture.source))
         dao.update(capture.copy(status = CaptureStatus.ADDED, transactionId = twin.id))
         return twin.id
     }
 
-    /** Turns a capture into a transaction (teaching the merchant rule) and marks it added. */
+    /**
+     * Turns a capture into an entry (teaching the merchant rule) and marks it added — through [PaymentTwins], so a
+     * payment already recorded is joined, not added twice. The category the user picked applies either way.
+     */
     suspend fun accept(id: Long, categoryId: Long, paymentMethodId: Long? = null): Long? {
         val capture = dao.get(id) ?: return null
         if (capture.status == CaptureStatus.ADDED) return capture.transactionId
-        // Booked by the bank in the meantime: one payment, one entry.
-        joinBankTwin(id)?.let { return it }
         val amount = capture.amountMinor ?: return null
         val currency = capture.currency ?: return null
-        val methodId = paymentMethodId ?: methodFor(capture.source)
-        val txId = transactions.add(
-            TransactionDraft(
-                type = if (capture.direction == CaptureDirection.IN) TxType.INCOME else TxType.EXPENSE,
-                amountMinor = amount, currency = currency, categoryId = categoryId, paymentMethodId = methodId,
-                merchant = capture.merchant, occurredAt = capture.postedAt, source = TxSource.CAPTURE, captureId = capture.id,
-            ),
+        val draft = TransactionDraft(
+            type = if (capture.direction == CaptureDirection.IN) TxType.INCOME else TxType.EXPENSE,
+            amountMinor = amount, currency = currency, categoryId = categoryId, paymentMethodId = paymentMethodId ?: methodFor(capture.source),
+            merchant = capture.merchant, occurredAt = capture.postedAt, source = TxSource.CAPTURE, captureId = capture.id,
         )
+        val txId = when (val result = twins.record(draft, EntryOrigin.NOTIFICATION)) {
+            is RecordResult.Added -> result.id
+            is RecordResult.Joined -> result.id.also { joined ->
+                // The user just said what this payment is: the entry already there takes that category.
+                transactions.get(joined)?.takeIf { it.category.id != categoryId }?.let { transactions.update(it.id, it.toDraft().copy(categoryId = categoryId)) }
+            }
+            is RecordResult.PossibleDuplicate -> result.existing.id
+        }
         dao.update(capture.copy(status = CaptureStatus.ADDED, transactionId = txId))
         return txId
     }

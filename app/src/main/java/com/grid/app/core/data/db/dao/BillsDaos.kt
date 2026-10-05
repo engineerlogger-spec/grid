@@ -42,6 +42,10 @@ interface PayeeProfileDao {
     @Query("SELECT * FROM payee_profiles")
     suspend fun all(): List<PayeeProfileEntity>
 
+    /** The profile behind a name shown on entries (Gemini's name for the payee). */
+    @Query("SELECT * FROM payee_profiles WHERE name = :name COLLATE NOCASE LIMIT 1")
+    suspend fun byName(name: String): PayeeProfileEntity?
+
     @Query("SELECT COUNT(*) FROM payee_profiles")
     fun observeCount(): Flow<Int>
 

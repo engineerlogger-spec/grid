@@ -51,7 +51,7 @@ class CaptureProcessor @Inject constructor(
             }
             is CaptureParse.Parsed -> {
                 val item = captures.recordParsed(source, title, text, postedAt, parsed) ?: return CaptureOutcome.DUPLICATE
-                if (captures.joinBankTwin(item.id) != null) return CaptureOutcome.JOINED_BANK
+                if (captures.joinTwin(item.id) != null) return CaptureOutcome.JOINED_BANK
                 val rule = captures.ruleFor(item.merchant)
                 val canAutoAdd = s.capture.autoAdd && rule != null && item.direction == CaptureDirection.OUT && item.currency == s.currency
                 if (canAutoAdd) {

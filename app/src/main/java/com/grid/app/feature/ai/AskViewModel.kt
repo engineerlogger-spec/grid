@@ -8,6 +8,7 @@ import com.grid.app.core.ai.AiError
 import com.grid.app.core.ai.AiKeyStore
 import com.grid.app.core.ai.GridAgent
 import com.grid.app.core.ai.StepOutcome
+import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
@@ -37,7 +38,7 @@ data class AskUi(val available: Boolean = true, val turns: List<AskTurn> = empty
 }
 
 @HiltViewModel
-class AskViewModel @Inject constructor(private val agent: GridAgent, keys: AiKeyStore) : ViewModel() {
+class AskViewModel @Inject constructor(private val agent: GridAgent, keys: AiKeyStore, savedStateHandle: androidx.lifecycle.SavedStateHandle) : ViewModel() {
     private val _state = MutableStateFlow(AskUi(available = keys.hasKey()))
     val state: StateFlow<AskUi> = _state.asStateFlow()
 
@@ -46,6 +47,11 @@ class AskViewModel @Inject constructor(private val agent: GridAgent, keys: AiKey
     val screens = _screens.receiveAsFlow()
 
     private var decision: CompletableDeferred<Boolean>? = null
+
+    init {
+        // A suggestion tapped on Home arrives as the first message.
+        runCatching { savedStateHandle.toRoute<com.grid.app.navigation.AskRoute>().prompt }.getOrNull()?.let { if (_state.value.available) ask(it) }
+    }
 
     fun ask(message: String) {
         val text = message.trim()

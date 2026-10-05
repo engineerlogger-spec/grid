@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.Autorenew
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -179,6 +180,15 @@ private fun ColumnScope.UpperSection(state: QuickAddUiState, vm: QuickAddViewMod
                     Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.action_delete), tint = colors.danger)
                 }
             }
+            state.payeeAbout?.let { about ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = colors.accentText, modifier = Modifier.size(14.dp))
+                    Text(
+                        stringResource(R.string.add_about_by_gemini, listOfNotNull(state.editing?.merchant, about).joinToString(" · ")),
+                        style = MaterialTheme.typography.bodySmall, color = colors.muted, modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+            }
         }
         Segmented(
             options = listOf(TxType.EXPENSE, TxType.INCOME),
@@ -240,6 +250,25 @@ private fun ColumnScope.UpperSection(state: QuickAddUiState, vm: QuickAddViewMod
         }
 
         CategoryGrid(state, vm)
+
+        state.duplicateOf?.let { existing ->
+            val formatter = LocalMoneyFormatter.current
+            Surface(shape = RoundedCornerShape(14.dp), color = colors.warning.copy(alpha = 0.12f), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp)) {
+                    Text(
+                        stringResource(
+                            R.string.add_duplicate, existing.title, formatter.format(existing.amountMinor, existing.currency),
+                            shortDate(java.time.Instant.ofEpochMilli(existing.occurredAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate()),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium, color = colors.text,
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = vm::dismissDuplicate) { Text(stringResource(R.string.action_cancel)) }
+                        TextButton(onClick = vm::addAnyway) { Text(stringResource(R.string.add_anyway)) }
+                    }
+                }
+            }
+        }
 
         if (state.asksScope) {
             Text(

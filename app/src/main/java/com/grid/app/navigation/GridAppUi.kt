@@ -183,10 +183,14 @@ fun GridAppUi(
                             onOpenBank = { nav.navigate(BankSetupRoute) },
                             onOpenMoved = { nav.navigate(MovedRoute) },
                             onOpenInsights = { nav.navigateToTab("insights") },
+                            onOpenAsk = { prompt -> nav.navigate(AskRoute(prompt)) },
                         )
                     }
                     composable<ActivityRoute> {
-                        ActivityScreen(contentPadding = padding, onOpenMoved = { nav.navigate(MovedRoute) }, onOpenDeleted = { nav.navigate(DeletedRoute) })
+                        ActivityScreen(
+                            contentPadding = padding, onOpenMoved = { nav.navigate(MovedRoute) }, onOpenDeleted = { nav.navigate(DeletedRoute) },
+                            onOpenAsk = { nav.navigate(AskRoute()) },
+                        )
                     }
                     composable<DeletedRoute> { RecentlyDeletedScreen(onBack = { nav.popBackStack() }) }
                     composable<BillsRoute> {
@@ -202,7 +206,7 @@ fun GridAppUi(
                         InsightsScreen(
                             contentPadding = padding,
                             onOpenCategory = { id, month -> nav.navigate(ActivityRoute(categoryId = id, monthEpoch = month)) },
-                            onOpenAsk = { nav.navigate(AskRoute) },
+                            onOpenAsk = { nav.navigate(AskRoute()) },
                         )
                     }
                     composable<CheckInRoute> {
@@ -219,7 +223,7 @@ fun GridAppUi(
                         )
                     }
                     composable<BankSetupRoute> { BankSetupScreen(onBack = { nav.popBackStack() }) }
-                    composable<AiRoute> { AiSetupScreen(onBack = { nav.popBackStack() }, onOpenAsk = { nav.navigate(AskRoute) }) }
+                    composable<AiRoute> { AiSetupScreen(onBack = { nav.popBackStack() }, onOpenAsk = { nav.navigate(AskRoute()) }) }
                     composable<AskRoute> {
                         AskScreen(
                             onBack = { nav.popBackStack() },
