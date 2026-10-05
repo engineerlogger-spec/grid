@@ -47,6 +47,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var bankAuthInbox: BankAuthInbox
     @Inject lateinit var bank: BankRepository
     @Inject lateinit var bankSync: BankSync
+    @Inject lateinit var paymentTwins: com.grid.app.core.data.repo.PaymentTwins
 
     /** Set from notification taps, widget, tile and shortcuts; consumed once by the UI. */
     private var launchTarget by mutableStateOf<LaunchTarget?>(null)
@@ -114,6 +115,8 @@ class MainActivity : FragmentActivity() {
         super.onStart()
         lifecycleScope.launch {
             runCatching { bankSync.refreshLocal() }
+            // A notification entry and the bank's entry of the same payment (from before they were joined): merge.
+            runCatching { paymentTwins.mergeExisting() }
             val connection = bank.connection() ?: return@launch
             val stale = (connection.lastSyncAt ?: 0L) < System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1)
             if (connection.status == BankStatus.ACTIVE && stale) BankSyncWorker.runNow(this@MainActivity)

@@ -39,6 +39,7 @@ class CaptureRepository @Inject constructor(
     private val db: GridDatabase,
     private val transactions: TransactionRepository,
     private val clock: AppClock,
+    private val twins: PaymentTwins,
 ) {
     private val dao = db.captureDao()
 
@@ -79,10 +80,28 @@ class CaptureRepository @Inject constructor(
     /** The learned rule for this merchant, if the user categorised it before. */
     suspend fun ruleFor(merchant: String?): MerchantRuleEntity? = merchant?.let(MerchantKey::of)?.let { db.merchantRuleDao().get(it) }
 
+    /**
+     * When the bank already booked this payment, the notification joins the bank's entry instead of adding a second
+     * one. Returns that entry's id, or null when there is no bank twin.
+     */
+    suspend fun joinBankTwin(id: Long): Long? {
+        val capture = dao.get(id) ?: return null
+        if (capture.status == CaptureStatus.ADDED) return capture.transactionId
+        val amount = capture.amountMinor ?: return null
+        val currency = capture.currency ?: return null
+        val type = if (capture.direction == CaptureDirection.IN) TxType.INCOME else TxType.EXPENSE
+        val twin = twins.bankEntryFor(type, amount, currency, capture.postedAt, capture.merchant) ?: return null
+        twins.join(twin, capture.id, capture.postedAt, methodFor(capture.source))
+        dao.update(capture.copy(status = CaptureStatus.ADDED, transactionId = twin.id))
+        return twin.id
+    }
+
     /** Turns a capture into a transaction (teaching the merchant rule) and marks it added. */
     suspend fun accept(id: Long, categoryId: Long, paymentMethodId: Long? = null): Long? {
         val capture = dao.get(id) ?: return null
         if (capture.status == CaptureStatus.ADDED) return capture.transactionId
+        // Booked by the bank in the meantime: one payment, one entry.
+        joinBankTwin(id)?.let { return it }
         val amount = capture.amountMinor ?: return null
         val currency = capture.currency ?: return null
         val methodId = paymentMethodId ?: methodFor(capture.source)
@@ -105,7 +124,14 @@ class CaptureRepository @Inject constructor(
     /** Undo an (auto-)add: removes the transaction and puts the capture back in the inbox. */
     suspend fun undo(id: Long) {
         val capture = dao.get(id) ?: return
-        capture.transactionId?.let { transactions.delete(it) }
+        val entry = capture.transactionId?.let { db.transactionDao().get(it) }
+        if (entry != null && entry.source == TxSource.BANK) {
+            // It joined the bank's own entry: only the notification is undone, the bank's payment stays.
+            db.transactionDao().update(entry.copy(captureId = null, updatedAt = clock.millis()))
+            dao.update(capture.copy(status = CaptureStatus.DISMISSED, transactionId = null))
+            return
+        }
+        entry?.let { transactions.delete(it.id) }
         dao.update(capture.copy(status = CaptureStatus.NEW, transactionId = null))
     }
 

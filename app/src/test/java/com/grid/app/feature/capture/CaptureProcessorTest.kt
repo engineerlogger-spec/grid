@@ -61,7 +61,7 @@ class CaptureProcessorTest {
     private fun TestScope.build() {
         settings = SettingsRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.newFile("s.preferences_pb").also { it.delete() } }, Locale.FRANCE)
         transactions = TransactionRepository(db, clock, emptySet())
-        captures = CaptureRepository(db, transactions, clock)
+        captures = CaptureRepository(db, transactions, clock, com.grid.app.core.data.repo.PaymentTwins(db, clock, emptySet()))
         processor = CaptureProcessor(captures, CategoryRepository(db), transactions, settings, alerts)
     }
 
@@ -85,6 +85,52 @@ class CaptureProcessorTest {
         assertThat(processor.process(REVOLUT, "Revolut", "Paid €4.80 at STARBUCKS", now + 3_600_000)).isEqualTo(CaptureOutcome.AUTO_ADDED)
         assertThat(alerts.added.single().second).isEqualTo("Restaurants")
         assertThat(transactions.observeAll().first()).hasSize(2)
+    }
+
+    @Test fun aNotificationForAPaymentTheBankAlreadyBookedJoinsItInsteadOfAddingASecond() = runTest {
+        build()
+        // The bank synced first: its entry is dated at noon, named its own way.
+        val noon = LocalDate.parse("2026-10-04").atTime(12, 0).atZone(clock.zone).toInstant().toEpochMilli()
+        val bankId = transactions.add(
+            com.grid.app.core.model.TransactionDraft(com.grid.app.core.model.TxType.EXPENSE, 1240, "EUR", restaurants(), merchant = "Carrefour Market", occurredAt = noon, source = TxSource.BANK),
+        )
+        val paidAt = noon + 7 * 3_600_000 // 19:00
+        assertThat(processor.process(REVOLUT, "Revolut", "Paid €12.40 at Carrefour", paidAt)).isEqualTo(CaptureOutcome.JOINED_BANK)
+        val only = transactions.observeAll().first().single()
+        assertThat(only.id).isEqualTo(bankId)
+        assertThat(only.occurredAt).isEqualTo(paidAt) // the notification brings the real time
+        assertThat(only.captureId).isNotNull()
+        assertThat(alerts.added + alerts.detected.map { it.first to "" }).isEmpty()
+        assertThat(captures.observeInbox().first()).isEmpty()
+        // Undoing the notification never removes the bank's payment.
+        captures.undo(only.captureId!!)
+        assertThat(transactions.observeAll().first().single().id).isEqualTo(bankId)
+    }
+
+    @Test fun pairsMadeBeforeAreMerged() = runTest {
+        build()
+        val noon = LocalDate.parse("2026-10-04").atTime(12, 0).atZone(clock.zone).toInstant().toEpochMilli()
+        val bankId = transactions.add(
+            com.grid.app.core.model.TransactionDraft(com.grid.app.core.model.TxType.EXPENSE, 450, "EUR", restaurants(), merchant = "Starbucks Claye", occurredAt = noon, source = TxSource.BANK),
+        )
+        // Today the notification joins the bank's entry straight away…
+        assertThat(processor.process(REVOLUT, "Revolut", "Paid €4.50 at Starbucks", noon - 3 * 3_600_000)).isEqualTo(CaptureOutcome.JOINED_BANK)
+        assertThat(transactions.observeAll().first()).hasSize(1)
+        // …older versions added its own entry instead: rebuild that duplicate by hand.
+        val capture = captures.observeRecentlyAdded().first().single()
+        db.transactionDao().update(db.transactionDao().get(bankId)!!.copy(captureId = null))
+        val dupId = db.transactionDao().insert(
+            com.grid.app.core.data.db.entities.TransactionEntity(
+                type = com.grid.app.core.model.TxType.EXPENSE, amountMinor = 450, currency = "EUR", categoryId = restaurants(), merchant = "Starbucks",
+                occurredAt = noon - 3 * 3_600_000, createdAt = 0, updatedAt = 0, source = TxSource.CAPTURE, captureId = capture.id,
+            ),
+        )
+
+        assertThat(com.grid.app.core.data.repo.PaymentTwins(db, clock, emptySet()).mergeExisting()).isEqualTo(1)
+        val only = transactions.observeAll().first().single()
+        assertThat(only.id).isEqualTo(bankId)
+        assertThat(only.captureId).isEqualTo(capture.id)
+        assertThat(db.transactionDao().get(dupId)).isNull()
     }
 
     @Test fun repostedNotificationIsDeduplicated() = runTest {
