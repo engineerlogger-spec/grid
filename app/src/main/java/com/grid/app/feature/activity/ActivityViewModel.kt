@@ -86,7 +86,7 @@ class ActivityViewModel @Inject constructor(
     )
 
     /** Any date inside the period being browsed; null means "the current period". */
-    private val anchor = MutableStateFlow(args.dayEpoch?.let(LocalDate::ofEpochDay))
+    private val anchor = MutableStateFlow((args.dayEpoch ?: args.monthEpoch)?.let(LocalDate::ofEpochDay))
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: StateFlow<ActivityUiState> = combine(settings.settings, anchor, filters) { s, a, f -> Triple(s, a, f) }
