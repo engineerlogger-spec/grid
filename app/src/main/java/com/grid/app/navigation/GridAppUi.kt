@@ -46,6 +46,7 @@ import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.feature.activity.ActivityScreen
 import com.grid.app.feature.ai.AiSetupScreen
 import com.grid.app.feature.ai.AskScreen
+import com.grid.app.core.ai.AgentScreen
 import com.grid.app.feature.activity.RecentlyDeletedScreen
 import com.grid.app.feature.bank.BankSetupScreen
 import com.grid.app.feature.bank.MovedScreen
@@ -219,7 +220,24 @@ fun GridAppUi(
                     }
                     composable<BankSetupRoute> { BankSetupScreen(onBack = { nav.popBackStack() }) }
                     composable<AiRoute> { AiSetupScreen(onBack = { nav.popBackStack() }, onOpenAsk = { nav.navigate(AskRoute) }) }
-                    composable<AskRoute> { AskScreen(onBack = { nav.popBackStack() }) }
+                    composable<AskRoute> {
+                        AskScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenScreen = { screen ->
+                                when (screen) {
+                                    AgentScreen.HOME -> nav.navigateToTab("home")
+                                    AgentScreen.ACTIVITY -> nav.navigateToTab("activity")
+                                    AgentScreen.BILLS -> nav.navigateToTab("bills")
+                                    AgentScreen.INSIGHTS -> nav.navigateToTab("insights")
+                                    AgentScreen.SAVINGS -> nav.navigate(MovedRoute)
+                                    AgentScreen.SETTINGS -> nav.navigate(SettingsRoute)
+                                    AgentScreen.AI -> nav.navigate(AiRoute)
+                                    AgentScreen.RECENTLY_DELETED -> nav.navigate(DeletedRoute)
+                                    AgentScreen.BANK -> nav.navigate(BankSetupRoute)
+                                }
+                            },
+                        )
+                    }
                     composable<MovedRoute> { MovedScreen(onBack = { nav.popBackStack() }) }
                     composable<DetectedRoute> { DetectedScreen(onBack = { nav.popBackStack() }) }
                     composable<CaptureSetupRoute> { CaptureSetupScreen(onBack = { nav.popBackStack() }) }

@@ -229,7 +229,7 @@
     <string name="ai_intro_title">Gemini sorts your payments for you</string>
     <string name="ai_does_names">Recognises every payee: its real name, what it is, and its category</string>
     <string name="ai_does_bills">Finds your bills and subscriptions, fixed or varying (phone, energy), and tracks if they\'re paid</string>
-    <string name="ai_does_ask">Answers your questions about your money</string>
+    <string name="ai_does_ask">Ask Grid: answers questions and does things for you (add, fix, sort, track) after your OK</string>
     <string name="ai_privacy">Uses your own free key, straight from this phone. Sends payee names, amounts and dates — never your name, IBAN or balance. Categories you chose yourself are never changed.</string>
     <string name="ai_key_label">Your Gemini key</string>
     <string name="ai_key_how">Free, no card: open aistudio.google.com/apikey, sign in with Google, tap Create API key, copy it and paste it here.</string>
@@ -251,13 +251,17 @@
     <string name="ask_thinking">Thinking…</string>
     <string name="ask_failed">Gemini couldn\'t answer that. Try asking another way.</string>
     <string name="ask_empty_title">Ask anything about your money</string>
-    <string name="ask_empty_body">Grid answers from your own payments, bills and balance.</string>
+    <string name="ask_empty_body">Ask about your money, or tell Grid what to do: add or fix entries, sort payees, track bills, set your salary or budget. Every change waits for your OK.</string>
     <string name="ask_no_key_title">Add your Gemini key first</string>
     <string name="ask_no_key_body">Settings › AI (Gemini): a free key from Google, no card.</string>
     <string name="ask_suggest_food">How much did I spend on food this month?</string>
     <string name="ask_suggest_bills">What are my biggest bills?</string>
     <string name="ask_suggest_afford">Can I afford €300 this weekend?</string>
     <string name="ask_suggest_save">Where could I save money?</string>
+    <string name="ask_suggest_add">Add €12 lunch at Berfin today</string>
+    <string name="ask_suggest_payee">Put all Uber payments under Transport</string>
+    <string name="ask_suggest_owe">Remind me I owe Karim €40 on Friday</string>
+    <string name="ask_confirm">Confirm</string>
     <string name="digest_title">This month, by Gemini</string>
     <string name="digest_generate">Explain this month</string>
     <string name="digest_refresh">Refresh</string>

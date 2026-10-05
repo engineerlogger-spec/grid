@@ -56,12 +56,39 @@ class GeminiClient(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** A one-shot request answered with JSON (recognition, bills, notes). */
     suspend fun askJson(prompt: String): JsonElement {
+        val body = buildJsonObject {
+            put("contents", buildJsonArray { add(userText(prompt)) })
+            putJsonObject("generationConfig") {
+                put("temperature", 0)
+                put("responseMimeType", "application/json")
+            }
+        }
+        return AiJson.parse(AiJson.answerText(post(body)) ?: throw AiError.BadAnswer("Empty answer"))
+    }
+
+    /**
+     * One turn of a conversation that may use [tools] (function declarations): returns the model's content as sent,
+     * text and/or function calls. It must go back into [contents] unchanged (it carries the model's thought signatures).
+     */
+    suspend fun converse(system: String, contents: List<JsonObject>, tools: JsonArray): JsonObject {
+        val body = buildJsonObject {
+            putJsonObject("systemInstruction") { put("parts", buildJsonArray { add(buildJsonObject { put("text", system) }) }) }
+            put("contents", JsonArray(contents))
+            put("tools", buildJsonArray { add(buildJsonObject { put("functionDeclarations", tools) }) })
+            putJsonObject("generationConfig") { put("temperature", 0) }
+        }
+        return AiJson.answerContent(post(body)) ?: throw AiError.BadAnswer("Empty answer")
+    }
+
+    /** POSTs to the first model that is available; returns the raw response body. */
+    private suspend fun post(body: JsonObject): String {
         val apiKey = withContext(Dispatchers.IO) { key() } ?: throw AiError.NoKey()
         var last: AiError? = null
         for (model in models) {
             try {
-                return AiJson.parse(generate(apiKey, model, prompt))
+                return post(apiKey, model, body)
             } catch (e: AiError.Http) {
                 // 404: model retired for new users; 500/503: overloaded. Anything else is the same for every model.
                 if (e.code != 404 && e.code < 500) throw e
@@ -71,14 +98,7 @@ class GeminiClient(
         throw last ?: AiError.Http(0, "No model available")
     }
 
-    private suspend fun generate(apiKey: String, model: String, prompt: String): String {
-        val body = buildJsonObject {
-            put("contents", buildJsonArray { add(buildJsonObject { put("role", "user"); put("parts", buildJsonArray { add(buildJsonObject { put("text", prompt) }) }) }) })
-            putJsonObject("generationConfig") {
-                put("temperature", 0)
-                put("responseMimeType", "application/json")
-            }
-        }
+    private suspend fun post(apiKey: String, model: String, body: JsonObject): String {
         val request = Request.Builder()
             .url("${baseUrl.trimEnd('/')}/models/$model:generateContent")
             .header("x-goog-api-key", apiKey)
@@ -94,13 +114,18 @@ class GeminiClient(
                 val text = it.body.string()
                 val message = runCatching { (json.parseToJsonElement(text) as JsonObject)["error"]?.let { e -> ((e as JsonObject)["message"] as? JsonPrimitive)?.content } }.getOrNull() ?: text.take(200)
                 when {
-                    it.isSuccessful -> AiJson.answerText(text) ?: throw AiError.BadAnswer("Empty answer")
+                    it.isSuccessful -> text
                     it.code == 429 -> throw AiError.Quota()
                     it.code == 401 || it.code == 403 || message.contains("API key", ignoreCase = true) -> throw AiError.BadKey(message)
                     else -> throw AiError.Http(it.code, message)
                 }
             }
         }
+    }
+
+    private fun userText(text: String) = buildJsonObject {
+        put("role", "user")
+        put("parts", buildJsonArray { add(buildJsonObject { put("text", text) }) })
     }
 
     companion object {
@@ -113,6 +138,12 @@ class GeminiClient(
 /** Reading Gemini's answers: the text of the first candidate, and the JSON inside it (with or without code fences). */
 object AiJson {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    /** The first candidate's content object (role + parts), as the model sent it. */
+    fun answerContent(response: String): JsonObject? = runCatching {
+        val root = json.parseToJsonElement(response) as JsonObject
+        ((root["candidates"] as JsonArray).first() as JsonObject)["content"] as JsonObject
+    }.getOrNull()
 
     fun answerText(response: String): String? = runCatching {
         val root = json.parseToJsonElement(response) as JsonObject

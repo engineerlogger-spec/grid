@@ -25,6 +25,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import com.grid.app.core.ai.AgentScreen
+import com.grid.app.core.ai.StepOutcome
+import com.grid.app.core.designsystem.components.Tile
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,11 +60,13 @@ import com.grid.app.core.designsystem.theme.GridTheme
 
 /** "Ask Grid": questions about your own money, answered by Gemini from a snapshot built on the phone. */
 @Composable
-fun AskScreen(onBack: () -> Unit, viewModel: AskViewModel = hiltViewModel()) {
+fun AskScreen(onBack: () -> Unit, onOpenScreen: (AgentScreen) -> Unit = {}, viewModel: AskViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val colors = GridTheme.colors
     val list = rememberLazyListState()
-    LaunchedEffect(state.turns.size, state.thinking) { if (state.turns.isNotEmpty()) list.animateScrollToItem(state.turns.size) }
+    val last = state.turns.lastOrNull()
+    LaunchedEffect(state.turns.size, state.thinking, last?.pending, last?.steps?.size) { if (state.turns.isNotEmpty()) list.animateScrollToItem(state.turns.size) }
+    LaunchedEffect(viewModel) { viewModel.screens.collect(onOpenScreen) }
 
     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -76,9 +87,12 @@ fun AskScreen(onBack: () -> Unit, viewModel: AskViewModel = hiltViewModel()) {
             items(state.turns) { turn ->
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Bubble(turn.question, mine = true)
+                    turn.steps.forEach { StepLine(it) }
+                    turn.pending?.let { step -> PendingAction(step.summary, onConfirm = { viewModel.decide(true) }, onCancel = { viewModel.decide(false) }) }
                     when {
                         turn.answer != null -> Bubble(turn.answer, mine = false)
                         turn.failed != null -> Bubble(problemText(turn.failed), mine = false, error = true)
+                        turn.pending != null -> Unit
                         else -> Bubble(stringResource(R.string.ask_thinking), mine = false, faint = true)
                     }
                 }
@@ -87,7 +101,7 @@ fun AskScreen(onBack: () -> Unit, viewModel: AskViewModel = hiltViewModel()) {
         if (state.available) {
             if (state.turns.isEmpty()) {
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(R.string.ask_suggest_food, R.string.ask_suggest_bills, R.string.ask_suggest_afford, R.string.ask_suggest_save).forEach { id ->
+                    listOf(R.string.ask_suggest_food, R.string.ask_suggest_add, R.string.ask_suggest_payee, R.string.ask_suggest_bills, R.string.ask_suggest_afford, R.string.ask_suggest_owe, R.string.ask_suggest_save).forEach { id ->
                         val text = stringResource(id)
                         GridChip(label = text, onClick = { viewModel.ask(text) })
                     }
@@ -117,6 +131,37 @@ private fun AskInput(enabled: Boolean, onSend: (String) -> Unit) {
         IconButton(onClick = { send() }, enabled = enabled && text.isNotBlank()) {
             Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = stringResource(R.string.ask_send), tint = GridTheme.colors.accentText)
         }
+    }
+}
+
+/** A change the assistant wants to make: nothing happens until the user confirms. */
+@Composable
+private fun PendingAction(summary: String, onConfirm: () -> Unit, onCancel: () -> Unit) {
+    val colors = GridTheme.colors
+    Tile(borderColor = colors.accentText.copy(alpha = 0.6f)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = colors.accentText, modifier = Modifier.size(18.dp))
+            Text(summary, style = MaterialTheme.typography.bodyMedium, color = colors.text, modifier = Modifier.weight(1f).padding(start = 10.dp))
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+            OutlinedButton(onClick = onCancel, shape = RoundedCornerShape(12.dp)) { Text(stringResource(R.string.action_cancel)) }
+            Button(onClick = onConfirm, shape = RoundedCornerShape(12.dp)) { Text(stringResource(R.string.ask_confirm)) }
+        }
+    }
+}
+
+/** What the assistant did (or didn't). */
+@Composable
+private fun StepLine(step: StepUi) {
+    val colors = GridTheme.colors
+    val (icon, tint) = when (step.outcome) {
+        StepOutcome.DONE -> Icons.Rounded.CheckCircle to colors.income
+        StepOutcome.CANCELLED -> Icons.Rounded.Block to colors.muted
+        StepOutcome.FAILED, null -> Icons.Rounded.ErrorOutline to colors.danger
+    }
+    Row(Modifier.padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        Text(step.summary, style = MaterialTheme.typography.bodySmall, color = colors.muted, modifier = Modifier.padding(start = 8.dp))
     }
 }
 
