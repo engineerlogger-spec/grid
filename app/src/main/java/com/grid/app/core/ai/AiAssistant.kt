@@ -59,11 +59,7 @@ class AiAssistant @Inject constructor(
     private val bank = db.bankDao()
 
     suspend fun run(): AiRunResult = mutex.withLock {
-        // Bills auto-added by earlier versions become suggestions, once.
-        if (!settings.detectedAreSuggestions()) {
-            subscriptions.detectedToSuggestions()
-            settings.markDetectedAreSuggestions()
-        }
+        prepare()
         if (!keys.hasKey()) return AiRunResult.NoKey
         return try {
             transactions.markTaughtRules()
@@ -77,6 +73,18 @@ class AiAssistant @Inject constructor(
             AiRunResult.Failed(e)
         }
     }
+
+    /** Local, no Gemini call (runs on every app open): bills auto-added by 3.0–3.1 become suggestions, once. */
+    suspend fun prepare() {
+        if (!settings.detectedAreSuggestions()) {
+            subscriptions.detectedToSuggestions()
+            settings.markDetectedAreSuggestions()
+        }
+    }
+
+    /** A pass is due when there's a key and the last one is older than [STALE_HOURS] (or never ran). */
+    suspend fun passDue(): Boolean = keys.hasKey() &&
+        (settings.settings.first().ai.lastRunAt ?: 0L) < clock.millis() - java.util.concurrent.TimeUnit.HOURS.toMillis(STALE_HOURS)
 
     /** One tiny request: is the key accepted? */
     suspend fun test(): AiError? = try {
@@ -160,8 +168,10 @@ class AiAssistant @Inject constructor(
                     payments = txs.sortedBy { it.occurredAt }.takeLast(PAYMENTS_SENT).map { listOf(dateOf(it).toString(), String.format(Locale.ROOT, "%.2f", it.amountMinor / 100.0)) },
                 )
             }
+            val choices = categoryChoices()
+            val valid = choices.map { it.first }.toSet()
             val found = histories.chunked(BILLS_BATCH).flatMap { batch ->
-                AiPrompts.parseBills(gemini.askJson(AiPrompts.bills(today, currency, batch)), currency)
+                AiPrompts.parseBills(gemini.askJson(AiPrompts.bills(today, currency, batch, choices)), currency)
             }.filter { it.confidence >= BILL_CONFIDENCE && it.key in groups }
 
             for (bill in found) {
@@ -178,7 +188,9 @@ class AiAssistant @Inject constructor(
                         existing.amountVaries || bill.varies -> subscriptions.refreshExpected(existing.id, bill.amountMinor, bill.varies)
                     }
                     bill.active -> {
-                        val categoryId = known[bill.key]?.categoryIconKey?.let { categories.ensure(it, CategoryKind.EXPENSE)?.id } ?: last.categoryId
+                        // Gemini's category for the bill (rent → Housing), else the payee's, else the payments'.
+                        val categoryId = (bill.category?.takeIf { it in valid && it != Seed.ICON_OTHER } ?: known[bill.key]?.categoryIconKey)
+                            ?.let { categories.ensure(it, CategoryKind.EXPENSE)?.id } ?: last.categoryId
                         val id = subscriptions.add(
                             SubscriptionDraft(
                                 name = name, amountMinor = bill.amountMinor, currency = currency, cycle = bill.cycle,
@@ -210,6 +222,8 @@ class AiAssistant @Inject constructor(
     }
 
     companion object {
+        /** Opening the app runs a Gemini pass when the last one is older than this. */
+        private const val STALE_HOURS = 6L
         private const val RECOGNITION_BATCH = 50
         private const val BILLS_BATCH = 40
         private const val HISTORY_DAYS = 400L

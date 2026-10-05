@@ -48,6 +48,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var bank: BankRepository
     @Inject lateinit var bankSync: BankSync
     @Inject lateinit var paymentTwins: com.grid.app.core.data.repo.PaymentTwins
+    @Inject lateinit var aiAssistant: com.grid.app.core.ai.AiAssistant
 
     /** Set from notification taps, widget, tile and shortcuts; consumed once by the UI. */
     private var launchTarget by mutableStateOf<LaunchTarget?>(null)
@@ -117,6 +118,9 @@ class MainActivity : FragmentActivity() {
             runCatching { bankSync.refreshLocal() }
             // A notification entry and the bank's entry of the same payment (from before they were joined): merge.
             runCatching { paymentTwins.mergeExisting() }
+            // Suggestions from bills found earlier, then a fresh Gemini pass when the last is old (no key: nothing).
+            runCatching { aiAssistant.prepare() }
+            if (runCatching { aiAssistant.passDue() }.getOrDefault(false)) com.grid.app.core.ai.AiWorker.runNow(this@MainActivity)
             val connection = bank.connection() ?: return@launch
             val stale = (connection.lastSyncAt ?: 0L) < System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1)
             if (connection.status == BankStatus.ACTIVE && stale) BankSyncWorker.runNow(this@MainActivity)
