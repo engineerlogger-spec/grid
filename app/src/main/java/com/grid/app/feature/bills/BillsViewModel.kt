@@ -39,6 +39,8 @@ data class BillsUiState(
     val today: LocalDate = LocalDate.now(),
     val active: List<Subscription> = emptyList(),
     val inactive: List<Subscription> = emptyList(),
+    /** Found in the payments by Gemini, waiting for Add / Not a bill. */
+    val suggested: List<Subscription> = emptyList(),
     /** Monthly equivalent of active subscriptions in the app currency. */
     val monthlyMinor: Long = 0,
     val yearlyMinor: Long = 0,
@@ -59,7 +61,7 @@ data class BillsUiState(
 @HiltViewModel
 class BillsViewModel @Inject constructor(
     settings: SettingsRepository,
-    subscriptions: SubscriptionRepository,
+    private val subscriptions: SubscriptionRepository,
     transactions: TransactionRepository,
     private val pendings: PendingRepository,
     private val clock: AppClock,
@@ -86,7 +88,8 @@ class BillsViewModel @Inject constructor(
                     currency = s.currency,
                     today = today,
                     active = active,
-                    inactive = subs.filter { it.status != SubscriptionStatus.ACTIVE },
+                    inactive = subs.filter { it.status == SubscriptionStatus.PAUSED || it.status == SubscriptionStatus.CANCELLED },
+                    suggested = subs.filter { it.status == SubscriptionStatus.SUGGESTED },
                     monthlyMinor = sameCurrency.sumOf { BillingSchedule.monthlyEquivalent(it.amountMinor, it.cycle) },
                     yearlyMinor = sameCurrency.sumOf { BillingSchedule.yearly(it.amountMinor, it.cycle) },
                     toPay = open.filter { it.direction == PendingDirection.I_OWE },
@@ -100,5 +103,7 @@ class BillsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BillsUiState())
 
     fun settle(id: Long) = viewModelScope.launch { pendings.settle(id) }
+    fun addSuggested(id: Long) = viewModelScope.launch { subscriptions.acceptSuggestion(id) }
+    fun rejectSuggested(id: Long) = viewModelScope.launch { subscriptions.dismissDetected(id) }
     fun reopen(id: Long) = viewModelScope.launch { pendings.reopen(id) }
 }

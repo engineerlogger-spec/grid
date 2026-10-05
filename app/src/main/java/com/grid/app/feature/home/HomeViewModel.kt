@@ -82,6 +82,8 @@ data class HomeUiState(
     val otherToSort: Int = 0,
     /** The money won't cover the bills (and spending) still ahead this month. */
     val lowFunds: LowFundsState? = null,
+    /** Bills Gemini found in the payments, waiting in Bills for Add / Not a bill. */
+    val suggestedSubscriptions: Int = 0,
 )
 
 @HiltViewModel
@@ -104,7 +106,8 @@ class HomeViewModel @Inject constructor(
     }
 
     private val upcoming = combine(subscriptions.observeAll(), pendings.observeAll(), clock.todayFlow(), forecasts, settings.settings) { subs, pend, today, expected, s ->
-        UpcomingPlanner.upcoming(today, horizonDays = 7, subscriptions = subs, pendings = pend, forecasts = expected, currency = s.currency)
+        UpcomingPlanner.upcoming(today, horizonDays = 7, subscriptions = subs, pendings = pend, forecasts = expected, currency = s.currency) to
+            subs.count { it.status == com.grid.app.core.model.SubscriptionStatus.SUGGESTED }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -146,10 +149,11 @@ class HomeViewModel @Inject constructor(
         Triple(groups, connection, transfers)
     }
 
-    val state: StateFlow<HomeUiState> = combine(base, upcoming, captures.observeInbox(), bankState, lowFunds.observe()) { home, items, inbox, (bankGroups, connection, transfers), short ->
+    val state: StateFlow<HomeUiState> = combine(base, upcoming, captures.observeInbox(), bankState, lowFunds.observe()) { home, (items, suggested), inbox, (bankGroups, connection, transfers), short ->
         val period = home.period
         home.copy(
             lowFunds = short,
+            suggestedSubscriptions = suggested,
             upcoming = items,
             upcomingDueMinor = items.filter { it.direction == PendingDirection.I_OWE && it.currency == home.currency }.sumOf { it.amountMinor },
             // Notifications to confirm (and rare bank items needing a decision); payments under Other are only a link.

@@ -14,7 +14,11 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 enum class CycleUnit { WEEK, MONTH, YEAR }
 
-enum class SubscriptionStatus { ACTIVE, PAUSED, CANCELLED }
+enum class SubscriptionStatus {
+    ACTIVE, PAUSED, CANCELLED,
+    /** Found in the payments by Gemini, waiting for the user to add it: counted nowhere until then. */
+    SUGGESTED,
+}
 
 enum class PendingDirection { I_OWE, OWED_TO_ME }
 

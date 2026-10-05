@@ -415,6 +415,14 @@
     <string name="sub_varies_body">Phone, energy…: any payment to this payee counts, whatever the amount</string>
     <string name="sub_not_a_bill">Not a bill</string>
     <string name="bills_detected">Detected from your payments</string>
+    <string name="bills_suggested">Suggested from your payments</string>
+    <string name="bills_suggested_body">Gemini found these in your history. Add the ones you want to track.</string>
+    <string name="bills_add_suggested">Add</string>
+    <string name="bills_amount_varies">amount varies</string>
+    <plurals name="home_suggested">
+        <item quantity="one">Gemini suggests %d subscription · Review</item>
+        <item quantity="other">Gemini suggests %d subscriptions · Review</item>
+    </plurals>
     <string name="bills_detected_varies">Detected · amount varies</string>
     <plurals name="sub_from_payment">
         <item quantity="one">%1$d payment to %2$s will be linked to this subscription.</item>

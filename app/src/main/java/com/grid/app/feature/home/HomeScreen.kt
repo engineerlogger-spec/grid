@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import com.grid.app.core.designsystem.components.GridChip
 import com.grid.app.core.bills.LowFundsState
@@ -125,6 +126,9 @@ fun HomeScreen(
         if (state.otherToSort > 0) {
             item { SortLink(state.otherToSort, onOpenDetected) }
         }
+        if (state.suggestedSubscriptions > 0) {
+            item { SuggestedLink(state.suggestedSubscriptions, onOpenBills) }
+        }
         item {
             HeroCard(state, summary, onDayClick = { onOpenActivity(it.toEpochDay()) })
         }
@@ -151,6 +155,19 @@ fun HomeScreen(
                 }
             }
         }
+    }
+}
+
+/** "Gemini suggests 3 subscriptions · Review": opens Bills, where they wait for Add / Not a bill. */
+@Composable
+private fun SuggestedLink(count: Int, onClick: () -> Unit) {
+    val colors = GridTheme.colors
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = colors.accentText, modifier = Modifier.size(16.dp))
+        Text(
+            pluralStringResource(R.plurals.home_suggested, count, count), style = MaterialTheme.typography.bodyMedium,
+            color = colors.accentText, modifier = Modifier.padding(start = 8.dp),
+        )
     }
 }
 

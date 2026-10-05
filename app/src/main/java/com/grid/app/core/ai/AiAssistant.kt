@@ -1,6 +1,8 @@
 package com.grid.app.core.ai
 
+import com.grid.app.core.bank.MatchRules
 import com.grid.app.core.bank.OwnerMatch
+import com.grid.app.core.data.db.entities.SubscriptionEntity
 import com.grid.app.core.bills.RecurringDetector
 import com.grid.app.core.data.db.GridDatabase
 import com.grid.app.core.data.db.Seed
@@ -57,6 +59,11 @@ class AiAssistant @Inject constructor(
     private val bank = db.bankDao()
 
     suspend fun run(): AiRunResult = mutex.withLock {
+        // Bills auto-added by earlier versions become suggestions, once.
+        if (!settings.detectedAreSuggestions()) {
+            subscriptions.detectedToSuggestions()
+            settings.markDetectedAreSuggestions()
+        }
         if (!keys.hasKey()) return AiRunResult.NoKey
         return try {
             transactions.markTaughtRules()
@@ -117,7 +124,11 @@ class AiAssistant @Inject constructor(
         }
     }
 
-    /** Returns how many detected bills are active. */
+    /**
+     * Finds recurring bills in the payments and offers them as suggestions (never added straight away). Each is
+     * cross-checked with the user's subscriptions first: one already tracked is not suggested again (the user's own
+     * is just linked to its bank payee, so its payments are recognised). Returns how many suggestions wait.
+     */
     private suspend fun findBills(): Int {
         val today = clock.today()
         val currency = settings.settings.first().currency
@@ -130,58 +141,66 @@ class AiAssistant @Inject constructor(
         val payeeOfTx = bank.bookedWithEntry().associate { it.transactionId!! to it.counterpartyKey!! }
         val known = profiles.all().associateBy { it.key }
         val subs = db.subscriptionDao().all()
-        // Bills the user tracks by hand are theirs: not detected again.
-        val manual = subs.filter { !it.detected }.flatMap { listOfNotNull(it.payeeKey, MerchantKey.of(it.name)) }.toSet()
+        // Payees already linked to a subscription need no second look.
+        val linked = subs.mapNotNull { it.payeeKey }.toSet()
 
         val groups = db.transactionDao().withMerchant(TxType.EXPENSE)
             .filter { it.currency == currency && it.source != TxSource.CHECKIN && !dateOf(it).isBefore(since) }
             .groupBy { payeeOfTx[it.id] ?: MerchantKey.of(it.merchant!!) ?: it.merchant!! }
             .filter { (key, txs) ->
-                txs.size in 2..MAX_PAYMENTS && key !in manual && known[key]?.notABill != true &&
+                txs.size in 2..MAX_PAYMENTS && known[key]?.notABill != true &&
                     !OwnerMatch.isOwner(txs.first().merchant, holders) &&
-                    iconOf[txs.maxBy { it.occurredAt }.categoryId] !in RecurringDetector.notBills
+                    iconOf[txs.maxBy { it.occurredAt }.categoryId] !in RecurringDetector.notBills &&
+                    (key !in linked || subs.any { it.payeeKey == key && it.detected })
             }
-        if (groups.isEmpty()) return subs.count { it.detected && it.status == SubscriptionStatus.ACTIVE }
-
-        val histories = groups.map { (key, txs) ->
-            PaymentHistory(
-                key = key, name = known[key]?.name ?: txs.maxBy { it.occurredAt }.merchant!!, about = known[key]?.about,
-                payments = txs.sortedBy { it.occurredAt }.takeLast(PAYMENTS_SENT).map { listOf(dateOf(it).toString(), String.format(Locale.ROOT, "%.2f", it.amountMinor / 100.0)) },
-            )
-        }
-        val found = histories.chunked(BILLS_BATCH).flatMap { batch ->
-            AiPrompts.parseBills(gemini.askJson(AiPrompts.bills(today, currency, batch)), currency)
-        }.filter { it.confidence >= BILL_CONFIDENCE && it.key in groups }
-
-        for (bill in found) {
-            val txs = groups.getValue(bill.key)
-            val existing = subs.firstOrNull { it.detected && it.payeeKey == bill.key }
-            if (!bill.active) {
-                existing?.takeIf { it.status == SubscriptionStatus.ACTIVE }?.let { subscriptions.setStatus(it.id, SubscriptionStatus.CANCELLED) }
-                continue
-            }
-            val last = txs.maxBy { it.occurredAt }
-            val unlinked = txs.filter { it.subscriptionId == null }.map { it.id }
-            if (existing == null) {
-                val categoryId = known[bill.key]?.categoryIconKey?.let { categories.ensure(it, CategoryKind.EXPENSE)?.id } ?: last.categoryId
-                val color = db.categoryDao().get(categoryId)?.colorKey ?: "violet"
-                val id = subscriptions.add(
-                    SubscriptionDraft(
-                        name = known[bill.key]?.name ?: bill.name ?: last.merchant!!, amountMinor = bill.amountMinor, currency = currency,
-                        cycle = bill.cycle, nextCharge = BillingSchedule.nextAfter(dateOf(last), bill.cycle, today), categoryId = categoryId,
-                        paymentMethodId = last.paymentMethodId, remindDaysBefore = 1, autoLog = false, colorKey = color,
-                        payeeKey = bill.key, amountVaries = bill.varies, detected = true,
-                    ),
+        if (groups.isNotEmpty()) {
+            val histories = groups.map { (key, txs) ->
+                PaymentHistory(
+                    key = key, name = known[key]?.name ?: txs.maxBy { it.occurredAt }.merchant!!, about = known[key]?.about,
+                    payments = txs.sortedBy { it.occurredAt }.takeLast(PAYMENTS_SENT).map { listOf(dateOf(it).toString(), String.format(Locale.ROOT, "%.2f", it.amountMinor / 100.0)) },
                 )
-                subscriptions.linkPayments(id, unlinked)
-            } else {
-                // The expected amount follows a varying bill; what the user edited otherwise stays.
-                if (existing.amountVaries || bill.varies) subscriptions.refreshExpected(existing.id, bill.amountMinor, bill.varies)
-                if (unlinked.isNotEmpty()) subscriptions.linkPayments(existing.id, unlinked)
+            }
+            val found = histories.chunked(BILLS_BATCH).flatMap { batch ->
+                AiPrompts.parseBills(gemini.askJson(AiPrompts.bills(today, currency, batch)), currency)
+            }.filter { it.confidence >= BILL_CONFIDENCE && it.key in groups }
+
+            for (bill in found) {
+                val txs = groups.getValue(bill.key)
+                val last = txs.maxBy { it.occurredAt }
+                val name = known[bill.key]?.name ?: bill.name ?: last.merchant!!
+                val existing = alreadyTracked(subs, bill.key, name)
+                when {
+                    // The user tracks it already: link their subscription to this payee, suggest nothing.
+                    existing != null && !existing.detected -> subscriptions.linkPayee(existing.id, bill.key)
+                    existing != null -> when {
+                        !bill.active && existing.status == SubscriptionStatus.SUGGESTED -> subscriptions.delete(existing.id)
+                        !bill.active && existing.status == SubscriptionStatus.ACTIVE -> subscriptions.setStatus(existing.id, SubscriptionStatus.CANCELLED)
+                        existing.amountVaries || bill.varies -> subscriptions.refreshExpected(existing.id, bill.amountMinor, bill.varies)
+                    }
+                    bill.active -> {
+                        val categoryId = known[bill.key]?.categoryIconKey?.let { categories.ensure(it, CategoryKind.EXPENSE)?.id } ?: last.categoryId
+                        val id = subscriptions.add(
+                            SubscriptionDraft(
+                                name = name, amountMinor = bill.amountMinor, currency = currency, cycle = bill.cycle,
+                                nextCharge = BillingSchedule.nextAfter(dateOf(last), bill.cycle, today), categoryId = categoryId,
+                                paymentMethodId = last.paymentMethodId, remindDaysBefore = 1, autoLog = false,
+                                colorKey = db.categoryDao().get(categoryId)?.colorKey ?: "violet",
+                                payeeKey = bill.key, amountVaries = bill.varies, detected = true,
+                            ),
+                        )
+                        subscriptions.setStatus(id, SubscriptionStatus.SUGGESTED)
+                    }
+                }
             }
         }
-        return db.subscriptionDao().all().count { it.detected && it.status == SubscriptionStatus.ACTIVE }
+        return db.subscriptionDao().all().count { it.status == SubscriptionStatus.SUGGESTED }
     }
+
+    /** A subscription that already covers this payee: linked to it, or with the same or a similar name. */
+    private fun alreadyTracked(subs: List<SubscriptionEntity>, payeeKey: String, name: String): SubscriptionEntity? =
+        subs.firstOrNull { it.payeeKey == payeeKey }
+            ?: subs.firstOrNull { MerchantKey.of(it.name).let { k -> k == payeeKey || k == MerchantKey.of(name) } }
+            ?: subs.firstOrNull { MatchRules.similar(it.name, name) }
 
     /** The categories Gemini may choose from: the user's active spending categories and Grid's standard ones. */
     private suspend fun categoryChoices(): List<Pair<String, String>> {
