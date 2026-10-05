@@ -25,6 +25,9 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.RadioButton
+import com.grid.app.core.data.prefs.LowFundsMode
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.Fingerprint
@@ -149,6 +152,7 @@ fun SettingsScreen(
                 body = stringResource(R.string.settings_period_start_body, s.periodStartDay),
                 onClick = { dayMenu = true },
             )
+            LowFundsSetting(s.lowFunds, viewModel::setLowFunds)
         }
 
         CapsLabel(stringResource(R.string.capture_setup_title), Modifier.padding(start = 4.dp, top = 8.dp))
@@ -280,6 +284,42 @@ private fun StartDayDialog(selected: Int, onPick: (Int) -> Unit, onDismiss: () -
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
+}
+
+/** What the low-funds warning compares upcoming bills against, picked from a short list. */
+@Composable
+private fun LowFundsSetting(mode: LowFundsMode, onPick: (LowFundsMode) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    @Composable
+    fun label(m: LowFundsMode) = stringResource(
+        when (m) {
+            LowFundsMode.BALANCE -> R.string.settings_low_funds_balance
+            LowFundsMode.BALANCE_AND_SPENDING -> R.string.settings_low_funds_balance_spending
+            LowFundsMode.BUDGET -> R.string.settings_low_funds_budget
+            LowFundsMode.OFF -> R.string.settings_low_funds_off
+        },
+    )
+    SettingRow(icon = Icons.Rounded.Warning, title = stringResource(R.string.settings_low_funds), body = label(mode), onClick = { open = true })
+    if (open) {
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(stringResource(R.string.settings_low_funds)) },
+            text = {
+                Column {
+                    LowFundsMode.entries.forEach { m ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { onPick(m); open = false }.padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = m == mode, onClick = { onPick(m); open = false })
+                            Text(label(m), style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { open = false }) { Text(stringResource(R.string.action_cancel)) } },
+        )
+    }
 }
 
 @Composable

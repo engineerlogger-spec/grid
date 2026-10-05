@@ -95,6 +95,17 @@ class EnableBankingClient(
         return TxPage(body.array("transactions").map { RemoteTxJson.from(it.jsonObject) }, body.str("continuation_key")?.takeIf { it.isNotBlank() })
     }
 
+    override suspend fun balances(accountUid: String): List<RemoteBalance> {
+        val url = base.newBuilder().addPathSegment("accounts").addPathSegment(accountUid).addPathSegment("balances").build()
+        return call(Request.Builder().url(url).get()).array("balances").map { it.jsonObject }.mapNotNull { b ->
+            val amount = b.obj("balance_amount") ?: return@mapNotNull null
+            RemoteBalance(
+                amount = amount.str("amount") ?: return@mapNotNull null, currency = amount.str("currency") ?: "EUR",
+                type = b.str("balance_type"), creditDebit = b.str("credit_debit_indicator"),
+            )
+        }
+    }
+
     override suspend fun deleteSession(sessionId: String) {
         call(Request.Builder().url(base.newBuilder().addPathSegment("sessions").addPathSegment(sessionId).build()).delete())
     }

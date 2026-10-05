@@ -11,6 +11,8 @@ interface BankConnector {
     /** [longest]: everything the bank still offers (the whole history right after the user approves access). */
     suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean = false): TxPage
     suspend fun deleteSession(sessionId: String)
+    /** The account's balances as the bank reports them (available, booked…). */
+    suspend fun balances(accountUid: String): List<RemoteBalance> = emptyList()
 }
 
 sealed class BankError(message: String) : Exception(message) {

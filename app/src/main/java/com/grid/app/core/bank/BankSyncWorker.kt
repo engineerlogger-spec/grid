@@ -12,6 +12,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.grid.app.R
+import com.grid.app.core.bills.LowFundsMonitor
 import com.grid.app.core.data.prefs.SentLog
 import com.grid.app.core.data.repo.BankRepository
 import com.grid.app.core.model.BankStatus
@@ -50,18 +51,23 @@ class BankSyncWorker @AssistedInject constructor(
     private val bank: BankRepository,
     private val notifier: Notifier,
     private val sentLog: SentLog,
+    private val lowFunds: LowFundsMonitor,
     private val clock: AppClock,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
         when (val result = sync.run()) {
-            is SyncResult.Ok -> if (result.toReview > 0) {
-                notifier.post(
-                    Channels.BANK, REVIEW_ID,
-                    applicationContext.resources.getQuantityString(R.plurals.bank_review_notif, result.toReview, result.toReview),
-                    applicationContext.getString(R.string.bank_review_notif_body),
-                    LaunchTarget.DETECTED,
-                )
+            is SyncResult.Ok -> {
+                if (result.toReview > 0) {
+                    notifier.post(
+                        Channels.BANK, REVIEW_ID,
+                        applicationContext.resources.getQuantityString(R.plurals.bank_review_notif, result.toReview, result.toReview),
+                        applicationContext.getString(R.string.bank_review_notif_body),
+                        LaunchTarget.DETECTED,
+                    )
+                }
+                // A fresh balance: will it cover the bills still ahead this month?
+                lowFunds.notifyIfShort()
             }
             SyncResult.Expired -> once("bank-expired-${bank.connection()?.validUntil}") {
                 notifier.post(

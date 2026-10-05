@@ -22,6 +22,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Warning
+import com.grid.app.core.bills.LowFundsState
+import com.grid.app.core.notify.LowFundsText
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
@@ -102,6 +105,9 @@ fun HomeScreen(
         }
         state.bankToReconnect?.let { bank ->
             item { ReconnectBanner(bank, onOpenBank) }
+        }
+        state.lowFunds?.let { short ->
+            item { LowFundsBanner(short, state.hideAmounts, onOpenBills) }
         }
         if (state.needsCheckIn) {
             item { CheckInBanner(onOpenCheckIn) }
@@ -240,6 +246,25 @@ private fun ReconnectBanner(bank: String, onClick: () -> Unit) {
                 Text(stringResource(R.string.bank_reconnect_body), style = MaterialTheme.typography.bodySmall, color = colors.muted)
             }
             Text(stringResource(R.string.bank_reconnect), style = GridText.caps, color = colors.warning)
+            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.warning)
+        }
+    }
+}
+
+/** "€540 short by 5 Oct — not enough for Rent (€850) on 5 Oct. Move money to Revolut." Opens Bills. */
+@Composable
+private fun LowFundsBanner(short: LowFundsState, hideAmounts: Boolean, onClick: () -> Unit) {
+    val colors = GridTheme.colors
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val formatter = LocalMoneyFormatter.current
+    val (title, body) = LowFundsText.of(context, formatter, short, masked = hideAmounts)
+    Tile(onClick = onClick, borderColor = colors.warning.copy(alpha = 0.8f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.Warning, contentDescription = null, tint = colors.warning)
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = colors.text)
+                Text(body, style = MaterialTheme.typography.bodySmall, color = colors.muted)
+            }
             Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.warning)
         }
     }
