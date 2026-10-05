@@ -48,6 +48,9 @@ data class BillsUiState(
     val owedToMe: List<PendingPayment> = emptyList(),
     val settled: List<PendingPayment> = emptyList(),
     val hasReminders: Boolean = false,
+    /** Active subscriptions and suggestions by category, biggest monthly cost first. */
+    val activeGroups: List<SubGroup> = emptyList(),
+    val suggestedGroups: List<SubGroup> = emptyList(),
     /** This month's charge of each active subscription: paid, due or late (from the bank's real payments). */
     val charges: Map<Long, MonthCharge> = emptyMap(),
 ) {
@@ -57,6 +60,9 @@ data class BillsUiState(
     val leftThisMonthMinor: Long
         get() = active.filter { it.currency == currency && charges[it.id]?.state in setOf(ChargeState.DUE, ChargeState.LATE) }.sumOf { it.amountMinor }
 }
+
+/** Subscriptions of one category, with what they cost per month together. */
+data class SubGroup(val category: com.grid.app.core.model.Category, val subs: List<Subscription>, val monthlyMinor: Long)
 
 /** The "Find subscriptions in my payments" button: Gemini's pass on demand. */
 data class FindUi(val available: Boolean = false, val busy: Boolean = false, val found: Int? = null, val failed: Boolean = false)
@@ -95,6 +101,8 @@ class BillsViewModel @Inject constructor(
                     active = active,
                     inactive = subs.filter { it.status == SubscriptionStatus.PAUSED || it.status == SubscriptionStatus.CANCELLED },
                     suggested = subs.filter { it.status == SubscriptionStatus.SUGGESTED },
+                    activeGroups = groups(active),
+                    suggestedGroups = groups(subs.filter { it.status == SubscriptionStatus.SUGGESTED }),
                     monthlyMinor = sameCurrency.sumOf { BillingSchedule.monthlyEquivalent(it.amountMinor, it.cycle) },
                     yearlyMinor = sameCurrency.sumOf { BillingSchedule.yearly(it.amountMinor, it.cycle) },
                     toPay = open.filter { it.direction == PendingDirection.I_OWE },
@@ -121,6 +129,11 @@ class BillsViewModel @Inject constructor(
     }
 
     fun addSuggested(id: Long) = viewModelScope.launch { subscriptions.acceptSuggestion(id) }
+    fun addAllSuggested() = viewModelScope.launch { state.value.suggested.forEach { subscriptions.acceptSuggestion(it.id) } }
+
+    private fun groups(subs: List<Subscription>): List<SubGroup> = subs.groupBy { it.category.id }.values.map { list ->
+        SubGroup(list.first().category, list.sortedByDescending { BillingSchedule.monthlyEquivalent(it.amountMinor, it.cycle) }, list.sumOf { BillingSchedule.monthlyEquivalent(it.amountMinor, it.cycle) })
+    }.sortedByDescending { it.monthlyMinor }
     fun rejectSuggested(id: Long) = viewModelScope.launch { subscriptions.dismissDetected(id) }
     fun reopen(id: Long) = viewModelScope.launch { pendings.reopen(id) }
 }

@@ -48,6 +48,10 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import com.grid.app.core.designsystem.components.CategoryBadge
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -135,12 +139,8 @@ fun BillsScreen(
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(state: BillsUiState, onEdit: (Long?) -> Unit, vm: BillsViewModel) {
-    item { FindTile(vm) }
-    if (state.suggested.isNotEmpty()) {
-        item { SuggestionsHeader() }
-        items(state.suggested, key = { "g${it.id}" }) { sub -> SuggestionRow(sub, onAdd = { vm.addSuggested(sub.id) }, onReject = { vm.rejectSuggested(sub.id) }) }
-    }
     if (state.active.isEmpty() && state.inactive.isEmpty() && state.suggested.isEmpty()) {
+        item { FindTile(vm) }
         item {
             EmptyState(
                 Icons.Rounded.Autorenew,
@@ -149,14 +149,120 @@ private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(
                 action = { Button(onClick = { onEdit(null) }, shape = RoundedCornerShape(14.dp)) { Text(stringResource(R.string.bills_add_subscription)) } },
             )
         }
+        return
     }
-    if (state.active.isNotEmpty()) {
-        item { SubscriptionSummary(state) }
+    if (state.active.isNotEmpty()) item { SubscriptionSummary(state) }
+
+    // What the user tracks, by category (biggest monthly cost first).
+    items(state.activeGroups, key = { "ag${it.category.id}" }) { group ->
+        GroupTile(group, state.currency) {
+            group.subs.forEachIndexed { i, sub ->
+                if (i > 0) Divider()
+                SubscriptionLine(sub, state.today, state.charges[sub.id], onClick = { onEdit(sub.id) })
+            }
+        }
     }
-    items(state.active, key = { "s${it.id}" }) { sub -> SubscriptionRow(sub, state.today, charge = state.charges[sub.id]) { onEdit(sub.id) } }
+
+    // Gemini's suggestions, by category, each waiting for Add / Not a bill.
+    if (state.suggested.isNotEmpty()) {
+        item { SuggestionsHeader(state.suggested.size, onAddAll = vm::addAllSuggested) }
+        items(state.suggestedGroups, key = { "sg${it.category.id}" }) { group ->
+            GroupTile(group, state.currency, suggested = true) {
+                group.subs.forEachIndexed { i, sub ->
+                    if (i > 0) Divider()
+                    SuggestionLine(sub, state.today, onAdd = { vm.addSuggested(sub.id) }, onReject = { vm.rejectSuggested(sub.id) })
+                }
+            }
+        }
+    }
+    item { FindTile(vm) }
+
     if (state.inactive.isNotEmpty()) {
         item { CapsLabel(stringResource(R.string.bills_inactive), Modifier.padding(start = 4.dp, top = 10.dp)) }
-        items(state.inactive, key = { "i${it.id}" }) { sub -> SubscriptionRow(sub, state.today, dimmed = true) { onEdit(sub.id) } }
+        item {
+            Tile(modifier = Modifier.alpha(0.6f), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)) {
+                state.inactive.forEachIndexed { i, sub ->
+                    if (i > 0) Divider()
+                    SubscriptionLine(sub, state.today, null, onClick = { onEdit(sub.id) })
+                }
+            }
+        }
+    }
+}
+
+/** One category's card: its badge, name and monthly total, then its subscriptions. */
+@Composable
+private fun GroupTile(group: SubGroup, currency: String, suggested: Boolean = false, content: @Composable () -> Unit) {
+    val colors = GridTheme.colors
+    Tile(
+        borderColor = if (suggested) colors.accentText.copy(alpha = 0.35f) else colors.hairline,
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CategoryBadge(group.category.iconKey, group.category.colorKey, size = 26.dp)
+            Text(group.category.name, style = MaterialTheme.typography.titleSmall, color = colors.text, modifier = Modifier.weight(1f).padding(start = 10.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            AmountText(group.monthlyMinor, currency, style = GridText.moneyTiny, color = colors.muted)
+            Text(stringResource(R.string.bills_per_month_short), style = MaterialTheme.typography.labelSmall, color = colors.muted)
+        }
+        Spacer(Modifier.height(4.dp))
+        content()
+    }
+}
+
+@Composable
+private fun Divider() {
+    Box(Modifier.fillMaxWidth().padding(start = 48.dp).height(1.dp).background(GridTheme.colors.hairline))
+}
+
+/** A tracked subscription inside its category card: name, cadence and next date, amount, this month's status. */
+@Composable
+private fun SubscriptionLine(sub: Subscription, today: LocalDate, charge: MonthCharge?, onClick: () -> Unit) {
+    val colors = GridTheme.colors
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        MonogramBadge(sub.name, sub.colorKey, size = 36.dp)
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(sub.name, style = MaterialTheme.typography.titleSmall, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val status = when (sub.status) {
+                SubscriptionStatus.ACTIVE, SubscriptionStatus.SUGGESTED -> cycleLabel(sub) + " · " + relativeDay(sub.nextCharge, today)
+                SubscriptionStatus.PAUSED -> stringResource(R.string.bills_paused)
+                SubscriptionStatus.CANCELLED -> stringResource(R.string.bills_cancelled)
+            }
+            Text(status + if (sub.amountVaries) " · " + stringResource(R.string.bills_amount_varies) else "", style = MaterialTheme.typography.bodySmall, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (sub.amountVaries) Text("≈ ", style = GridText.moneySmall, color = colors.muted)
+                AmountText(sub.amountMinor, sub.currency, style = GridText.moneySmall)
+            }
+            charge?.let { ChargeLabel(it) }
+        }
+    }
+}
+
+/** A bill Gemini found in the payments: added only when the user says so. */
+@Composable
+private fun SuggestionLine(sub: Subscription, today: LocalDate, onAdd: () -> Unit, onReject: () -> Unit) {
+    val colors = GridTheme.colors
+    Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MonogramBadge(sub.name, sub.colorKey, size = 36.dp)
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text(sub.name, style = MaterialTheme.typography.titleSmall, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    cycleLabel(sub) + " · " + stringResource(R.string.bills_next_short, relativeDay(sub.nextCharge, today).replaceFirstChar { it.lowercase() }) +
+                        if (sub.amountVaries) " · " + stringResource(R.string.bills_amount_varies) else "",
+                    style = MaterialTheme.typography.bodySmall, color = colors.muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (sub.amountVaries) Text("≈ ", style = GridText.moneySmall, color = colors.muted)
+                AmountText(sub.amountMinor, sub.currency, style = GridText.moneySmall)
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onReject) { Text(stringResource(R.string.sub_not_a_bill), color = colors.muted) }
+            TextButton(onClick = onAdd) { Text(stringResource(R.string.bills_add_suggested)) }
+        }
     }
 }
 
@@ -184,12 +290,13 @@ private fun FindTile(vm: BillsViewModel) {
 }
 
 @Composable
-private fun SuggestionsHeader() {
+private fun SuggestionsHeader(count: Int, onAddAll: () -> Unit) {
     val colors = GridTheme.colors
-    Column(Modifier.padding(start = 4.dp, top = 4.dp)) {
+    Column(Modifier.padding(start = 4.dp, top = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = colors.accentText, modifier = Modifier.size(16.dp))
-            CapsLabel(stringResource(R.string.bills_suggested), Modifier.padding(start = 6.dp), color = colors.accentText)
+            CapsLabel(stringResource(R.string.bills_suggested) + " · $count", Modifier.weight(1f).padding(start = 6.dp), color = colors.accentText)
+            if (count > 1) TextButton(onClick = onAddAll) { Text(stringResource(R.string.bills_add_all)) }
         }
         Text(stringResource(R.string.bills_suggested_body), style = MaterialTheme.typography.bodySmall, color = colors.muted)
     }
@@ -407,6 +514,8 @@ fun relativeDay(date: LocalDate, today: LocalDate): String {
         days == 0 -> stringResource(R.string.bills_today)
         days == 1 -> stringResource(R.string.bills_tomorrow)
         days in 2..13 -> pluralStringResource(R.plurals.bills_in_days, days, days)
+        // "1 Nov"; the year only when it isn't this one.
+        date.year == today.year -> date.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", com.grid.app.core.designsystem.components.currentLocale()))
         else -> shortDate(date)
     }
 }

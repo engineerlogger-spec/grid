@@ -426,6 +426,9 @@
     </plurals>
     <string name="bills_suggested_body">Gemini found these in your history. Add the ones you want to track.</string>
     <string name="bills_add_suggested">Add</string>
+    <string name="bills_add_all">Add all</string>
+    <string name="bills_per_month_short"> / month</string>
+    <string name="bills_next_short">next %1$s</string>
     <string name="bills_amount_varies">amount varies</string>
     <plurals name="home_suggested">
         <item quantity="one">Gemini suggests %d subscription · Review</item>

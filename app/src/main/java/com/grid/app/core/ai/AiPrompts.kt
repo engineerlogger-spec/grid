@@ -32,6 +32,8 @@ data class FoundBill(
     val varies: Boolean,
     val active: Boolean,
     val confidence: Double,
+    /** Gemini's category key for the bill (rent → housing), when it gave one. */
+    val category: String? = null,
 )
 
 enum class NoteTone { GOOD, WARNING, INFO }
@@ -67,14 +69,16 @@ object AiPrompts {
         )
     }
 
-    fun bills(today: LocalDate, currency: String, histories: List<PaymentHistory>): String = """
+    fun bills(today: LocalDate, currency: String, histories: List<PaymentHistory>, categories: List<Pair<String, String>> = emptyList()): String = """
         Today is $today. Below are payees from a bank account with their past payments ([date, amount in $currency]).
         Find the recurring commitments: subscriptions, phone/internet, energy, water, insurance, rent, loans, gym,
         memberships, regular transfers to the same person (rent, savings).
         Do NOT list everyday shopping (groceries, cafés, restaurants, vending machines, fuel) even when frequent.
         Answer with JSON only: [{"key", "name", "cadence": "weekly"|"monthly"|"quarterly"|"yearly",
         "amount": expected next amount, "varies": true when the amount changes from one payment to the next (phone, energy),
-        "active": false when it looks stopped (expected payments are missing), "confidence": 0 to 1}]
+        "active": false when it looks stopped (expected payments are missing), "confidence": 0 to 1,
+        "category": the key of the best category for it (rent → housing, phone/energy → bills, streaming → subscriptions…)}]
+        Categories (key: name): ${categories.joinToString { "${it.first}: ${it.second}" }}
         Payees: ${json.encodeToString(kotlinx.serialization.builtins.ListSerializer(PaymentHistory.serializer()), histories)}
     """.trimIndent()
 
@@ -95,6 +99,7 @@ object AiPrompts {
             varies = o.bool("varies") ?: false,
             active = o.bool("active") ?: true,
             confidence = o.num("confidence") ?: 0.0,
+            category = o.str("category")?.trim()?.lowercase(Locale.ROOT),
         )
     }
 
