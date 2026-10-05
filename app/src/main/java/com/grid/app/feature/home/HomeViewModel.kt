@@ -116,14 +116,19 @@ class HomeViewModel @Inject constructor(
     private val base = combine(settings.settings, clock.todayFlow()) { s, today -> s to today }
         .flatMapLatest { (s, today) ->
             val period = BudgetPeriods.periodFor(today, s.periodStartDay)
+            // Money sent from Revolut to the user's other accounts is spent, like any money leaving the account.
+            val sentOut = bank.observeOwnTransfers().map { moves ->
+                moves.filter { !it.incoming && MovedMoney.periodOf(it, s.periodStartDay) == period }
+                    .map { LedgerEntry(TxType.EXPENSE, it.amountMinor, OWN_TRANSFER_CATEGORY, it.date) }
+            }
             combine(
-                transactions.observePeriod(period),
+                combine(transactions.observePeriod(period), sentOut) { txs, out -> txs to out },
                 plans.observeGoal(period),
                 plans.observeNeedsCheckIn(period),
                 transactions.observeRecent(8).map { list -> list.filter { it.source != TxSource.CHECKIN }.take(5) },
                 categories.observeAll(),
-            ) { periodTx, goal, needsCheckIn, recent, cats ->
-                val entries = periodTx.map { LedgerEntry(it.type, it.amountMinor, it.category.id, it.occurredAt.toLocalDate(clock.zone)) }
+            ) { (periodTx, out), goal, needsCheckIn, recent, cats ->
+                val entries = periodTx.map { LedgerEntry(it.type, it.amountMinor, it.category.id, it.occurredAt.toLocalDate(clock.zone)) } + out
                 val summary = DashboardCalculator.summarize(period, today, goal, entries)
                 val byId = cats.associateBy { it.id }
                 HomeUiState(
@@ -179,5 +184,10 @@ class HomeViewModel @Inject constructor(
                 MonthCellUi(day.date, day.state, intensity = maxDay?.let { day.spentMinor / it } ?: 0f, over = false)
             }
         }
+    }
+
+    private companion object {
+        /** Transfers to own accounts have no category: counted in the total, not in the category slices. */
+        const val OWN_TRANSFER_CATEGORY = -1L
     }
 }

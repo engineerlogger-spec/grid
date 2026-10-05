@@ -95,7 +95,7 @@ class ActivityViewModel @Inject constructor(
             val period = BudgetPeriods.periodFor(a ?: today, s.periodStartDay)
             val source = if (f.allTime) transactions.observeAll() else transactions.observePeriod(period)
             combine(source, bank.observeOwnTransfers(), categories.observeAll(), categories.observePaymentMethods()) { txs, moves, cats, methods ->
-                // The monthly salary is a plan figure, not an entry; money moved in from own accounts counts as income.
+                // The monthly salary is a plan figure, not an entry; money moved in from own accounts is income, out is spent.
                 val entries = txs.filter { it.source != TxSource.CHECKIN } +
                     // A transfer the user counted in another month (Savings › Next month) is listed in that month.
                     moves.filter { f.allTime || MovedMoney.periodOf(it, s.periodStartDay) == period }.map { it.toDisplayRow(s.currency) }
@@ -182,16 +182,10 @@ class ActivityViewModel @Inject constructor(
     }
 
     companion object {
-        /** Spending only: money sent back to the user's own accounts is not spent. */
-        fun spentOf(items: List<Transaction>): Long = items.filter { it.type == TxType.EXPENSE && !it.ownTransfer }.sumOf { it.amountMinor }
+        /** Everything that left the account, transfers to the user's other accounts included. */
+        fun spentOf(items: List<Transaction>): Long = items.filter { it.type == TxType.EXPENSE }.sumOf { it.amountMinor }
 
-        /** Income plus money moved in from the user's other accounts, minus money moved back (so Net = change in balance). */
-        fun incomeOf(items: List<Transaction>): Long = items.sumOf {
-            when {
-                it.type == TxType.INCOME -> it.amountMinor
-                it.ownTransfer -> -it.amountMinor
-                else -> 0L
-            }
-        }
+        /** Everything that came into the account, transfers from the user's other accounts included. */
+        fun incomeOf(items: List<Transaction>): Long = items.filter { it.type == TxType.INCOME }.sumOf { it.amountMinor }
     }
 }

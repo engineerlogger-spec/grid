@@ -24,11 +24,11 @@ class ActivityTotalsTest {
         tx(TxType.EXPENSE, 45_000),             // rent
     )
 
-    @Test fun moneyMovedInCountsAsIncomeNetOfMoneySentBack() {
-        assertThat(ActivityViewModel.incomeOf(month)).isEqualTo(183_000)
+    @Test fun incomeIsEverythingThatCameIn() {
+        assertThat(ActivityViewModel.incomeOf(month)).isEqualTo(203_000)
     }
 
-    @Test fun moneySentBackIsNotSpending() {
-        assertThat(ActivityViewModel.spentOf(month)).isEqualTo(45_000)
+    @Test fun spentIsEverythingThatWentOutEvenToOwnAccounts() {
+        assertThat(ActivityViewModel.spentOf(month)).isEqualTo(65_000)
     }
 }
