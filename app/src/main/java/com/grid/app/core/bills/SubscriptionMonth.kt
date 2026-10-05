@@ -35,7 +35,12 @@ object SubscriptionMonth {
         val dueOn = BillingSchedule.chargesThrough(sub.anchor, sub.cycle, period.start, lastDay).firstOrNull()
         val key = MerchantKey.of(sub.name)
         val paid = payments
-            .filter { p -> p.subscriptionId == sub.id || (p.subscriptionId == null && key != null && p.payee?.let(MerchantKey::of) == key && closeInPrice(p.amountMinor, sub.amountMinor)) }
+            .filter { p ->
+                p.subscriptionId == sub.id || (
+                    p.subscriptionId == null && key != null && p.payee?.let(MerchantKey::of) == key &&
+                        (sub.amountVaries || closeInPrice(p.amountMinor, sub.amountMinor))
+                    )
+            }
             .filter { p -> p.date in period || (dueOn != null && abs(p.date.toEpochDay() - dueOn.toEpochDay()) <= SLACK_DAYS) }
             .maxByOrNull { it.date }
         return when {

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.RadioButton
 import com.grid.app.core.data.prefs.LowFundsMode
@@ -84,6 +85,7 @@ fun SettingsScreen(
     onOpenBackup: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenBank: () -> Unit,
+    onOpenAi: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -186,6 +188,12 @@ fun SettingsScreen(
                     } ?: stringResource(R.string.bank_status_never))
                 },
                 onClick = onOpenBank,
+            )
+            SettingRow(
+                icon = Icons.Rounded.AutoAwesome,
+                title = stringResource(R.string.settings_ai),
+                body = stringResource(if (s.ai.lastRunAt != null) R.string.settings_ai_on else R.string.settings_ai_off),
+                onClick = onOpenAi,
             )
         }
 

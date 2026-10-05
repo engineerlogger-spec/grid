@@ -31,6 +31,16 @@ data class AppSettings(
     val capture: CaptureSettings = CaptureSettings(),
     val backup: BackupSettings = BackupSettings(),
     val lowFunds: LowFundsMode = LowFundsMode.BALANCE,
+    val ai: AiStatus = AiStatus(),
+)
+
+/** The last Gemini pass over payees and bills (the key itself lives encrypted in AiKeyStore). */
+data class AiStatus(
+    val lastRunAt: Long? = null,
+    val lastError: String? = null,
+    /** Payees recognised so far, and bills found in the last pass. */
+    val payees: Int = 0,
+    val bills: Int = 0,
 )
 
 /** What the low-funds warning compares upcoming bills against. */
@@ -120,6 +130,12 @@ class SettingsRepository(
         val backupLastSize = longPreferencesKey("backup_last_size")
         val backupLastError = stringPreferencesKey("backup_last_error")
         val lowFunds = stringPreferencesKey("low_funds")
+        val aiLastRunAt = longPreferencesKey("ai_last_run_at")
+        val aiLastError = stringPreferencesKey("ai_last_error")
+        val aiPayees = intPreferencesKey("ai_payees")
+        val aiBills = intPreferencesKey("ai_bills")
+        val aiDigestDay = longPreferencesKey("ai_digest_day")
+        val aiDigest = stringPreferencesKey("ai_digest")
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -150,6 +166,7 @@ class SettingsRepository(
                 lastError = p[Keys.backupLastError],
             ),
             lowFunds = p[Keys.lowFunds]?.let { n -> LowFundsMode.entries.firstOrNull { it.name == n } } ?: LowFundsMode.BALANCE,
+            ai = AiStatus(p[Keys.aiLastRunAt], p[Keys.aiLastError], p[Keys.aiPayees] ?: 0, p[Keys.aiBills] ?: 0),
         )
     }.distinctUntilChanged()
 
@@ -175,6 +192,20 @@ class SettingsRepository(
     suspend fun setHideAmounts(hidden: Boolean) = store.edit { it[Keys.hideAmounts] = hidden }
     suspend fun setAppLock(enabled: Boolean) = store.edit { it[Keys.appLock] = enabled }
     suspend fun setLowFunds(mode: LowFundsMode) = store.edit { it[Keys.lowFunds] = mode.name }
+    suspend fun recordAiRun(at: Long, payees: Int, bills: Int) = store.edit {
+        it[Keys.aiLastRunAt] = at
+        it[Keys.aiPayees] = payees
+        it[Keys.aiBills] = bills
+        it.remove(Keys.aiLastError)
+    }
+    suspend fun recordAiError(message: String) = store.edit { it[Keys.aiLastError] = message }
+
+    /** Gemini's monthly notes as written on [epochDay] (JSON). */
+    suspend fun digest(): Pair<Long, String>? = store.data.first().let { p -> p[Keys.aiDigestDay]?.let { day -> p[Keys.aiDigest]?.let { day to it } } }
+    suspend fun saveDigest(epochDay: Long, json: String) = store.edit {
+        it[Keys.aiDigestDay] = epochDay
+        it[Keys.aiDigest] = json
+    }
 
     suspend fun setBackupFrequency(frequency: BackupFrequency) = store.edit { it[Keys.backupFrequency] = frequency.name }
     suspend fun setBackupWifiOnly(wifiOnly: Boolean) = store.edit { it[Keys.backupWifiOnly] = wifiOnly }

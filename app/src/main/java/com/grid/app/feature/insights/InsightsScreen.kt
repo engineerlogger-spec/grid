@@ -26,6 +26,8 @@ import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.AutoAwesome
+import com.grid.app.feature.ai.DigestTile
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material.icons.rounded.TrendingDown
 import androidx.compose.material.icons.rounded.Whatshot
@@ -84,6 +86,7 @@ fun InsightsScreen(
     contentPadding: PaddingValues,
     /** A category and the first day of the month shown, to open Activity on that month. */
     onOpenCategory: (categoryId: Long, monthEpochDay: Long?) -> Unit,
+    onOpenAsk: () -> Unit = {},
     viewModel: InsightsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -102,6 +105,9 @@ fun InsightsScreen(
                     Text(stringResource(R.string.insights_title), style = MaterialTheme.typography.headlineMedium, color = colors.text)
                     Text(state.title, style = MaterialTheme.typography.bodySmall, color = colors.muted)
                 }
+                IconButton(onClick = onOpenAsk) {
+                    Icon(Icons.Rounded.AutoAwesome, contentDescription = stringResource(R.string.ask_title), tint = colors.accentText)
+                }
                 IconButton(onClick = viewModel::previous) { Icon(Icons.Rounded.ChevronLeft, contentDescription = null, tint = colors.muted) }
                 IconButton(onClick = viewModel::next, enabled = state.canGoNext) {
                     Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = if (state.canGoNext) colors.muted else colors.faint)
@@ -110,6 +116,8 @@ fun InsightsScreen(
         }
         if (report == null) return@LazyColumn
         item { KpiGrid(report, state.currency) }
+        // Gemini's notes on the current month (only when looking at it).
+        if (!state.canGoNext) item { DigestTile() }
         if (report.kpis.spentMinor == 0L) {
             item { EmptyState(Icons.Rounded.Insights, stringResource(R.string.insights_empty_title), stringResource(R.string.insights_empty_body)) }
         }

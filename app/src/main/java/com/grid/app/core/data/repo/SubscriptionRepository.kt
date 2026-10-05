@@ -54,6 +54,7 @@ class SubscriptionRepository @Inject constructor(
                 categoryId = draft.categoryId, paymentMethodId = draft.paymentMethodId,
                 remindDaysBefore = draft.remindDaysBefore, autoLog = draft.autoLog,
                 colorKey = draft.colorKey, note = draft.note?.trim()?.ifBlank { null }, createdAt = clock.millis(),
+                payeeKey = draft.payeeKey, amountVaries = draft.amountVaries, detected = draft.detected,
             ),
         )
         processDueCharges(clock.today())
@@ -75,6 +76,8 @@ class SubscriptionRepository @Inject constructor(
                 categoryId = draft.categoryId, paymentMethodId = draft.paymentMethodId,
                 remindDaysBefore = draft.remindDaysBefore, autoLog = draft.autoLog,
                 colorKey = draft.colorKey, note = draft.note?.trim()?.ifBlank { null },
+                // The editor doesn't show the payee link: an edit keeps it.
+                payeeKey = draft.payeeKey ?: existing.payeeKey, amountVaries = draft.amountVaries,
             ),
         )
         processDueCharges(clock.today())
@@ -92,6 +95,30 @@ class SubscriptionRepository @Inject constructor(
     }
 
     suspend fun delete(id: Long) = dao.delete(id)
+
+    /** A detected bill's expected amount, kept current from its latest payments (phone, energy). */
+    suspend fun refreshExpected(id: Long, amountMinor: Long, varies: Boolean) {
+        val existing = dao.get(id) ?: return
+        if (existing.amountMinor == amountMinor && existing.amountVaries == (existing.amountVaries || varies)) return
+        dao.update(existing.copy(amountMinor = amountMinor, amountVaries = existing.amountVaries || varies))
+    }
+
+    /**
+     * "Not a bill": a detected subscription is removed, its payments unlinked, and its payee is never detected again.
+     */
+    suspend fun dismissDetected(id: Long) {
+        val existing = dao.get(id) ?: return
+        db.withTransaction {
+            db.transactionDao().unlinkSubscription(id)
+            existing.payeeKey?.let { key ->
+                val profiles = db.payeeProfileDao()
+                val profile = profiles.get(key) ?: com.grid.app.core.data.db.entities.PayeeProfileEntity(key = key, name = existing.name, updatedAt = clock.millis())
+                profiles.upsert(listOf(profile.copy(notABill = true, updatedAt = clock.millis())))
+            }
+            dao.delete(id)
+        }
+        listeners.notifyAll()
+    }
 
     /** Earlier payments a subscription made from [payment] covers: same payee, not linked yet, about the same price. */
     suspend fun pastPaymentsLike(payment: Transaction): List<Long> {
@@ -112,7 +139,7 @@ class SubscriptionRepository @Inject constructor(
             }
             ids.firstNotNullOfOrNull { txDao.get(it)?.merchant }?.let(MerchantKey::of)?.let { key ->
                 val rules = db.merchantRuleDao()
-                rules.upsert(MerchantRuleEntity(key, sub.categoryId, sub.paymentMethodId, (rules.get(key)?.hits ?: 0) + 1, now))
+                rules.upsert(MerchantRuleEntity(key, sub.categoryId, sub.paymentMethodId, (rules.get(key)?.hits ?: 0) + 1, now, userSet = !sub.detected))
             }
         }
         listeners.notifyAll()
@@ -152,6 +179,7 @@ class SubscriptionRepository @Inject constructor(
             anchor = LocalDate.ofEpochDay(anchorEpochDay), nextCharge = LocalDate.ofEpochDay(nextChargeEpochDay),
             category = category, paymentMethodId = paymentMethodId, remindDaysBefore = remindDaysBefore,
             autoLog = autoLog, status = status, colorKey = colorKey, note = note,
+            payeeKey = payeeKey, amountVaries = amountVaries, detected = detected,
         )
     }
 }

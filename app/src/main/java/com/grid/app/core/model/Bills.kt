@@ -29,6 +29,12 @@ data class Subscription(
     val status: SubscriptionStatus,
     val colorKey: String,
     val note: String?,
+    /** The bank payee it's paid to; payments are matched by it. */
+    val payeeKey: String? = null,
+    /** Any payment to the payee counts (phone, energy); [amountMinor] is what's expected. */
+    val amountVaries: Boolean = false,
+    /** Found in the payment history rather than typed in. */
+    val detected: Boolean = false,
 )
 
 data class SubscriptionDraft(
@@ -43,6 +49,9 @@ data class SubscriptionDraft(
     val autoLog: Boolean = true,
     val colorKey: String,
     val note: String? = null,
+    val payeeKey: String? = null,
+    val amountVaries: Boolean = false,
+    val detected: Boolean = false,
 ) {
     init {
         require(name.isNotBlank()) { "Name is required" }

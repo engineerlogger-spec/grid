@@ -12,6 +12,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.grid.app.R
+import com.grid.app.core.ai.AiWorker
 import com.grid.app.core.bills.LowFundsMonitor
 import com.grid.app.core.data.prefs.SentLog
 import com.grid.app.core.data.repo.BankRepository
@@ -66,6 +67,8 @@ class BankSyncWorker @AssistedInject constructor(
                         LaunchTarget.DETECTED,
                     )
                 }
+                // New payees and bills for Gemini to look at (does nothing without a key).
+                AiWorker.runNow(applicationContext)
                 // A fresh balance: will it cover the bills still ahead this month?
                 lowFunds.notifyIfShort()
             }
