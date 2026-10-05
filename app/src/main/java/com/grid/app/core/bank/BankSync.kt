@@ -96,7 +96,21 @@ class BankSync @Inject constructor(
                 for ((externalId, tx) in ExternalIds.assign(all.filter { !it.isBooked && !it.isPending })) {
                     dao.insertStaged(toEntity(account.id, "${tx.status}:$externalId", tx, ownIbans).copy(state = BankTxState.IGNORED))
                 }
-                bank.updateAccount(account.copy(syncedThroughEpochDay = today.toEpochDay()))
+                // The balance feeds the low-funds warning; a bank that won't give it never fails the sync.
+                val balance = try {
+                    RemoteBalance.pick(connector.balances(account.uid), account.currency)?.minor()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+                bank.updateAccount(
+                    account.copy(
+                        syncedThroughEpochDay = today.toEpochDay(),
+                        balanceMinor = balance ?: account.balanceMinor,
+                        balanceAt = if (balance != null) clock.millis() else account.balanceAt,
+                    ),
+                )
             }
         } catch (e: BankError) {
             return when (e) {

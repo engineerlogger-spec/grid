@@ -52,3 +52,21 @@ data class RemoteTx(
 }
 
 data class TxPage(val transactions: List<RemoteTx>, val continuationKey: String?)
+
+/** One balance of an account; [type] is the ISO 20022 code (ITAV interim available, CLBD closing booked…). */
+data class RemoteBalance(val amount: String, val currency: String, val type: String?, val creditDebit: String? = null) {
+    companion object {
+        /** What can be spent now first, then the booked balance. */
+        private val PREFERENCE = listOf("ITAV", "CLAV", "XPCD", "ITBD", "CLBD", "OPBD")
+
+        fun pick(balances: List<RemoteBalance>, currency: String): RemoteBalance? =
+            balances.filter { it.currency == currency }.minByOrNull { b -> PREFERENCE.indexOf(b.type?.uppercase()).let { if (it < 0) PREFERENCE.size else it } }
+    }
+
+    /** Signed minor units: negative when overdrawn ("-12.00" or a DBIT indicator). */
+    fun minor(): Long? {
+        val raw = amount.trim()
+        val value = runCatching { com.grid.app.core.money.Currencies.toMinor(raw.removePrefix("-").removePrefix("+"), currency) }.getOrNull() ?: return null
+        return if (raw.startsWith("-") || creditDebit.equals("DBIT", ignoreCase = true)) -value else value
+    }
+}

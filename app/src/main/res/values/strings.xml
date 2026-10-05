@@ -235,6 +235,15 @@
     <string name="bank_err_network">Can\'t reach Enable Banking. Check your connection.</string>
     <string name="bank_err_bank">Enable Banking refused: %1$s</string>
     <string name="home_bank_expired">%1$s access expired</string>
+    <string name="lowfunds_title">%1$s short by %2$s</string>
+    <string name="lowfunds_body_bill">Not enough for %1$s (%2$s) on %3$s. Move money to Revolut.</string>
+    <string name="lowfunds_body_spending">At your usual daily spending the money runs out before the month ends. Move money to Revolut.</string>
+    <string name="lowfunds_body_budget">The bills still to pay this month (%1$s) are more than what\'s left of your budget.</string>
+    <string name="settings_low_funds">Low-funds warning</string>
+    <string name="settings_low_funds_balance">Revolut balance</string>
+    <string name="settings_low_funds_balance_spending">Revolut balance + daily spending</string>
+    <string name="settings_low_funds_budget">Monthly budget</string>
+    <string name="settings_low_funds_off">Off</string>
     <string name="home_savings">Savings</string>
     <plurals name="home_other_to_sort">
         <item quantity="one">%d payment under Other (already counted)</item>

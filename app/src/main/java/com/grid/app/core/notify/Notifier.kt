@@ -13,8 +13,10 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.grid.app.MainActivity
 import com.grid.app.R
+import com.grid.app.core.bills.LowFundsState
 import com.grid.app.core.bills.Reminder
 import com.grid.app.core.bills.ReminderKind
+import com.grid.app.core.data.prefs.LowFundsMode
 import com.grid.app.core.model.PendingDirection
 import com.grid.app.core.money.MoneyFormatter
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -82,6 +84,11 @@ class Notifier @Inject constructor(
         post(Channels.BILLS, reminder.key.hashCode(), title, context.getString(R.string.notif_bills_body), LaunchTarget.BILLS)
     }
 
+    fun lowFunds(state: LowFundsState) {
+        val (title, body) = LowFundsText.of(context, formatter, state)
+        post(Channels.BUDGET, LOW_FUNDS_ID, title, body, LaunchTarget.BILLS)
+    }
+
     fun checkIn() = post(
         Channels.CHECKIN, CHECKIN_ID,
         context.getString(R.string.notif_checkin_title), context.getString(R.string.notif_checkin_body), LaunchTarget.CHECK_IN,
@@ -113,5 +120,23 @@ class Notifier @Inject constructor(
 
     companion object {
         private const val CHECKIN_ID = 7001
+        private const val LOW_FUNDS_ID = 7002
+    }
+}
+
+/** The low-funds warning in words (shared by the Home banner and the notification). */
+object LowFundsText {
+    fun of(context: Context, formatter: MoneyFormatter, state: LowFundsState, masked: Boolean = false): Pair<String, String> {
+        val a = state.alert
+        val day = a.by.format(java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.getDefault()))
+        val short = formatter.format(a.shortMinor, state.currency, masked = masked)
+        val title = context.getString(R.string.lowfunds_title, short, day)
+        val first = a.firstUncovered
+        val body = when {
+            state.mode == LowFundsMode.BUDGET -> context.getString(R.string.lowfunds_body_budget, formatter.format(a.dueMinor, state.currency, masked = masked))
+            first != null -> context.getString(R.string.lowfunds_body_bill, first.title, formatter.format(first.amountMinor, state.currency, masked = masked), day)
+            else -> context.getString(R.string.lowfunds_body_spending)
+        }
+        return title to body
     }
 }

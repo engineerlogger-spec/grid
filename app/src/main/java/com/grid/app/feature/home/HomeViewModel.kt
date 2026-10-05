@@ -2,7 +2,8 @@ package com.grid.app.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.grid.app.core.bills.PastPayment
+import com.grid.app.core.bills.LowFundsMonitor
+import com.grid.app.core.bills.LowFundsState
 import com.grid.app.core.bills.RecurringDetector
 import com.grid.app.core.bills.UpcomingItem
 import com.grid.app.core.model.TxType
@@ -79,6 +80,8 @@ data class HomeUiState(
     val periodStartDay: Int = 1,
     /** Bank payments counted under "Other" that the user may want to sort. */
     val otherToSort: Int = 0,
+    /** The money won't cover the bills (and spending) still ahead this month. */
+    val lowFunds: LowFundsState? = null,
 )
 
 @HiltViewModel
@@ -91,21 +94,13 @@ class HomeViewModel @Inject constructor(
     pendings: PendingRepository,
     captures: CaptureRepository,
     bank: BankRepository,
+    lowFunds: LowFundsMonitor,
     clock: AppClock,
 ) : ViewModel() {
 
     /** Monthly payments found in the bank history (rent, phone, insurance…): Revolut shares no scheduled payments. */
     private val forecasts = combine(transactions.observeAll(), clock.todayFlow()) { txs, today ->
-        val since = today.minusDays(400)
-        RecurringDetector.detect(
-            txs.mapNotNull { tx ->
-                val date = tx.occurredAt.toLocalDate(clock.zone)
-                if (tx.type != TxType.EXPENSE || tx.ownTransfer || date.isBefore(since)) return@mapNotNull null
-                if (tx.source != TxSource.BANK && tx.source != TxSource.CAPTURE && tx.source != TxSource.MANUAL) return@mapNotNull null
-                PastPayment(tx.merchant ?: return@mapNotNull null, tx.amountMinor, date, tx.category.iconKey, tx.category.colorKey)
-            },
-            today,
-        )
+        RecurringDetector.fromLedger(txs, today, clock.zone)
     }
 
     private val upcoming = combine(subscriptions.observeAll(), pendings.observeAll(), clock.todayFlow(), forecasts, settings.settings) { subs, pend, today, expected, s ->
@@ -151,9 +146,10 @@ class HomeViewModel @Inject constructor(
         Triple(groups, connection, transfers)
     }
 
-    val state: StateFlow<HomeUiState> = combine(base, upcoming, captures.observeInbox(), bankState) { home, items, inbox, (bankGroups, connection, transfers) ->
+    val state: StateFlow<HomeUiState> = combine(base, upcoming, captures.observeInbox(), bankState, lowFunds.observe()) { home, items, inbox, (bankGroups, connection, transfers), short ->
         val period = home.period
         home.copy(
+            lowFunds = short,
             upcoming = items,
             upcomingDueMinor = items.filter { it.direction == PendingDirection.I_OWE && it.currency == home.currency }.sumOf { it.amountMinor },
             // Notifications to confirm (and rare bank items needing a decision); payments under Other are only a link.

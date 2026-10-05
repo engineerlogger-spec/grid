@@ -30,7 +30,19 @@ data class AppSettings(
     val appLock: Boolean = false,
     val capture: CaptureSettings = CaptureSettings(),
     val backup: BackupSettings = BackupSettings(),
+    val lowFunds: LowFundsMode = LowFundsMode.BALANCE,
 )
+
+/** What the low-funds warning compares upcoming bills against. */
+enum class LowFundsMode {
+    /** The Revolut balance read at each sync. */
+    BALANCE,
+    /** The balance minus the usual daily spending until the end of the month: warns earlier. */
+    BALANCE_AND_SPENDING,
+    /** What is left of the monthly budget (no bank needed). */
+    BUDGET,
+    OFF,
+}
 
 /** Payment detection preferences. All sources on by default; nothing happens until access is granted. */
 data class CaptureSettings(
@@ -79,6 +91,7 @@ data class SettingsSnapshot(
     val captureDiagnostics: Boolean,
     val backupFrequency: String,
     val backupWifiOnly: Boolean,
+    val lowFunds: String = "BALANCE",
 )
 
 /** User preferences in DataStore. Ledger data lives in Room; this is configuration only. */
@@ -106,6 +119,7 @@ class SettingsRepository(
         val backupLastAt = longPreferencesKey("backup_last_at")
         val backupLastSize = longPreferencesKey("backup_last_size")
         val backupLastError = stringPreferencesKey("backup_last_error")
+        val lowFunds = stringPreferencesKey("low_funds")
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -135,6 +149,7 @@ class SettingsRepository(
                 lastSizeBytes = p[Keys.backupLastSize],
                 lastError = p[Keys.backupLastError],
             ),
+            lowFunds = p[Keys.lowFunds]?.let { n -> LowFundsMode.entries.firstOrNull { it.name == n } } ?: LowFundsMode.BALANCE,
         )
     }.distinctUntilChanged()
 
@@ -159,6 +174,7 @@ class SettingsRepository(
     suspend fun completeOnboarding() = store.edit { it[Keys.onboardingDone] = true }
     suspend fun setHideAmounts(hidden: Boolean) = store.edit { it[Keys.hideAmounts] = hidden }
     suspend fun setAppLock(enabled: Boolean) = store.edit { it[Keys.appLock] = enabled }
+    suspend fun setLowFunds(mode: LowFundsMode) = store.edit { it[Keys.lowFunds] = mode.name }
 
     suspend fun setBackupFrequency(frequency: BackupFrequency) = store.edit { it[Keys.backupFrequency] = frequency.name }
     suspend fun setBackupWifiOnly(wifiOnly: Boolean) = store.edit { it[Keys.backupWifiOnly] = wifiOnly }
@@ -184,7 +200,7 @@ class SettingsRepository(
                 hideAmounts = s.hideAmounts, appLock = s.appLock,
                 captureWallet = s.capture.wallet, capturePaypal = s.capture.paypal, captureRevolut = s.capture.revolut,
                 captureAutoAdd = s.capture.autoAdd, captureDiagnostics = s.capture.diagnostics,
-                backupFrequency = s.backup.frequency.name, backupWifiOnly = s.backup.wifiOnly,
+                backupFrequency = s.backup.frequency.name, backupWifiOnly = s.backup.wifiOnly, lowFunds = s.lowFunds.name,
             ),
         )
     }
@@ -208,6 +224,7 @@ class SettingsRepository(
             p[Keys.captureDiagnostics] = snapshot.captureDiagnostics
             p[Keys.backupFrequency] = snapshot.backupFrequency
             p[Keys.backupWifiOnly] = snapshot.backupWifiOnly
+            p[Keys.lowFunds] = snapshot.lowFunds
         }
     }
 }

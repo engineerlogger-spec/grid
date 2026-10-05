@@ -46,6 +46,9 @@ data class BankAccountEntity(
     val iban: String? = null,
     val enabled: Boolean,
     val syncedThroughEpochDay: Long? = null,
+    /** Available balance at the last sync (minor units, account currency): for the low-funds warning. */
+    val balanceMinor: Long? = null,
+    val balanceAt: Long? = null,
 )
 
 /** A booked bank transaction as fetched, and what Grid did with it. */

@@ -1,7 +1,12 @@
 package com.grid.app.core.bills
 
 import com.grid.app.core.model.MerchantKey
+import com.grid.app.core.model.Transaction
+import com.grid.app.core.model.TxSource
+import com.grid.app.core.model.TxType
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
@@ -34,6 +39,20 @@ object RecurringDetector {
 
     /** Habits, not bills: a monthly pizza night isn't a payment to forecast. */
     private val notBills = setOf("restaurant", "groceries", "shopping", "clothing", "cash", "personal_care", "entertainment")
+
+    /** Monthly bills found in the ledger's last 400 days of spending (bank, captured and typed-in payments). */
+    fun fromLedger(txs: List<Transaction>, today: LocalDate, zone: ZoneId): List<RecurringPayment> {
+        val since = today.minusDays(400)
+        return detect(
+            txs.mapNotNull { tx ->
+                val date = Instant.ofEpochMilli(tx.occurredAt).atZone(zone).toLocalDate()
+                if (tx.type != TxType.EXPENSE || tx.ownTransfer || date.isBefore(since)) return@mapNotNull null
+                if (tx.source != TxSource.BANK && tx.source != TxSource.CAPTURE && tx.source != TxSource.MANUAL) return@mapNotNull null
+                PastPayment(tx.merchant ?: return@mapNotNull null, tx.amountMinor, date, tx.category.iconKey, tx.category.colorKey)
+            },
+            today,
+        )
+    }
 
     fun detect(payments: List<PastPayment>, today: LocalDate): List<RecurringPayment> =
         payments.filter { it.iconKey !in notBills }

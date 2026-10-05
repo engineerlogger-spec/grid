@@ -55,6 +55,7 @@ class SettingsViewModel @Inject constructor(
     fun setCurrency(code: String) = viewModelScope.launch { settingsRepo.setCurrency(code) }
     fun setPeriodStartDay(day: Int) = viewModelScope.launch { settingsRepo.setPeriodStartDay(day) }
     fun setHideAmounts(on: Boolean) = viewModelScope.launch { settingsRepo.setHideAmounts(on) }
+    fun setLowFunds(mode: com.grid.app.core.data.prefs.LowFundsMode) = viewModelScope.launch { settingsRepo.setLowFunds(mode) }
 
     fun setGoal(goalMinor: Long) = viewModelScope.launch {
         val start = settingsRepo.settings.first().periodStartDay

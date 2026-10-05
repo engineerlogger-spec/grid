@@ -51,6 +51,9 @@ class DemoBankConnector(private val clock: AppClock) : BankConnector {
 
     override suspend fun deleteSession(sessionId: String) = Unit
 
+    override suspend fun balances(accountUid: String): List<RemoteBalance> =
+        listOf(RemoteBalance("1240.50", "EUR", "CLBD"), RemoteBalance("312.40", "EUR", "ITAV"))
+
     private fun card(tag: String, date: LocalDate, amount: String, merchant: String, mcc: String? = null, status: String = "BOOK") = RemoteTx(
         transactionId = "demo-$tag-$date", amount = amount, currency = "EUR", creditDebit = "DBIT", status = status,
         bookingDate = date.toString(), transactionDate = date.toString(), creditorName = merchant, mcc = mcc,
