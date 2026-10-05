@@ -24,6 +24,10 @@ interface CaptureDao {
     @Query("SELECT * FROM captures WHERE status = 'NEW' ORDER BY postedAt DESC")
     fun observeInbox(): Flow<List<CaptureEntity>>
 
+    /** Notifications still waiting in Detected, posted between two times. */
+    @Query("SELECT * FROM captures WHERE status = 'NEW' AND postedAt BETWEEN :fromMs AND :toMs")
+    suspend fun inboxBetween(fromMs: Long, toMs: Long): List<CaptureEntity>
+
     @Query("SELECT * FROM captures WHERE status = 'UNPARSED' ORDER BY postedAt DESC")
     fun observeUnparsed(): Flow<List<CaptureEntity>>
 

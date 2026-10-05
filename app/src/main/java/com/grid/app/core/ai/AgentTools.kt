@@ -5,7 +5,10 @@ import com.grid.app.core.bank.BankSyncWorker
 import com.grid.app.core.data.prefs.LowFundsMode
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.CategoryRepository
+import com.grid.app.core.data.repo.EntryOrigin
+import com.grid.app.core.data.repo.PaymentTwins
 import com.grid.app.core.data.repo.PendingRepository
+import com.grid.app.core.data.repo.RecordResult
 import com.grid.app.core.data.repo.PlanRepository
 import com.grid.app.core.data.repo.SubscriptionRepository
 import com.grid.app.core.data.repo.TransactionRepository
@@ -70,6 +73,7 @@ class ToolProblem(message: String) : Exception(message)
 class AgentTools @Inject constructor(
     @ApplicationContext private val context: Context,
     private val transactions: TransactionRepository,
+    private val twins: PaymentTwins,
     private val categories: CategoryRepository,
     private val plans: PlanRepository,
     private val subscriptions: SubscriptionRepository,
@@ -140,6 +144,7 @@ class AgentTools @Inject constructor(
         schema(required = listOf("type", "amount", "category")) {
             enumOf("type", listOf("expense", "income")); num("amount", "Positive amount"); str("category", "Category key")
             str("payee", "Who was paid or who paid"); str("note", "Short note"); str("date", "YYYY-MM-DD, default today")
+            bool("force", "True only after the user confirmed adding a possible duplicate")
         },
         confirm = true,
         summary = { a ->
@@ -153,13 +158,18 @@ class AgentTools @Inject constructor(
         val type = typeOf(a.text("type"))
         val category = findCategory(a.text("category"), kindOf(type)) ?: fallback(type)
         val date = a.date("date") ?: clock.today()
-        val id = transactions.add(
-            TransactionDraft(
-                type = type, amountMinor = a.minor("amount") ?: throw ToolProblem("amount missing"), currency = currency(),
-                categoryId = category.id, merchant = a.text("payee"), note = a.text("note"), occurredAt = timeOn(date), source = TxSource.MANUAL,
-            ),
+        val draft = TransactionDraft(
+            type = type, amountMinor = a.minor("amount") ?: throw ToolProblem("amount missing"), currency = currency(),
+            categoryId = category.id, merchant = a.text("payee"), note = a.text("note"), occurredAt = timeOn(date), source = TxSource.MANUAL,
         )
-        buildJsonObject { put("added", id) }
+        // The one gate for new entries: a payment already recorded (bank, notification) is reported, not added twice.
+        when (val result = twins.record(draft, EntryOrigin.MANUAL, force = a.bool("force") == true)) {
+            is RecordResult.Added -> buildJsonObject { put("added", result.id) }
+            is RecordResult.Joined -> buildJsonObject { put("joined", result.id) }
+            is RecordResult.PossibleDuplicate -> throw ToolProblem(
+                "possible duplicate of entry ${result.existing.id} (${describe(result.existing)}). Tell the user; add it only if they confirm, with force=true.",
+            )
+        }
     }
 
     private fun editTransaction() = AgentTool(

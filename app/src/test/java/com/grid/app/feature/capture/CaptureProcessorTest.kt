@@ -61,7 +61,7 @@ class CaptureProcessorTest {
     private fun TestScope.build() {
         settings = SettingsRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.newFile("s.preferences_pb").also { it.delete() } }, Locale.FRANCE)
         transactions = TransactionRepository(db, clock, emptySet())
-        captures = CaptureRepository(db, transactions, clock, com.grid.app.core.data.repo.PaymentTwins(db, clock, emptySet()))
+        captures = CaptureRepository(db, transactions, clock, com.grid.app.core.data.repo.PaymentTwins(db, transactions, clock, emptySet()))
         processor = CaptureProcessor(captures, CategoryRepository(db), transactions, settings, alerts)
     }
 
@@ -126,7 +126,7 @@ class CaptureProcessorTest {
             ),
         )
 
-        assertThat(com.grid.app.core.data.repo.PaymentTwins(db, clock, emptySet()).mergeExisting()).isEqualTo(1)
+        assertThat(com.grid.app.core.data.repo.PaymentTwins(db, transactions, clock, emptySet()).mergeExisting()).isEqualTo(1)
         val only = transactions.observeAll().first().single()
         assertThat(only.id).isEqualTo(bankId)
         assertThat(only.captureId).isEqualTo(capture.id)

@@ -92,6 +92,9 @@ class TransactionRepository @Inject constructor(
         listeners.notifyAll()
     }
 
+    /** What Gemini found out about this entry's payee (\"Kebab shop\"), if it looked. */
+    suspend fun payeeAbout(tx: Transaction): String? = tx.merchant?.let { db.payeeProfileDao().byName(it)?.about }
+
     /** The other entries paid to (or received from) the same payee as [tx]. */
     suspend fun samePayeeIds(tx: Transaction): List<Long> = samePayeeIds(tx.id, tx.merchant, tx.type)
 

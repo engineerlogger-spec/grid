@@ -23,6 +23,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import com.grid.app.core.designsystem.components.GridChip
 import com.grid.app.core.bills.LowFundsState
 import com.grid.app.core.notify.LowFundsText
 import androidx.compose.material.icons.rounded.Settings
@@ -83,6 +87,8 @@ fun HomeScreen(
     onOpenBank: () -> Unit,
     onOpenMoved: () -> Unit,
     onOpenInsights: () -> Unit,
+    /** Ask Grid, optionally with a first message already sent. */
+    onOpenAsk: (prompt: String?) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -103,6 +109,7 @@ fun HomeScreen(
                 onOpenSettings = onOpenSettings,
             )
         }
+        item { AskBar(onOpenAsk) }
         state.bankToReconnect?.let { bank ->
             item { ReconnectBanner(bank, onOpenBank) }
         }
@@ -132,6 +139,8 @@ fun HomeScreen(
         }
         item { UpcomingTile(state, onClick = onOpenBills) }
         item { CategoriesTile(state, onClick = onOpenInsights) }
+        // Gemini's notes on the month (shown once a key is set).
+        item { com.grid.app.feature.ai.DigestTile() }
         item { SectionHeader(stringResource(R.string.home_recent), Modifier.padding(top = 6.dp), action = stringResource(R.string.action_see_all), onAction = { onOpenActivity(null) }) }
         item {
             Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)) {
@@ -140,6 +149,26 @@ fun HomeScreen(
                 } else {
                     state.recent.forEach { tx -> TransactionRow(tx, onClick = { quickAdd.edit(tx.id) }) }
                 }
+            }
+        }
+    }
+}
+
+/** Ask Grid, front and centre: questions about the money, or things to do ("add…", "put … under …"). */
+@Composable
+private fun AskBar(onOpenAsk: (String?) -> Unit) {
+    val colors = GridTheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Tile(onClick = { onOpenAsk(null) }, borderColor = colors.accentText.copy(alpha = 0.5f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = colors.accentText, modifier = Modifier.size(22.dp))
+                Text(stringResource(R.string.home_ask_hint), style = MaterialTheme.typography.bodyLarge, color = colors.muted, modifier = Modifier.weight(1f).padding(start = 12.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(R.string.home_ask_week, R.string.home_ask_bills, R.string.home_ask_afford, R.string.home_ask_save).forEach { id ->
+                val prompt = stringResource(id)
+                GridChip(label = prompt, onClick = { onOpenAsk(prompt) })
             }
         }
     }

@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.FilterAltOff
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.RestoreFromTrash
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.SwapVert
@@ -85,6 +86,7 @@ fun ActivityScreen(
     contentPadding: PaddingValues,
     onOpenMoved: () -> Unit = {},
     onOpenDeleted: () -> Unit = {},
+    onOpenAsk: () -> Unit = {},
     viewModel: ActivityViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -100,7 +102,7 @@ fun ActivityScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = contentPadding.calculateBottomPadding() + 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        item { TopRow(state, viewModel, onOpenDeleted) }
+        item { TopRow(state, viewModel, onOpenDeleted, onOpenAsk) }
         item { SearchField(state.filters.query, viewModel::setQuery) }
         item { FilterRow(state, viewModel, onOpenCategories = { categorySheet = true }) }
         item { TotalsTile(state) }
@@ -154,7 +156,7 @@ fun ActivityScreen(
 }
 
 @Composable
-private fun TopRow(state: ActivityUiState, vm: ActivityViewModel, onOpenDeleted: () -> Unit) {
+private fun TopRow(state: ActivityUiState, vm: ActivityViewModel, onOpenDeleted: () -> Unit, onOpenAsk: () -> Unit) {
     val colors = GridTheme.colors
     Row(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 12.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -164,6 +166,9 @@ private fun TopRow(state: ActivityUiState, vm: ActivityViewModel, onOpenDeleted:
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.muted,
             )
+        }
+        IconButton(onClick = onOpenAsk) {
+            Icon(Icons.Rounded.AutoAwesome, contentDescription = stringResource(R.string.ask_title), tint = colors.accentText)
         }
         IconButton(onClick = onOpenDeleted) {
             Icon(Icons.Rounded.RestoreFromTrash, contentDescription = stringResource(R.string.deleted_title), tint = colors.muted)

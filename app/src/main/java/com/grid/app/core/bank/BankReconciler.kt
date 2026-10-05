@@ -45,6 +45,8 @@ class BankReconciler @Inject constructor(
     private val pending: PendingRepository,
     private val categories: CategoryRepository,
     private val clock: AppClock,
+    /** Optional only so tests about other rules can leave it out; the app always provides it. */
+    private val twins: com.grid.app.core.data.repo.PaymentTwins? = null,
 ) {
     private val dao = db.bankDao()
 
@@ -53,6 +55,8 @@ class BankReconciler @Inject constructor(
     suspend fun process(row: BankTransactionEntity, appCurrency: String): BankTxState = db.withTransaction {
         val outcome = decide(row, appCurrency)
         dao.updateStaged(row.copy(state = outcome.state, transactionId = outcome.transactionId))
+        // A notification of this payment still waiting in Detected is settled by the bank's entry (never a second one).
+        outcome.transactionId?.let { twins?.settleNotifications(it) }
         outcome.state
     }
 

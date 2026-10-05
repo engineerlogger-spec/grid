@@ -75,7 +75,7 @@ class GridAgentTest {
         val formatter = MoneyFormatter(Locale.FRANCE)
         val sentLog = SentLog(PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.newFile("l.preferences_pb").also { it.delete() } })
         val lowFunds = LowFundsMonitor(settings, bank, subscriptions, pendings, transactions, plans, Notifier(context, formatter), sentLog, clock)
-        val tools = AgentTools(context, transactions, CategoryRepository(db), plans, subscriptions, pendings, settings, formatter, clock)
+        val tools = AgentTools(context, transactions, com.grid.app.core.data.repo.PaymentTwins(db, transactions, clock, emptySet()), CategoryRepository(db), plans, subscriptions, pendings, settings, formatter, clock)
         return GridAgent(gemini, tools, MoneySnapshots(settings, transactions, subscriptions, bank, plans, lowFunds, clock), clock)
     }
 

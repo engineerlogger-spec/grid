@@ -18,6 +18,9 @@ import com.grid.app.core.money.Currencies
 import com.grid.app.core.money.KeypadKey
 import com.grid.app.core.time.AppClock
 import com.grid.app.feature.common.QuickAddRequest
+import com.grid.app.core.data.repo.EntryOrigin
+import com.grid.app.core.data.repo.PaymentTwins
+import com.grid.app.core.data.repo.RecordResult
 import com.grid.app.feature.common.moneyFieldText
 import com.grid.app.feature.common.parseMoney
 import com.grid.app.feature.common.toLocalDate
@@ -60,6 +63,12 @@ data class QuickAddUiState(
     /** Editing: other entries with the same payee, and whether a new category applies to them too. */
     val similarCount: Int = 0,
     val applyToAll: Boolean = true,
+    /** The entry that already seems to record this payment (the bank booked it, a notification added it…). */
+    val duplicateOf: Transaction? = null,
+    /** The category the duplicate warning is holding the save for. */
+    val heldCategoryId: Long? = null,
+    /** Gemini's line about the payee being edited. */
+    val payeeAbout: String? = null,
 ) {
     val isEditing: Boolean get() = editing != null
     val method: PaymentMethod? get() = methods.firstOrNull { it.id == methodId }
@@ -80,6 +89,7 @@ sealed interface QuickAddEvent {
 @HiltViewModel
 class QuickAddViewModel @Inject constructor(
     private val transactions: TransactionRepository,
+    private val twins: PaymentTwins,
     private val categories: CategoryRepository,
     private val settings: SettingsRepository,
     private val clock: AppClock,
@@ -119,6 +129,7 @@ class QuickAddViewModel @Inject constructor(
                 suggestions = if (editing == null && type == TxType.EXPENSE) transactions.suggestions() else emptyList(),
                 editing = editing,
                 similarCount = editing?.let { transactions.samePayeeIds(it).size } ?: 0,
+                payeeAbout = editing?.let { transactions.payeeAbout(it) },
                 amountText = editing?.let { moneyFieldText(it.amountMinor, it.currency) }.orEmpty(),
             )
         }
@@ -187,7 +198,18 @@ class QuickAddViewModel @Inject constructor(
     fun undoSave(txId: Long) = viewModelScope.launch { transactions.delete(txId) }
     fun undoDelete(tx: Transaction) = viewModelScope.launch { transactions.restore(tx) }
 
-    private fun save(categoryId: Long, amountMinor: Long, note: String = _state.value.note, methodId: Long? = _state.value.methodId) {
+    /** The user saw the possible duplicate and wants their entry anyway. */
+    fun addAnyway() {
+        val s = _state.value
+        val categoryId = s.heldCategoryId ?: return
+        val amount = s.amountMinor ?: return
+        _state.update { it.copy(duplicateOf = null, heldCategoryId = null) }
+        save(categoryId, amount, force = true)
+    }
+
+    fun dismissDuplicate() = _state.update { it.copy(duplicateOf = null, heldCategoryId = null) }
+
+    private fun save(categoryId: Long, amountMinor: Long, note: String = _state.value.note, methodId: Long? = _state.value.methodId, force: Boolean = false) {
         val s = _state.value
         val category = s.categories.firstOrNull { it.id == categoryId }
         val occurredAt = occurredAtFor(s)
@@ -212,7 +234,15 @@ class QuickAddViewModel @Inject constructor(
                 transactions.update(editing.id, draft, samePayeeToo = s.asksScope && s.applyToAll)
                 editing.id
             } else {
-                transactions.add(draft)
+                // Through the one gate for new entries: a payment already recorded (bank, notification) is flagged first.
+                when (val result = twins.record(draft, EntryOrigin.MANUAL, force)) {
+                    is RecordResult.Added -> result.id
+                    is RecordResult.Joined -> result.id
+                    is RecordResult.PossibleDuplicate -> {
+                        _state.update { it.copy(duplicateOf = result.existing, heldCategoryId = categoryId, selectedCategoryId = categoryId) }
+                        return@launch
+                    }
+                }
             }
             _events.send(QuickAddEvent.Saved(id, amountMinor, s.currency, category?.name.orEmpty(), wasEdit = editing != null))
         }

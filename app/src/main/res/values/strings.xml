@@ -246,6 +246,12 @@
     <string name="ai_problem_network">No connection to Gemini. Try again when online.</string>
     <string name="ai_problem_other">Gemini: %1$s</string>
     <string name="ask_title">Ask Grid</string>
+    <string name="home_ask_hint">Ask Grid, or tell it what to do…</string>
+    <string name="home_ask_week">How much did I spend this week?</string>
+    <string name="home_ask_bills">Which bills are still to pay?</string>
+    <string name="home_ask_afford">Can I afford €200 this weekend?</string>
+    <string name="home_ask_save">Where can I save this month?</string>
+    <string name="add_about_by_gemini">%1$s · by Gemini</string>
     <string name="ask_hint">Ask about your money…</string>
     <string name="ask_send">Send</string>
     <string name="ask_thinking">Thinking…</string>
@@ -416,6 +422,8 @@
     </plurals>
     <string name="add_make_subscription">Subscription</string>
     <string name="add_amount">Amount</string>
+    <string name="add_duplicate">Already recorded? %1$s · %2$s · %3$s is in your activity (from the bank or a notification).</string>
+    <string name="add_anyway">Add anyway</string>
     <string name="add_scope_title">New category for payments to %1$s</string>
     <string name="add_scope_this">Only this one</string>
     <string name="add_scope_all">All %1$d</string>
