@@ -93,6 +93,11 @@ class MovedViewModel @Inject constructor(
         bank.countIn(row.transfer.id, if (nextMonth) BudgetPeriods.next(own, start).start else null)
     }
 
+    /** For a transfer from the end of last month: ticked counts it in the month on screen; unticked, back in its own. */
+    fun setCountedHere(row: MovedRow, here: Boolean) = viewModelScope.launch {
+        bank.countIn(row.transfer.id, if (here) state.value.period?.start else null)
+    }
+
     companion object {
         /** The salary set for the month (check-in / Savings card): a plan figure, not an Activity entry. */
         fun salaryOf(periodTx: List<Transaction>): Long =

@@ -238,13 +238,14 @@
     <string name="moved_salary_title">Salary · %1$s</string>
     <string name="moved_transfers">Transfers</string>
     <string name="moved_empty_title">No transfers yet</string>
-    <string name="moved_empty_body">Transfers from your salary account appear here once you mark them as \"My own account\" in Detected.</string>
-    <string name="moved_hint">Each transfer counts in its own month. Tick \"Next month\" for one meant for the month after, like a salary moved on the 29th.</string>
+    <string name="moved_empty_body">Money you move in from your other accounts appears here after a bank sync.</string>
+    <string name="moved_hint">Each transfer counts in its own month. Tick \"Next month\" for one meant for the month after, or \"This month\" on one from the last days of the previous month.</string>
     <string name="moved_unknown">Transfer</string>
     <string name="moved_from_previous">%1$s · from last month</string>
+    <string name="moved_counted_previous">%1$s · counted last month</string>
     <string name="moved_counted_next">%1$s · counted next month</string>
-    <string name="moved_return">Move back</string>
     <string name="moved_next_month">Next month</string>
+    <string name="moved_this_month">This month</string>
     <string name="detected_bank_section">Under Other · already counted</string>
     <string name="detected_notifications_section">From notifications</string>
     <string name="bank_group_categorise">Tap a category to sort</string>

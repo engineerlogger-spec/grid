@@ -86,7 +86,9 @@ fun MovedScreen(onBack: () -> Unit, viewModel: MovedViewModel = hiltViewModel())
             item { EmptyState(Icons.Rounded.SwapVert, stringResource(R.string.moved_empty_title), stringResource(R.string.moved_empty_body)) }
         } else {
             item { CapsLabel(stringResource(R.string.moved_transfers), Modifier.padding(start = 4.dp, top = 6.dp)) }
-            items(state.rows, key = { it.transfer.id }) { row -> TransferRow(row, state, onNextMonth = { viewModel.setNextMonth(row, it) }) }
+            items(state.rows, key = { it.transfer.id }) { row ->
+                TransferRow(row, state, onNextMonth = { viewModel.setNextMonth(row, it) }, onCountHere = { viewModel.setCountedHere(row, it) })
+            }
             item {
                 Text(stringResource(R.string.moved_hint), style = MaterialTheme.typography.bodySmall, color = colors.muted, modifier = Modifier.padding(horizontal = 4.dp))
             }
@@ -142,7 +144,7 @@ private fun Figure(label: String, amountMinor: Long, currency: String, highlight
 }
 
 @Composable
-private fun TransferRow(row: MovedRow, state: MovedUi, onNextMonth: (Boolean) -> Unit) {
+private fun TransferRow(row: MovedRow, state: MovedUi, onNextMonth: (Boolean) -> Unit, onCountHere: (Boolean) -> Unit) {
     val colors = GridTheme.colors
     val t = row.transfer
     Tile(contentPadding = PaddingValues(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp)) {
@@ -158,7 +160,8 @@ private fun TransferRow(row: MovedRow, state: MovedUi, onNextMonth: (Boolean) ->
                 )
                 Text(
                     when {
-                        !row.datedHere -> stringResource(R.string.moved_from_previous, shortDate(t.date))
+                        !row.datedHere && row.countedHere -> stringResource(R.string.moved_from_previous, shortDate(t.date))
+                        !row.datedHere -> stringResource(R.string.moved_counted_previous, shortDate(t.date))
                         !row.countedHere -> stringResource(R.string.moved_counted_next, shortDate(t.date))
                         else -> shortDate(t.date)
                     },
@@ -169,14 +172,15 @@ private fun TransferRow(row: MovedRow, state: MovedUi, onNextMonth: (Boolean) ->
                 if (t.incoming) t.amountMinor else -t.amountMinor, state.currency, style = GridText.moneySmall, signed = true,
                 color = if (!row.countedHere) colors.muted else if (t.incoming) colors.income else colors.text, fractionColor = colors.muted,
             )
-            if (row.datedHere) {
-                // Ticked = counted in the next month (e.g. salary transferred on the 29th, meant for next month).
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // Dated here: ticked = counted next month (salary moved on the 29th). From last month: ticked = counted here.
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (row.datedHere) {
                     Checkbox(checked = !row.countedHere, onCheckedChange = onNextMonth)
                     Text(stringResource(R.string.moved_next_month), style = MaterialTheme.typography.labelSmall, color = colors.muted)
+                } else {
+                    Checkbox(checked = row.countedHere, onCheckedChange = onCountHere)
+                    Text(stringResource(R.string.moved_this_month), style = MaterialTheme.typography.labelSmall, color = colors.muted)
                 }
-            } else {
-                TextButton(onClick = { onNextMonth(false) }) { Text(stringResource(R.string.moved_return)) }
             }
         }
     }

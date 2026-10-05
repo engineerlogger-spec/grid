@@ -94,11 +94,10 @@ class ActivityViewModel @Inject constructor(
             val period = BudgetPeriods.periodFor(a ?: today, s.periodStartDay)
             val source = if (f.allTime) transactions.observeAll() else transactions.observePeriod(period)
             combine(source, bank.observeOwnTransfers(), categories.observeAll(), categories.observePaymentMethods()) { txs, moves, cats, methods ->
-                // The monthly salary is a plan figure, not an entry; money moved between own accounts is shown but not counted.
+                // The monthly salary is a plan figure, not an entry; money moved in from own accounts counts as income.
                 val entries = txs.filter { it.source != TxSource.CHECKIN } +
                     moves.filter { f.allTime || it.date in period }.map { it.toDisplayRow(s.currency) }
                 val visible = entries.filter { matches(it, f) }
-                val counted = visible.filter { !it.ownTransfer }
                 ActivityUiState(
                     loading = false,
                     currency = s.currency,
@@ -107,8 +106,8 @@ class ActivityViewModel @Inject constructor(
                     today = today,
                     filters = f,
                     groups = group(visible),
-                    spentMinor = counted.filter { it.type == TxType.EXPENSE }.sumOf { it.amountMinor },
-                    incomeMinor = counted.filter { it.type == TxType.INCOME }.sumOf { it.amountMinor },
+                    spentMinor = spentOf(visible),
+                    incomeMinor = incomeOf(visible),
                     categories = cats.filter { !it.archived },
                     methods = methods,
                 )
@@ -161,8 +160,8 @@ class ActivityViewModel @Inject constructor(
             .map { (date, items) ->
                 DayGroup(
                     date = date,
-                    spentMinor = items.filter { it.type == TxType.EXPENSE && !it.ownTransfer }.sumOf { it.amountMinor },
-                    incomeMinor = items.filter { it.type == TxType.INCOME && !it.ownTransfer }.sumOf { it.amountMinor },
+                    spentMinor = spentOf(items),
+                    incomeMinor = incomeOf(items),
                     items = items.sortedByDescending { it.occurredAt },
                 )
             }
@@ -178,5 +177,19 @@ class ActivityViewModel @Inject constructor(
             category = Category(-1, label, "bank", "slate", if (incoming) CategoryKind.INCOME else CategoryKind.EXPENSE, 0),
             method = null, merchant = counterparty, note = null, occurredAt = at, createdAt = at, source = TxSource.BANK, ownTransfer = true,
         )
+    }
+
+    companion object {
+        /** Spending only: money sent back to the user's own accounts is not spent. */
+        fun spentOf(items: List<Transaction>): Long = items.filter { it.type == TxType.EXPENSE && !it.ownTransfer }.sumOf { it.amountMinor }
+
+        /** Income plus money moved in from the user's other accounts, minus money moved back (so Net = change in balance). */
+        fun incomeOf(items: List<Transaction>): Long = items.sumOf {
+            when {
+                it.type == TxType.INCOME -> it.amountMinor
+                it.ownTransfer -> -it.amountMinor
+                else -> 0L
+            }
+        }
     }
 }

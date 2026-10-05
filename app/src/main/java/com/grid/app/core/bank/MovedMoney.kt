@@ -26,7 +26,16 @@ object MovedMoney {
     fun moved(transfers: List<OwnTransfer>, period: BudgetPeriod, startDay: Int): Long =
         transfers.filter { periodOf(it, startDay) == period }.sumOf { if (it.incoming) it.amountMinor else -it.amountMinor }
 
-    /** Transfers counted in [period] plus those dated in it but moved elsewhere (so they can be moved back), newest first. */
+    /** How many days before a month starts a transfer is offered to count in that month (a salary moved on the 29th…). */
+    const val LATE_DAYS = 7L
+
+    /**
+     * What a month's list shows, newest first: transfers counted in it, those dated in it but counted next month,
+     * and the last week of the previous month (offered to count here).
+     */
     fun shownIn(transfers: List<OwnTransfer>, period: BudgetPeriod, startDay: Int): List<OwnTransfer> =
-        transfers.filter { periodOf(it, startDay) == period || it.date in period }.sortedByDescending { it.date }
+        transfers.filter {
+            periodOf(it, startDay) == period || it.date in period ||
+                (it.date < period.start && it.date >= period.start.minusDays(LATE_DAYS))
+        }.sortedByDescending { it.date }
 }

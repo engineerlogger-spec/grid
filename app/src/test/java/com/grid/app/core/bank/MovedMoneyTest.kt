@@ -42,8 +42,9 @@ class MovedMoneyTest {
             t(1, "2026-09-29", 1, countIn = "2026-10-01"), // moved into October
             t(2, "2026-10-05", 1),
             t(3, "2026-10-30", 1, countIn = "2026-11-01"), // dated October, moved to November
-            t(4, "2026-09-10", 1),
+            t(4, "2026-09-10", 1), // well inside September: not offered
+            t(5, "2026-09-30", 1), // last week of September: offered to count in October
         )
-        assertThat(MovedMoney.shownIn(transfers, october, 1).map { it.id }).containsExactly(3L, 2L, 1L).inOrder()
+        assertThat(MovedMoney.shownIn(transfers, october, 1).map { it.id }).containsExactly(3L, 2L, 5L, 1L).inOrder()
     }
 }

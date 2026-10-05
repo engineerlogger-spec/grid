@@ -81,7 +81,7 @@ Step 'Payments are categorised automatically' {
     & "$PSScriptRoot\screenshot.ps1" e2e-bank-activity | Out-Null
     ($t -match 'Lidl') -and ($t -match 'Groceries')
 }
-Step 'Money moved between own accounts shows in Activity without counting as income' {
+Step 'Money moved between own accounts shows in Activity' {
     Home
     Invoke-TapCase '^Activity$'; Start-Sleep 1.2
     Invoke-TapCase '^All months$'; Start-Sleep 1   # the demo's transfers are dated last month
