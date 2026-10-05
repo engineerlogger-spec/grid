@@ -230,22 +230,22 @@ class BankRepository @Inject constructor(
     }
 
     /**
-     * "This is my own account" (e.g. the bank the salary is paid into): these and all future transfers with it are
-     * counted as money moved to Revolut, not income or spending.
+     * "This is my own account" (e.g. the bank the salary is paid into): money from it, now and later, is counted as
+     * moved to Revolut. Money sent to it stays spending (the owner's rule: whatever leaves Revolut is spent).
      */
     suspend fun markOwnAccount(group: BankReviewGroup) {
         if (group.kind == ReviewKind.CATEGORISE) return
         val key = group.counterpartyKey?.takeIf { it != "?" }
-        // The account is the user's either way: money moved in and money sent back are both covered.
-        val rows = if (key != null) dao.stagedByState(BankTxState.NEEDS_DECISION).filter { it.counterpartyKey == key }
-        else group.ids.mapNotNull { dao.staged(it) }.filter { it.state == BankTxState.NEEDS_DECISION }
+        val rows = (if (key != null) dao.stagedByState(BankTxState.NEEDS_DECISION).filter { it.counterpartyKey == key }
+        else group.ids.mapNotNull { dao.staged(it) }.filter { it.state == BankTxState.NEEDS_DECISION })
+            .filter { it.direction == CaptureDirection.IN }
         rows.forEach { dao.updateStaged(it.copy(state = BankTxState.OWN_TRANSFER)) }
         if (key != null) dao.insertOwnAccountRule(OwnAccountRuleEntity(key, clock.millis()))
     }
 
-    /** Every transfer between the user's own accounts, in the app currency. */
+    /** Money moved into Revolut from the user's own accounts. */
     fun observeOwnTransfers(): Flow<List<OwnTransfer>> = dao.observeStagedByState(BankTxState.OWN_TRANSFER).map { rows ->
-        rows.map { row ->
+        rows.filter { it.direction == CaptureDirection.IN }.map { row ->
             OwnTransfer(
                 id = row.id, date = Instant.ofEpochMilli(row.occurredAt).atZone(clock.zone).toLocalDate(),
                 amountMinor = row.amountMinor, incoming = row.direction == CaptureDirection.IN,

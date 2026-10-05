@@ -144,9 +144,11 @@ class BankReconcilerTest {
         assertThat(bankRow(20_000, "To EUR Vault", kind = BankTxKind.INTERNAL).first).isEqualTo(BankTxState.IGNORED)
         db.bankDao().insertOwnAccountRule(OwnAccountRuleEntity("sam taylor", now))
         assertThat(bankRow(150_000, "SAM TAYLOR", kind = BankTxKind.MONEY_IN).first).isEqualTo(BankTxState.OWN_TRANSFER)
-        assertThat(bankRow(20_000, "Sam Taylor", kind = BankTxKind.TRANSFER_OUT).first).isEqualTo(BankTxState.OWN_TRANSFER)
         assertThat(bankRow(10_000, "Top-Up by *4421", kind = BankTxKind.TOP_UP).first).isEqualTo(BankTxState.OWN_TRANSFER)
-        assertThat(ledger()).isEmpty() // neither income nor spending
+        assertThat(ledger()).isEmpty() // money moved in is not income
+        // Whatever leaves Revolut is spent, even to the user's own account.
+        assertThat(bankRow(20_000, "Sam Taylor", kind = BankTxKind.TRANSFER_OUT).first).isEqualTo(BankTxState.BOOKED)
+        assertThat(ledger().single().type).isEqualTo(TxType.EXPENSE)
     }
 
     @Test fun unknownCardPaymentIsCountedUnderOtherWithoutTeachingARule() = runTest {
@@ -178,7 +180,7 @@ class BankReconcilerTest {
         // The account is named after its holder (Revolut does this); setUp's account has no name, so add one.
         db.bankDao().updateAccount(db.bankDao().account(accountId)!!.copy(name = "Abdelhamid Mouloud"))
         assertThat(bankRow(150_000, "MOULOUD ABDELHAMID", kind = BankTxKind.TOP_UP).first).isEqualTo(BankTxState.OWN_TRANSFER)
-        assertThat(bankRow(50_800, "Abdelhamid N26", kind = BankTxKind.TRANSFER_OUT).first).isEqualTo(BankTxState.OWN_TRANSFER)
+        assertThat(bankRow(50_800, "Abdelhamid N26", kind = BankTxKind.TRANSFER_OUT).first).isEqualTo(BankTxState.BOOKED) // spent
         // An insurer paying back through a "top-up" is a refund, not the user's own money.
         val (state, row) = bankRow(3_781, "ALLSECUR", kind = BankTxKind.TOP_UP)
         assertThat(state).isEqualTo(BankTxState.BOOKED)
@@ -271,6 +273,21 @@ class BankReconcilerTest {
         oldRow("E.leclerc", "23.40", "CARD_PAYMENT", credit = false, state = BankTxState.BOOKED, txId = sorted)
         reconciler.revisit("EUR", emptySet())
         assertThat(transactions.get(sorted)!!.category.iconKey).isEqualTo("health")
+    }
+
+    @Test fun moneySentToOwnAccountsKeptAsideByEarlierVersionsBecomesSpending() = runTest {
+        val old = BankTransactionEntity(
+            accountId = accountId, externalId = "old-out", bookingEpochDay = today.toEpochDay(), occurredAt = now, amountMinor = 1_600,
+            currency = "EUR", direction = CaptureDirection.OUT, kind = BankTxKind.TRANSFER_OUT, counterparty = "Abdelhamid N26",
+            counterpartyKey = "abdelhamid n26", state = BankTxState.OWN_TRANSFER, rawJson = "{}", createdAt = now,
+        )
+        val id = db.bankDao().insertStaged(old)
+        reconciler.revisit("EUR", emptySet())
+        val row = db.bankDao().staged(id)!!
+        assertThat(row.state).isEqualTo(BankTxState.BOOKED)
+        val tx = transactions.get(row.transactionId!!)!!
+        assertThat(tx.type).isEqualTo(TxType.EXPENSE)
+        assertThat(tx.amountMinor).isEqualTo(1_600)
     }
 
     @Test fun otherCurrencyWaitsForTheUser() = runTest {

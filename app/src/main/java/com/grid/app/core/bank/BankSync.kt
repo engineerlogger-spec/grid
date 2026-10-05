@@ -129,6 +129,13 @@ class BankSync @Inject constructor(
         return SyncResult.Ok(fetched, bookedCount, (dao.countToReview() - reviewBefore).coerceAtLeast(0))
     }
 
+    /** Re-applies today's rules to what is already stored, without asking the bank (runs whenever the app opens). */
+    suspend fun refreshLocal() = mutex.withLock {
+        val currency = settings.settings.first().currency
+        reconciler.revisit(currency, bank.accounts().mapNotNull { it.iban }.toSet())
+        for (row in dao.stagedByState(BankTxState.NEW).sortedBy { it.occurredAt }) reconciler.process(row, currency)
+    }
+
     /**
      * A payment the bank no longer lists as pending: its booked version (same id, else same amount, direction and
      * name within a few days) takes over its ledger entry and the user's choices; with none, it was cancelled.

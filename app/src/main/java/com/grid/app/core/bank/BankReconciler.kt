@@ -119,6 +119,10 @@ class BankReconciler @Inject constructor(
         for (row in dao.stagedByState(BankTxState.NEEDS_DECISION)) {
             if (row.currency == appCurrency) process(reclassified(row).copy(state = BankTxState.NEW), appCurrency)
         }
+        // Earlier versions kept money sent to the user's own accounts aside as a move: it is spending, so book it.
+        for (row in dao.stagedByState(BankTxState.OWN_TRANSFER).filter { it.direction == CaptureDirection.OUT }) {
+            process(row.copy(state = BankTxState.NEW, countInEpochDay = null), appCurrency)
+        }
         for (tx in dao.bankNeedsReview()) {
             val row = dao.stagedLinkedTo(tx.id)?.let(::reclassified) ?: continue
             if (row.kind == BankTxKind.INTERNAL || isOwnTransfer(row)) {
@@ -135,9 +139,12 @@ class BankReconciler @Inject constructor(
         }
     }
 
-    /** Top-ups and transfers with the holder's own name or a learned own account (e.g. the salary bank). */
+    /**
+     * Money coming in from the holder's own name or a learned own account (e.g. the salary bank). Money going out,
+     * even to the user's own accounts, is spending (the owner's rule) and is booked like any payment.
+     */
     private suspend fun isOwnTransfer(row: BankTransactionEntity): Boolean {
-        if (row.kind !in setOf(BankTxKind.TOP_UP, BankTxKind.MONEY_IN, BankTxKind.TRANSFER_OUT)) return false
+        if (row.direction != CaptureDirection.IN || row.kind !in setOf(BankTxKind.TOP_UP, BankTxKind.MONEY_IN)) return false
         if (row.counterpartyKey?.let { dao.ownAccountRule(it) } != null) return true
         // A card top-up names no one ("Top-Up by *1234"): the user's own card elsewhere.
         if (row.kind == BankTxKind.TOP_UP && (row.counterparty == null || row.counterparty.contains("top-up", ignoreCase = true))) return true

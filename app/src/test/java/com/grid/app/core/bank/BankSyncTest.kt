@@ -90,7 +90,9 @@ class BankSyncTest {
         assertThat(byMerchant["Netflix"]!!.all { it.method?.kind == PaymentKind.PAYPAL }).isTrue()
         assertThat(byMerchant["EDF"]).isNotEmpty() // direct debits are booked straight away
         assertThat(byMerchant["Starbucks"]!!.single().category.iconKey).isEqualTo("restaurant") // MCC 5814
-        assertThat(byMerchant.keys).containsNoneOf("To EUR Vault", "Sam Taylor", "Top-Up by *4421")
+        assertThat(byMerchant.keys).containsNoneOf("To EUR Vault", "Top-Up by *4421")
+        // Money sent to the holder's own account is spending; money from it is a move (Savings), not income.
+        assertThat(byMerchant["Sam Taylor"]!!.map { it.type }.toSet()).containsExactly(TxType.EXPENSE)
         assertThat(byMerchant["Uber"]).hasSize(1) // still pending at the bank: shown straight away
 
         assertThat(db.bankDao().stagedByState(BankTxState.NEEDS_DECISION)).isEmpty()

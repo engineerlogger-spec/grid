@@ -163,13 +163,13 @@ class BankRepositoryTest {
         val account = connected()
         stage(account, "t1", 150_000, "SAM TAYLOR", CaptureDirection.IN, BankTxKind.MONEY_IN)
         stage(account, "t2", 20_000, "Sam Taylor", CaptureDirection.OUT, BankTxKind.TRANSFER_OUT)
-        // Two groups (money in, money back out); marking either covers every transfer with that account.
+        // Two groups (money in, money back out); only money coming in becomes a move: money sent out is spending.
         assertThat(bank.observeReviewGroups().first()).hasSize(2)
         bank.markOwnAccount(bank.observeReviewGroups().first().first { it.kind == ReviewKind.DECIDE_IN })
         assertThat(db.bankDao().ownAccountRule("sam taylor")).isNotNull()
-        assertThat(bank.observeReviewGroups().first()).isEmpty()
+        assertThat(bank.observeReviewGroups().first().single().kind).isEqualTo(ReviewKind.DECIDE_OUT)
         assertThat(transactions.observeAll().first()).isEmpty() // not income
-        assertThat(bank.observeOwnTransfers().first().map { it.incoming }).containsExactly(true, false)
+        assertThat(bank.observeOwnTransfers().first().map { it.incoming }).containsExactly(true)
 
         val moved = bank.observeOwnTransfers().first().first { it.incoming }
         assertThat(moved.amountMinor).isEqualTo(150_000)

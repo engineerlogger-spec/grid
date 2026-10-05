@@ -21,6 +21,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.grid.app.core.bank.BankAuthInbox
+import com.grid.app.core.bank.BankSync
 import com.grid.app.core.bank.BankSyncWorker
 import com.grid.app.core.data.repo.BankRepository
 import com.grid.app.core.model.BankStatus
@@ -45,6 +46,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var appLock: AppLock
     @Inject lateinit var bankAuthInbox: BankAuthInbox
     @Inject lateinit var bank: BankRepository
+    @Inject lateinit var bankSync: BankSync
 
     /** Set from notification taps, widget, tile and shortcuts; consumed once by the UI. */
     private var launchTarget by mutableStateOf<LaunchTarget?>(null)
@@ -111,6 +113,7 @@ class MainActivity : FragmentActivity() {
     override fun onStart() {
         super.onStart()
         lifecycleScope.launch {
+            runCatching { bankSync.refreshLocal() }
             val connection = bank.connection() ?: return@launch
             val stale = (connection.lastSyncAt ?: 0L) < System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1)
             if (connection.status == BankStatus.ACTIVE && stale) BankSyncWorker.runNow(this@MainActivity)
