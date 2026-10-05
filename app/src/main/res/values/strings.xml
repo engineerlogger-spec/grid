@@ -422,6 +422,7 @@
     </plurals>
     <string name="add_make_subscription">Subscription</string>
     <string name="add_amount">Amount</string>
+    <string name="add_tap_amount">Tap the amount to change it</string>
     <string name="add_duplicate">Already recorded? %1$s · %2$s · %3$s is in your activity (from the bank or a notification).</string>
     <string name="add_anyway">Add anyway</string>
     <string name="add_scope_title">New category for payments to %1$s</string>

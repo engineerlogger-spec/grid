@@ -52,7 +52,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -199,10 +206,7 @@ private fun ColumnScope.UpperSection(state: QuickAddUiState, vm: QuickAddViewMod
         )
 
         if (state.isEditing) {
-            MoneyField(
-                state.amountText, vm::setAmountText, state.currency, modifier = Modifier.fillMaxWidth(),
-                label = stringResource(R.string.add_amount), isError = state.error == QuickAddError.ENTER_AMOUNT,
-            )
+            EditableAmount(state, vm::setAmountText)
         } else {
             AmountDisplay(state)
         }
@@ -321,6 +325,50 @@ private fun AmountDisplay(state: QuickAddUiState) {
             masked = false,
             animate = false,
         )
+    }
+}
+
+/**
+ * Editing: the amount stays big and pretty (no keypad). Tapping it edits it in place with the system number
+ * keyboard; Done (or tapping elsewhere) shows it big again.
+ */
+@Composable
+private fun EditableAmount(state: QuickAddUiState, onChange: (String) -> Unit) {
+    val colors = GridTheme.colors
+    var typing by remember { mutableStateOf(false) }
+    val style = GridText.moneyHero.copy(fontSize = GridText.moneyHero.fontSize * 1.2f, textAlign = TextAlign.Center)
+    val tint = if (state.type == TxType.INCOME) colors.income else colors.text
+    Column(
+        Modifier.fillMaxWidth().shake(if (state.error == QuickAddError.ENTER_AMOUNT) state.shake else 0),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(stringResource(R.string.add_tap_amount), style = GridText.moneySmall, color = colors.muted, maxLines = 1)
+        if (!typing) {
+            MoneyText(
+                minor = (state.amountMinor ?: 0L).coerceAtLeast(0L), currency = state.currency, style = style, color = tint,
+                fractionColor = colors.muted, masked = false, animate = false,
+                modifier = Modifier.clickable { typing = true },
+            )
+        } else {
+            // The field owns its text while typing (an echo through the ViewModel would drop keystrokes).
+            var text by remember { mutableStateOf(state.amountText) }
+            val focus = remember { FocusRequester() }
+            var focused by remember { mutableStateOf(false) }
+            BasicTextField(
+                value = text,
+                onValueChange = { text = it; onChange(it) },
+                textStyle = style.copy(color = tint),
+                singleLine = true,
+                cursorBrush = SolidColor(colors.accentText),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { typing = false }),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus).onFocusChanged {
+                    if (focused && !it.isFocused) typing = false
+                    focused = it.isFocused
+                },
+            )
+            LaunchedEffect(Unit) { focus.requestFocus() }
+        }
     }
 }
 
