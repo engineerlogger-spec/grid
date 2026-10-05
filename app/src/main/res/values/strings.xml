@@ -40,6 +40,16 @@
     <string name="home_income_missing">Not confirmed yet</string>
     <string name="home_top_categories">Top categories</string>
     <string name="home_no_spending_yet">No spending yet</string>
+    <string name="spending_title">By category</string>
+    <string name="spending_total">spent</string>
+    <string name="spending_vs">vs %1$s</string>
+    <string name="spending_new">new</string>
+    <string name="spending_empty_title">No spending this month</string>
+    <string name="spending_empty_body">Payments show up here grouped by category.</string>
+    <plurals name="spending_payments">
+        <item quantity="one">%d payment</item>
+        <item quantity="other">%d payments</item>
+    </plurals>
     <string name="home_recent">Recent</string>
     <string name="home_empty_title">A fresh grid</string>
     <string name="home_empty_body">Tap + to log your first spend. Amount, category, done.</string>
@@ -67,6 +77,13 @@
 
     <!-- Activity -->
     <string name="activity_title">Activity</string>
+    <string name="deleted_title">Recently deleted</string>
+    <string name="deleted_body">Deleted entries are kept %1$d days. Restore puts them back exactly as they were.</string>
+    <string name="deleted_on">%1$s · deleted %2$s</string>
+    <string name="deleted_restore">Restore</string>
+    <string name="deleted_earlier">Removed earlier · from your bank</string>
+    <string name="deleted_empty_title">Nothing deleted</string>
+    <string name="deleted_empty_body">Entries you delete stay here for a while, in case you change your mind.</string>
     <string name="activity_search">Search</string>
     <string name="activity_clear_search">Clear search</string>
     <string name="activity_all">All</string>
@@ -238,13 +255,14 @@
     <string name="moved_salary_title">Salary · %1$s</string>
     <string name="moved_transfers">Transfers</string>
     <string name="moved_empty_title">No transfers yet</string>
-    <string name="moved_empty_body">Transfers from your salary account appear here once you mark them as \"My own account\" in Detected.</string>
-    <string name="moved_hint">Each transfer counts in its own month. Tick \"Next month\" for one meant for the month after, like a salary moved on the 29th.</string>
+    <string name="moved_empty_body">Money you move in from your other accounts appears here after a bank sync.</string>
+    <string name="moved_hint">Each transfer counts in its own month. Tick \"Next month\" for one meant for the month after, or \"This month\" on one from the last days of the previous month.</string>
     <string name="moved_unknown">Transfer</string>
     <string name="moved_from_previous">%1$s · from last month</string>
+    <string name="moved_counted_previous">%1$s · counted last month</string>
     <string name="moved_counted_next">%1$s · counted next month</string>
-    <string name="moved_return">Move back</string>
     <string name="moved_next_month">Next month</string>
+    <string name="moved_this_month">This month</string>
     <string name="detected_bank_section">Under Other · already counted</string>
     <string name="detected_notifications_section">From notifications</string>
     <string name="bank_group_categorise">Tap a category to sort</string>
@@ -288,6 +306,12 @@
         <item quantity="other">%d active</item>
     </plurals>
     <string name="bills_next">Next: %1$s · %2$s</string>
+    <string name="bills_paid_on">Paid %1$s</string>
+    <string name="bills_due_on">Due %1$s</string>
+    <string name="bills_late">Not paid · due %1$s</string>
+    <string name="bills_month_paid">%1$d of %2$d paid this month</string>
+    <string name="bills_month_left">%1$s still to pay this month</string>
+    <string name="bills_month_all_paid">All paid this month</string>
     <string name="bills_add_subscription">Add subscription</string>
     <string name="bills_add_pending">Add pending payment</string>
     <string name="bills_paused">Paused</string>
@@ -338,6 +362,15 @@
     <string name="unit_years">Years</string>
     <string name="sub_edit_title">Subscription</string>
     <string name="sub_new_title">New subscription</string>
+    <plurals name="sub_from_payment">
+        <item quantity="one">%1$d payment to %2$s will be linked to this subscription.</item>
+        <item quantity="other">%1$d payments to %2$s (about the same amount) will be linked to this subscription.</item>
+    </plurals>
+    <string name="add_make_subscription">Subscription</string>
+    <string name="add_amount">Amount</string>
+    <string name="add_scope_title">New category for payments to %1$s</string>
+    <string name="add_scope_this">Only this one</string>
+    <string name="add_scope_all">All %1$d</string>
     <string name="sub_popular">Popular</string>
     <string name="sub_name">Name</string>
     <string name="sub_amount">Amount</string>
@@ -346,8 +379,6 @@
     <string name="sub_category">Category</string>
     <string name="sub_method">Paid with</string>
     <string name="sub_remind">Remind me</string>
-    <string name="sub_auto_log">Log each renewal automatically</string>
-    <string name="sub_auto_log_body">Adds the expense to your grid on the charge day</string>
     <string name="sub_color">Color</string>
     <string name="sub_pause">Pause</string>
     <string name="sub_resume">Resume</string>

@@ -44,6 +44,7 @@ import com.grid.app.core.designsystem.components.GridSurface
 import com.grid.app.core.designsystem.components.LocalMoneyFormatter
 import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.feature.activity.ActivityScreen
+import com.grid.app.feature.activity.RecentlyDeletedScreen
 import com.grid.app.feature.bank.BankSetupScreen
 import com.grid.app.feature.bank.MovedScreen
 import com.grid.app.core.model.TxType
@@ -66,6 +67,7 @@ import com.grid.app.feature.insights.InsightsScreen
 import com.grid.app.feature.onboarding.OnboardingScreen
 import com.grid.app.feature.settings.CategoriesScreen
 import com.grid.app.feature.settings.SettingsScreen
+import com.grid.app.feature.spending.SpendingScreen
 
 /** Root of the UI: navigation, bottom bar, quick-add sheet and snackbars. */
 @Composable
@@ -178,9 +180,19 @@ fun GridAppUi(
                             onOpenDetected = { nav.navigate(DetectedRoute) },
                             onOpenBank = { nav.navigate(BankSetupRoute) },
                             onOpenMoved = { nav.navigate(MovedRoute) },
+                            onOpenSpending = { nav.navigate(SpendingRoute) },
                         )
                     }
-                    composable<ActivityRoute> { ActivityScreen(contentPadding = padding, onOpenMoved = { nav.navigate(MovedRoute) }) }
+                    composable<SpendingRoute> {
+                        SpendingScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenCategory = { id, month -> nav.navigate(ActivityRoute(categoryId = id, monthEpoch = month)) },
+                        )
+                    }
+                    composable<ActivityRoute> {
+                        ActivityScreen(contentPadding = padding, onOpenMoved = { nav.navigate(MovedRoute) }, onOpenDeleted = { nav.navigate(DeletedRoute) })
+                    }
+                    composable<DeletedRoute> { RecentlyDeletedScreen(onBack = { nav.popBackStack() }) }
                     composable<BillsRoute> {
                         BillsScreen(
                             contentPadding = padding,
@@ -225,6 +237,10 @@ fun GridAppUi(
                     },
                     onDeleted = { e ->
                         messenger.show(deletedText.replace("%1\$s", formatter.format(e.tx.amountMinor, e.tx.currency)), undo) { quickAddVm.undoDelete(e.tx) }
+                    },
+                    onMakeSubscription = { id ->
+                        quickAdd.close()
+                        nav.navigate(SubscriptionEditRoute(fromTransactionId = id))
                     },
                 )
             }

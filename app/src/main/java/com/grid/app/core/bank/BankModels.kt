@@ -44,6 +44,11 @@ data class RemoteTx(
         get() = (if (isCredit) debtorName else creditorName)?.takeIf { it.isNotBlank() } ?: remittance.firstOrNull { it.isNotBlank() }
 
     val counterpartyIban: String? get() = if (isCredit) debtorIban else creditorIban
+
+    /** Card payments Revolut hasn't settled yet (usually the last day or two). */
+    val isPending: Boolean get() = status.equals("PDNG", ignoreCase = true)
+
+    val isBooked: Boolean get() = status == null || status.equals("BOOK", ignoreCase = true)
 }
 
 data class TxPage(val transactions: List<RemoteTx>, val continuationKey: String?)

@@ -29,7 +29,8 @@ class QuickAddController {
 /** Snackbar helper so screens can say "Saved · Undo" without owning a host. */
 @Stable
 class Messenger(private val host: SnackbarHostState, private val scope: CoroutineScope) {
-    fun show(message: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
+    /** [onAction] runs in the app-wide scope, so an Undo still completes after its screen has closed. */
+    fun show(message: String, actionLabel: String? = null, onAction: (suspend () -> Unit)? = null) {
         scope.launch {
             host.currentSnackbarData?.dismiss()
             // Undo offers stay up longer: people glance at the amount before deciding.

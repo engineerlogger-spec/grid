@@ -3,6 +3,7 @@ package com.grid.app.feature.activity
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import com.grid.app.R
+import com.grid.app.core.bank.MovedMoney
 import com.grid.app.core.bank.OwnTransfer
 import com.grid.app.core.data.repo.BankRepository
 import com.grid.app.core.model.CategoryKind
@@ -85,7 +86,7 @@ class ActivityViewModel @Inject constructor(
     )
 
     /** Any date inside the period being browsed; null means "the current period". */
-    private val anchor = MutableStateFlow(args.dayEpoch?.let(LocalDate::ofEpochDay))
+    private val anchor = MutableStateFlow((args.dayEpoch ?: args.monthEpoch)?.let(LocalDate::ofEpochDay))
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val state: StateFlow<ActivityUiState> = combine(settings.settings, anchor, filters) { s, a, f -> Triple(s, a, f) }
@@ -94,11 +95,11 @@ class ActivityViewModel @Inject constructor(
             val period = BudgetPeriods.periodFor(a ?: today, s.periodStartDay)
             val source = if (f.allTime) transactions.observeAll() else transactions.observePeriod(period)
             combine(source, bank.observeOwnTransfers(), categories.observeAll(), categories.observePaymentMethods()) { txs, moves, cats, methods ->
-                // The monthly salary is a plan figure, not an entry; money moved between own accounts is shown but not counted.
+                // The monthly salary is a plan figure, not an entry; money moved in from own accounts is income, out is spent.
                 val entries = txs.filter { it.source != TxSource.CHECKIN } +
-                    moves.filter { f.allTime || it.date in period }.map { it.toDisplayRow(s.currency) }
+                    // A transfer the user counted in another month (Savings › Next month) is listed in that month.
+                    moves.filter { f.allTime || MovedMoney.periodOf(it, s.periodStartDay) == period }.map { it.toDisplayRow(s.currency) }
                 val visible = entries.filter { matches(it, f) }
-                val counted = visible.filter { !it.ownTransfer }
                 ActivityUiState(
                     loading = false,
                     currency = s.currency,
@@ -107,8 +108,8 @@ class ActivityViewModel @Inject constructor(
                     today = today,
                     filters = f,
                     groups = group(visible),
-                    spentMinor = counted.filter { it.type == TxType.EXPENSE }.sumOf { it.amountMinor },
-                    incomeMinor = counted.filter { it.type == TxType.INCOME }.sumOf { it.amountMinor },
+                    spentMinor = spentOf(visible),
+                    incomeMinor = incomeOf(visible),
                     categories = cats.filter { !it.archived },
                     methods = methods,
                 )
@@ -132,7 +133,8 @@ class ActivityViewModel @Inject constructor(
         transactions.delete(tx.id)?.let(onDeleted)
     }
 
-    fun restore(tx: Transaction) = viewModelScope.launch { transactions.restore(tx) }
+    /** Suspends in the caller's scope: Undo must still work after the user has left this screen. */
+    suspend fun restore(tx: Transaction) = transactions.restore(tx)
 
     /** Moving the anchor a month moves exactly one budget period, whatever the period start day. */
     private fun shiftPeriod(back: Boolean) {
@@ -161,8 +163,8 @@ class ActivityViewModel @Inject constructor(
             .map { (date, items) ->
                 DayGroup(
                     date = date,
-                    spentMinor = items.filter { it.type == TxType.EXPENSE && !it.ownTransfer }.sumOf { it.amountMinor },
-                    incomeMinor = items.filter { it.type == TxType.INCOME && !it.ownTransfer }.sumOf { it.amountMinor },
+                    spentMinor = spentOf(items),
+                    incomeMinor = incomeOf(items),
                     items = items.sortedByDescending { it.occurredAt },
                 )
             }
@@ -178,5 +180,13 @@ class ActivityViewModel @Inject constructor(
             category = Category(-1, label, "bank", "slate", if (incoming) CategoryKind.INCOME else CategoryKind.EXPENSE, 0),
             method = null, merchant = counterparty, note = null, occurredAt = at, createdAt = at, source = TxSource.BANK, ownTransfer = true,
         )
+    }
+
+    companion object {
+        /** Everything that left the account, transfers to the user's other accounts included. */
+        fun spentOf(items: List<Transaction>): Long = items.filter { it.type == TxType.EXPENSE }.sumOf { it.amountMinor }
+
+        /** Everything that came into the account, transfers from the user's other accounts included. */
+        fun incomeOf(items: List<Transaction>): Long = items.filter { it.type == TxType.INCOME }.sumOf { it.amountMinor }
     }
 }

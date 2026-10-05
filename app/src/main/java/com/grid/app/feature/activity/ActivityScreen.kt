@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.FilterAltOff
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.RestoreFromTrash
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.SwapVert
@@ -83,6 +84,7 @@ import com.grid.app.feature.common.shortDate
 fun ActivityScreen(
     contentPadding: PaddingValues,
     onOpenMoved: () -> Unit = {},
+    onOpenDeleted: () -> Unit = {},
     viewModel: ActivityViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -98,7 +100,7 @@ fun ActivityScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = contentPadding.calculateBottomPadding() + 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        item { TopRow(state, viewModel) }
+        item { TopRow(state, viewModel, onOpenDeleted) }
         item { SearchField(state.filters.query, viewModel::setQuery) }
         item { FilterRow(state, viewModel, onOpenCategories = { categorySheet = true }) }
         item { TotalsTile(state) }
@@ -152,7 +154,7 @@ fun ActivityScreen(
 }
 
 @Composable
-private fun TopRow(state: ActivityUiState, vm: ActivityViewModel) {
+private fun TopRow(state: ActivityUiState, vm: ActivityViewModel, onOpenDeleted: () -> Unit) {
     val colors = GridTheme.colors
     Row(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 12.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
@@ -162,6 +164,9 @@ private fun TopRow(state: ActivityUiState, vm: ActivityViewModel) {
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.muted,
             )
+        }
+        IconButton(onClick = onOpenDeleted) {
+            Icon(Icons.Rounded.RestoreFromTrash, contentDescription = stringResource(R.string.deleted_title), tint = colors.muted)
         }
         IconButton(onClick = vm::previousPeriod) { Icon(Icons.Rounded.ChevronLeft, contentDescription = null, tint = colors.muted) }
         IconButton(onClick = vm::nextPeriod, enabled = state.canGoNext) {
@@ -280,6 +285,8 @@ private fun TotalsTile(state: ActivityUiState) {
 private fun SwipeToDelete(onDelete: () -> Unit, content: @Composable () -> Unit) {
     val colors = GridTheme.colors
     val dismissState = rememberSwipeToDismissBoxState()
+    // The list keeps saved state per entry: an entry restored by Undo would come back still swiped away (invisible).
+    LaunchedEffect(Unit) { if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
     SwipeToDismissBox(
         state = dismissState,
         enableDismissFromStartToEnd = false,

@@ -2,10 +2,12 @@ package com.grid.app.core.data.db.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import androidx.room.Upsert
 import com.grid.app.core.data.db.entities.CategoryEntity
+import com.grid.app.core.data.db.entities.DeletedTransactionEntity
 import com.grid.app.core.data.db.entities.MerchantRuleEntity
 import com.grid.app.core.data.db.entities.PaymentMethodEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
@@ -59,6 +61,27 @@ interface PaymentMethodDao {
 
     @Update
     suspend fun update(method: PaymentMethodEntity)
+}
+
+@Dao
+interface TrashDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(row: DeletedTransactionEntity)
+
+    @Query("SELECT * FROM deleted_transactions WHERE id = :id")
+    suspend fun get(id: Long): DeletedTransactionEntity?
+
+    @Query("SELECT * FROM deleted_transactions ORDER BY deletedAt DESC")
+    fun observeAll(): Flow<List<DeletedTransactionEntity>>
+
+    @Query("DELETE FROM deleted_transactions WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("SELECT * FROM deleted_transactions WHERE deletedAt < :before")
+    suspend fun deletedBefore(before: Long): List<DeletedTransactionEntity>
+
+    @Query("DELETE FROM deleted_transactions WHERE deletedAt < :before")
+    suspend fun purgeBefore(before: Long)
 }
 
 /** How often a category was used — drives quick-add ordering. */
@@ -124,6 +147,16 @@ interface TransactionDao {
 
     @Query("SELECT COUNT(*) FROM transactions WHERE categoryId = :categoryId")
     suspend fun countForCategory(categoryId: Long): Int
+
+    @Query("SELECT * FROM transactions WHERE type = :type AND merchant IS NOT NULL")
+    suspend fun withMerchant(type: TxType): List<TransactionEntity>
+
+    /** Charges older versions auto-logged for subscriptions, except those a bank payment was merged into. */
+    @Query(
+        """DELETE FROM transactions WHERE source = 'SUBSCRIPTION'
+           AND NOT EXISTS (SELECT 1 FROM bank_transactions b WHERE b.transactionId = transactions.id)""",
+    )
+    suspend fun deleteUnbackedSubscriptionCharges(): Int
 
     @Query("SELECT COUNT(*) FROM transactions WHERE subscriptionId = :subscriptionId AND occurredAt >= :startMs AND occurredAt < :endMs")
     suspend fun countForSubscriptionBetween(subscriptionId: Long, startMs: Long, endMs: Long): Int

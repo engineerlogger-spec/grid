@@ -38,7 +38,7 @@ data class Transaction(
     val pendingId: Long? = null,
     val captureId: Long? = null,
     val needsReview: Boolean = false,
-    /** Display-only row for money moved between the user's own accounts: shown, never counted as income or spending. */
+    /** Display-only row for money moved between the user's own accounts: in Activity, in = income and out = spent. */
     val ownTransfer: Boolean = false,
 ) {
     /** What to call this transaction in lists: merchant, else note, else the category name. */
@@ -54,6 +54,9 @@ data class Transaction(
         source = source, subscriptionId = subscriptionId, pendingId = pendingId, captureId = captureId, needsReview = needsReview,
     )
 }
+
+/** An entry in "Recently deleted". */
+data class DeletedEntry(val tx: Transaction, val deletedAt: Long)
 
 /** Everything needed to create or update a transaction. */
 data class TransactionDraft(

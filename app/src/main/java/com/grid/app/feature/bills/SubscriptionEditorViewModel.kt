@@ -8,6 +8,9 @@ import androidx.navigation.toRoute
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.CategoryRepository
 import com.grid.app.core.data.repo.SubscriptionRepository
+import com.grid.app.core.data.repo.TransactionRepository
+import com.grid.app.core.time.BillingSchedule
+import com.grid.app.feature.common.toLocalDate
 import com.grid.app.core.model.Category
 import com.grid.app.core.model.CategoryKind
 import com.grid.app.core.model.Cycle
@@ -59,12 +62,14 @@ data class SubscriptionEditorState(
     val methods: List<PaymentMethod> = emptyList(),
     val methodId: Long? = null,
     val remindDays: Int? = 1,
-    val autoLog: Boolean = true,
     val colorKey: String = "violet",
     val note: String = "",
     val status: SubscriptionStatus = SubscriptionStatus.ACTIVE,
     val showErrors: Boolean = false,
     val done: Boolean = false,
+    /** Made from a payment: its date anchors the schedule, and these earlier payments get linked on save. */
+    val lastPaid: LocalDate? = null,
+    val paymentIds: List<Long> = emptyList(),
 ) {
     val cycle: Cycle get() = choice.cycle ?: Cycle(customUnit, customCount.coerceAtLeast(1))
     val amountMinor: Long? get() = parseMoney(amount, currency)?.takeIf { it > 0 }
@@ -78,6 +83,7 @@ class SubscriptionEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     @ApplicationContext private val context: Context,
     private val subscriptions: SubscriptionRepository,
+    private val transactions: TransactionRepository,
     private val categoryRepo: CategoryRepository,
     private val settings: SettingsRepository,
     private val clock: AppClock,
@@ -93,13 +99,23 @@ class SubscriptionEditorViewModel @Inject constructor(
             val categories = categoryRepo.observeActive(CategoryKind.EXPENSE).first()
             val methods = categoryRepo.observePaymentMethods().first()
             val existing = route.id?.let { subscriptions.get(it) }
+            val payment = route.fromTransactionId?.let { transactions.get(it) }
             val defaultCategory = categories.firstOrNull { it.iconKey == "subscriptions" }?.id ?: categories.firstOrNull()?.id
-            _state.value = if (existing != null) {
+            _state.value = if (existing == null && payment != null) {
+                val lastPaid = payment.occurredAt.toLocalDate(clock.zone)
+                SubscriptionEditorState(
+                    loading = false, name = payment.title, amount = moneyFieldText(payment.amountMinor, payment.currency),
+                    currency = payment.currency, nextCharge = nextAfterToday(lastPaid, Cycle.Monthly), today = clock.today(),
+                    categories = categories, categoryId = payment.category.id.takeIf { id -> categories.any { it.id == id } } ?: defaultCategory,
+                    methods = methods, methodId = payment.method?.id,
+                    lastPaid = lastPaid, paymentIds = subscriptions.pastPaymentsLike(payment),
+                )
+            } else if (existing != null) {
                 SubscriptionEditorState(
                     loading = false, id = existing.id, name = existing.name, amount = moneyFieldText(existing.amountMinor, existing.currency),
                     currency = existing.currency, choice = CycleChoice.of(existing.cycle), customUnit = existing.cycle.unit, customCount = existing.cycle.count,
                     nextCharge = existing.nextCharge, today = clock.today(), categories = categories, categoryId = existing.category.id,
-                    methods = methods, methodId = existing.paymentMethodId, remindDays = existing.remindDaysBefore, autoLog = existing.autoLog,
+                    methods = methods, methodId = existing.paymentMethodId, remindDays = existing.remindDaysBefore,
                     colorKey = existing.colorKey, note = existing.note.orEmpty(), status = existing.status,
                 )
             } else {
@@ -120,14 +136,19 @@ class SubscriptionEditorViewModel @Inject constructor(
 
     fun setName(v: String) = _state.update { it.copy(name = v) }
     fun setAmount(v: String) = _state.update { it.copy(amount = v) }
-    fun setChoice(v: CycleChoice) = _state.update { it.copy(choice = v) }
-    fun setCustomUnit(v: CycleUnit) = _state.update { it.copy(customUnit = v) }
-    fun setCustomCount(v: Int) = _state.update { it.copy(customCount = v.coerceIn(1, 99)) }
+    fun setChoice(v: CycleChoice) = _state.update { it.copy(choice = v).rescheduled() }
+    fun setCustomUnit(v: CycleUnit) = _state.update { it.copy(customUnit = v).rescheduled() }
+    fun setCustomCount(v: Int) = _state.update { it.copy(customCount = v.coerceIn(1, 99)).rescheduled() }
+
+    /** Made from a payment: the next charge follows from its date and the chosen cycle. */
+    private fun SubscriptionEditorState.rescheduled() = lastPaid?.let { copy(nextCharge = nextAfterToday(it, cycle)) } ?: this
+
+    /** The first charge after today on a schedule that charged on [lastPaid] (never in the past: nothing is back-charged). */
+    private fun nextAfterToday(lastPaid: LocalDate, cycle: Cycle): LocalDate = BillingSchedule.nextAfter(lastPaid, cycle, clock.today())
     fun setNextCharge(v: LocalDate) = _state.update { it.copy(nextCharge = v) }
     fun setCategory(id: Long?) = _state.update { it.copy(categoryId = id ?: it.categoryId) }
     fun setMethod(id: Long?) = _state.update { it.copy(methodId = id) }
     fun setRemind(days: Int?) = _state.update { it.copy(remindDays = days) }
-    fun setAutoLog(on: Boolean) = _state.update { it.copy(autoLog = on) }
     fun setColor(key: String) = _state.update { it.copy(colorKey = key) }
     fun setNote(v: String) = _state.update { it.copy(note = v) }
 
@@ -141,11 +162,16 @@ class SubscriptionEditorViewModel @Inject constructor(
         }
         val draft = SubscriptionDraft(
             name = s.name, amountMinor = amount, currency = s.currency, cycle = s.cycle, nextCharge = s.nextCharge,
-            categoryId = categoryId, paymentMethodId = s.methodId, remindDaysBefore = s.remindDays, autoLog = s.autoLog,
+            categoryId = categoryId, paymentMethodId = s.methodId, remindDaysBefore = s.remindDays, autoLog = false,
             colorKey = s.colorKey, note = s.note,
         )
         viewModelScope.launch {
-            if (s.id == null) subscriptions.add(draft) else subscriptions.update(s.id, draft)
+            if (s.id == null) {
+                val id = subscriptions.add(draft)
+                if (s.paymentIds.isNotEmpty()) subscriptions.linkPayments(id, s.paymentIds)
+            } else {
+                subscriptions.update(s.id, draft)
+            }
             WorkScheduler.runNow(context) // reminders for the new schedule
             _state.update { it.copy(done = true) }
         }

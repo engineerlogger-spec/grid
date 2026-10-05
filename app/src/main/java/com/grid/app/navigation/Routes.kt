@@ -4,12 +4,16 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object OnboardingRoute
 @Serializable data object HomeRoute
-@Serializable data class ActivityRoute(val categoryId: Long? = null, val dayEpoch: Long? = null)
+/** [dayEpoch] opens on that day (filtered to it); [monthEpoch] only opens on the month containing it. */
+@Serializable data class ActivityRoute(val categoryId: Long? = null, val dayEpoch: Long? = null, val monthEpoch: Long? = null)
+@Serializable data object SpendingRoute
+@Serializable data object DeletedRoute
 @Serializable data object BillsRoute
 @Serializable data object InsightsRoute
 @Serializable data object CheckInRoute
 @Serializable data object SettingsRoute
-@Serializable data class SubscriptionEditRoute(val id: Long? = null)
+/** [fromTransactionId]: a new subscription made from that payment (prefilled; its earlier payments get linked). */
+@Serializable data class SubscriptionEditRoute(val id: Long? = null, val fromTransactionId: Long? = null)
 @Serializable data class PendingEditRoute(val id: Long? = null)
 @Serializable data object DetectedRoute
 @Serializable data object CaptureSetupRoute

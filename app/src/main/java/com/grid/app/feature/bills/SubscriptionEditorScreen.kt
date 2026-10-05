@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -76,7 +77,13 @@ fun SubscriptionEditorScreen(onDone: () -> Unit, viewModel: SubscriptionEditorVi
             Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            if (s.isNew) {
+            if (s.isNew && s.lastPaid != null) {
+                Text(
+                    pluralStringResource(R.plurals.sub_from_payment, s.paymentIds.size, s.paymentIds.size, s.name),
+                    style = MaterialTheme.typography.bodyMedium, color = colors.muted,
+                )
+            }
+            if (s.isNew && s.lastPaid == null) {
                 FormSection(stringResource(R.string.sub_popular)) {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SubscriptionPresets.all.forEach { preset ->
@@ -134,15 +141,6 @@ fun SubscriptionEditorScreen(onDone: () -> Unit, viewModel: SubscriptionEditorVi
             FormSection(stringResource(R.string.sub_category)) { CategoryDropdown(s.categories, s.categoryId, viewModel::setCategory) }
             FormSection(stringResource(R.string.sub_method)) { MethodDropdown(s.methods, s.methodId, viewModel::setMethod) }
             FormSection(stringResource(R.string.sub_remind)) { ReminderChips(s.remindDays, viewModel::setRemind) }
-            Tile {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.sub_auto_log), style = MaterialTheme.typography.titleSmall, color = colors.text)
-                        Text(stringResource(R.string.sub_auto_log_body), style = MaterialTheme.typography.bodySmall, color = colors.muted)
-                    }
-                    Switch(checked = s.autoLog, onCheckedChange = viewModel::setAutoLog)
-                }
-            }
             FormSection(stringResource(R.string.sub_color)) { ColorPicker(s.colorKey, viewModel::setColor) }
             if (!s.isNew) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

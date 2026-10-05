@@ -2,10 +2,13 @@ package com.grid.app.core.data.repo
 
 import androidx.room.withTransaction
 import com.grid.app.core.data.db.GridDatabase
+import com.grid.app.core.data.db.entities.MerchantRuleEntity
 import com.grid.app.core.data.db.entities.SubscriptionEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
 import com.grid.app.core.model.Category
 import com.grid.app.core.model.Cycle
+import com.grid.app.core.model.MerchantKey
+import com.grid.app.core.model.Transaction
 import com.grid.app.core.model.Subscription
 import com.grid.app.core.model.SubscriptionDraft
 import com.grid.app.core.model.SubscriptionStatus
@@ -90,46 +93,56 @@ class SubscriptionRepository @Inject constructor(
 
     suspend fun delete(id: Long) = dao.delete(id)
 
-    /**
-     * Books every charge due on or before [today] for active, auto-logging subscriptions and moves
-     * their next charge forward. Idempotent per subscription and day. Returns how many were booked.
-     */
-    suspend fun processDueCharges(today: LocalDate): Int {
-        var booked = 0
+    /** Earlier payments a subscription made from [payment] covers: same payee, not linked yet, about the same price. */
+    suspend fun pastPaymentsLike(payment: Transaction): List<Long> {
+        val key = payment.merchant?.let(MerchantKey::of) ?: return listOf(payment.id)
+        return db.transactionDao().withMerchant(TxType.EXPENSE)
+            .filter { it.id == payment.id || isSamePayment(it, key, payment.amountMinor) }
+            .map { it.id }
+    }
+
+    /** Files [ids] under the subscription (and its category), and teaches the payee's category for later bank payments. */
+    suspend fun linkPayments(subscriptionId: Long, ids: List<Long>) {
+        val sub = dao.get(subscriptionId) ?: return
+        val now = clock.millis()
         db.withTransaction {
             val txDao = db.transactionDao()
-            for (sub in dao.dueOnOrBefore(today.toEpochDay())) {
-                val anchor = LocalDate.ofEpochDay(sub.anchorEpochDay)
-                val cycle = sub.cycle()
-                if (sub.autoLog) {
-                    for (date in BillingSchedule.chargesThrough(anchor, cycle, LocalDate.ofEpochDay(sub.nextChargeEpochDay), today)) {
-                        // ±3 days: bank sync may already have booked the real charge a little early or late.
-                        val windowStart = date.minusDays(CHARGE_SLACK_DAYS).atStartOfDay(clock.zone).toInstant().toEpochMilli()
-                        val windowEnd = date.plusDays(CHARGE_SLACK_DAYS + 1).atStartOfDay(clock.zone).toInstant().toEpochMilli()
-                        if (txDao.countForSubscriptionBetween(sub.id, windowStart, windowEnd) > 0) continue
-                        val at = if (date == today) clock.millis() else date.atTime(9, 0).atZone(clock.zone).toInstant().toEpochMilli()
-                        txDao.insert(
-                            TransactionEntity(
-                                type = TxType.EXPENSE, amountMinor = sub.amountMinor, currency = sub.currency,
-                                categoryId = sub.categoryId, paymentMethodId = sub.paymentMethodId,
-                                merchant = sub.name, occurredAt = at, createdAt = clock.millis(), updatedAt = clock.millis(),
-                                source = TxSource.SUBSCRIPTION, subscriptionId = sub.id,
-                            ),
-                        )
-                        booked++
-                    }
-                }
-                dao.update(sub.copy(nextChargeEpochDay = BillingSchedule.nextAfter(anchor, cycle, today).toEpochDay()))
+            ids.mapNotNull { txDao.get(it) }.forEach {
+                txDao.update(it.copy(subscriptionId = sub.id, categoryId = sub.categoryId, needsReview = false, updatedAt = now))
+            }
+            ids.firstNotNullOfOrNull { txDao.get(it)?.merchant }?.let(MerchantKey::of)?.let { key ->
+                val rules = db.merchantRuleDao()
+                rules.upsert(MerchantRuleEntity(key, sub.categoryId, sub.paymentMethodId, (rules.get(key)?.hits ?: 0) + 1, now))
             }
         }
-        if (booked > 0) listeners.notifyAll()
-        return booked
+        listeners.notifyAll()
+    }
+
+    /**
+     * Moves each due subscription's next charge past [today]. Subscriptions never write to the ledger (the owner's
+     * rule): they plan and remind; the real payment comes from the bank and is linked to them. Entries that earlier
+     * versions auto-logged are removed, unless a bank payment was merged into them.
+     */
+    suspend fun processDueCharges(today: LocalDate) {
+        val removed = db.withTransaction {
+            for (sub in dao.dueOnOrBefore(today.toEpochDay())) {
+                val anchor = LocalDate.ofEpochDay(sub.anchorEpochDay)
+                dao.update(sub.copy(nextChargeEpochDay = BillingSchedule.nextAfter(anchor, sub.cycle(), today).toEpochDay()))
+            }
+            db.transactionDao().deleteUnbackedSubscriptionCharges()
+        }
+        if (removed > 0) listeners.notifyAll()
     }
 
     private fun SubscriptionEntity.cycle() = Cycle(cycleUnit, cycleCount)
 
-    private companion object {
-        const val CHARGE_SLACK_DAYS = 3L
+    companion object {
+        /** Prices move (a plan going from €7.99 to €8.99): a quarter either way still counts as the same charge. */
+        private const val PRICE_TOLERANCE = 0.25
+
+        fun isSamePayment(row: TransactionEntity, payeeKey: String, amountMinor: Long): Boolean =
+            row.subscriptionId == null && row.merchant?.let(MerchantKey::of) == payeeKey &&
+                kotlin.math.abs(row.amountMinor - amountMinor) <= amountMinor * PRICE_TOLERANCE
     }
 
     private fun SubscriptionEntity.toDomain(cats: Map<Long, Category>): Subscription? {

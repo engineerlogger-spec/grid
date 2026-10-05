@@ -68,6 +68,8 @@ import com.grid.app.core.model.CycleUnit
 import com.grid.app.core.model.PendingDirection
 import com.grid.app.core.model.PendingPayment
 import com.grid.app.core.model.Subscription
+import com.grid.app.core.bills.ChargeState
+import com.grid.app.core.bills.MonthCharge
 import com.grid.app.core.model.SubscriptionStatus
 import com.grid.app.feature.common.LocalMessenger
 import com.grid.app.feature.common.shortDate
@@ -141,7 +143,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(
     if (state.active.isNotEmpty()) {
         item { SubscriptionSummary(state) }
     }
-    items(state.active, key = { "s${it.id}" }) { sub -> SubscriptionRow(sub, state.today) { onEdit(sub.id) } }
+    items(state.active, key = { "s${it.id}" }) { sub -> SubscriptionRow(sub, state.today, charge = state.charges[sub.id]) { onEdit(sub.id) } }
     if (state.inactive.isNotEmpty()) {
         item { CapsLabel(stringResource(R.string.bills_inactive), Modifier.padding(start = 4.dp, top = 10.dp)) }
         items(state.inactive, key = { "i${it.id}" }) { sub -> SubscriptionRow(sub, state.today, dimmed = true) { onEdit(sub.id) } }
@@ -161,7 +163,16 @@ private fun SubscriptionSummary(state: BillsUiState) {
                 " · " + pluralStringResource(R.plurals.bills_active_count, state.active.size, state.active.size),
             style = MaterialTheme.typography.labelMedium, color = colors.heroMuted,
         )
-        if (next != null) {
+        if (state.chargingCount > 0) {
+            Spacer(Modifier.height(10.dp))
+            val left = state.leftThisMonthMinor
+            Text(
+                if (left == 0L && state.paidCount == state.chargingCount) stringResource(R.string.bills_month_all_paid)
+                else stringResource(R.string.bills_month_paid, state.paidCount, state.chargingCount) + " · " +
+                    stringResource(R.string.bills_month_left, formatter.format(left, state.currency, masked = com.grid.app.core.designsystem.components.LocalHideAmounts.current)),
+                style = MaterialTheme.typography.labelMedium, color = colors.accent,
+            )
+        } else if (next != null) {
             Spacer(Modifier.height(10.dp))
             Text(
                 stringResource(R.string.bills_next, next.name, relativeDay(next.nextCharge, state.today)),
@@ -172,7 +183,7 @@ private fun SubscriptionSummary(state: BillsUiState) {
 }
 
 @Composable
-private fun SubscriptionRow(sub: Subscription, today: LocalDate, dimmed: Boolean = false, onClick: () -> Unit) {
+private fun SubscriptionRow(sub: Subscription, today: LocalDate, dimmed: Boolean = false, charge: MonthCharge? = null, onClick: () -> Unit) {
     val colors = GridTheme.colors
     Tile(onClick = onClick, modifier = Modifier.alpha(if (dimmed) 0.55f else 1f), contentPadding = PaddingValues(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -186,9 +197,26 @@ private fun SubscriptionRow(sub: Subscription, today: LocalDate, dimmed: Boolean
                 }
                 Text(status, style = MaterialTheme.typography.bodySmall, color = colors.muted, maxLines = 1)
             }
-            AmountText(sub.amountMinor, sub.currency, style = GridText.moneySmall)
+            Column(horizontalAlignment = Alignment.End) {
+                AmountText(sub.amountMinor, sub.currency, style = GridText.moneySmall)
+                charge?.let { ChargeLabel(it) }
+            }
         }
     }
+}
+
+/** This month: "Paid 3 Oct" (from the bank's payment), "Due 15 Oct", or "Not paid · due 1 Oct". */
+@Composable
+private fun ChargeLabel(charge: MonthCharge) {
+    val colors = GridTheme.colors
+    val day = java.time.format.DateTimeFormatter.ofPattern("d MMM", com.grid.app.core.designsystem.components.currentLocale())
+    val (text, color) = when (charge.state) {
+        ChargeState.PAID -> stringResource(R.string.bills_paid_on, charge.paidOn!!.format(day)) to colors.income
+        ChargeState.DUE -> stringResource(R.string.bills_due_on, charge.dueOn!!.format(day)) to colors.muted
+        ChargeState.LATE -> stringResource(R.string.bills_late, charge.dueOn!!.format(day)) to colors.warning
+        ChargeState.NONE -> return
+    }
+    Text(text, style = MaterialTheme.typography.labelSmall, color = color, maxLines = 1)
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.pendingContent(state: BillsUiState, onEdit: (Long?) -> Unit, vm: BillsViewModel) {

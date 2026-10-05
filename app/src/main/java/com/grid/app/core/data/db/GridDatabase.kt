@@ -19,7 +19,9 @@ import com.grid.app.core.data.db.dao.PendingDao
 import com.grid.app.core.data.db.dao.PlanDao
 import com.grid.app.core.data.db.dao.SubscriptionDao
 import com.grid.app.core.data.db.dao.TransactionDao
+import com.grid.app.core.data.db.dao.TrashDao
 import com.grid.app.core.data.db.entities.CaptureEntity
+import com.grid.app.core.data.db.entities.DeletedTransactionEntity
 import com.grid.app.core.data.db.entities.CategoryEntity
 import com.grid.app.core.data.db.entities.IncomeSourceEntity
 import com.grid.app.core.data.db.entities.MerchantRuleEntity
@@ -30,12 +32,12 @@ import com.grid.app.core.data.db.entities.SubscriptionEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
 
 /**
- * Schema v3 (v1 + bank sync, v3: own-transfer month override). Every schema change must bump the version and ship a tested Migration —
- * never fall back to destructive migration: this is people's financial history.
+ * Schema v4 (v1 + bank sync, v3: own-transfer month override, v4: recently deleted entries). Every schema change must
+ * bump the version and ship a tested Migration — never fall back to destructive migration: this is people's financial history.
  */
 @Database(
     entities = [
-        CategoryEntity::class, PaymentMethodEntity::class, TransactionEntity::class,
+        CategoryEntity::class, PaymentMethodEntity::class, TransactionEntity::class, DeletedTransactionEntity::class,
         PeriodPlanEntity::class, IncomeSourceEntity::class,
         SubscriptionEntity::class, PendingPaymentEntity::class,
         CaptureEntity::class, MerchantRuleEntity::class,
@@ -43,7 +45,7 @@ import com.grid.app.core.data.db.entities.TransactionEntity
     ],
     version = GridDatabase.VERSION,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
 )
 abstract class GridDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
@@ -55,11 +57,12 @@ abstract class GridDatabase : RoomDatabase() {
     abstract fun pendingDao(): PendingDao
     abstract fun captureDao(): CaptureDao
     abstract fun bankDao(): BankDao
+    abstract fun trashDao(): TrashDao
 
     companion object {
         const val NAME = "grid.db"
         /** Schema version. Bump together with a Migration and an exported schema; backups record it. */
-        const val VERSION = 3
+        const val VERSION = 4
 
         fun build(context: Context): GridDatabase =
             Room.databaseBuilder(context, GridDatabase::class.java, NAME).addCallback(SeedCallback).build()
