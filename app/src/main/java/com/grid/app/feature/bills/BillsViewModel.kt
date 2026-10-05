@@ -58,8 +58,13 @@ data class BillsUiState(
         get() = active.filter { it.currency == currency && charges[it.id]?.state in setOf(ChargeState.DUE, ChargeState.LATE) }.sumOf { it.amountMinor }
 }
 
+/** The "Find subscriptions in my payments" button: Gemini's pass on demand. */
+data class FindUi(val available: Boolean = false, val busy: Boolean = false, val found: Int? = null, val failed: Boolean = false)
+
 @HiltViewModel
 class BillsViewModel @Inject constructor(
+    private val assistant: com.grid.app.core.ai.AiAssistant,
+    keys: com.grid.app.core.ai.AiKeyStore,
     settings: SettingsRepository,
     private val subscriptions: SubscriptionRepository,
     transactions: TransactionRepository,
@@ -103,6 +108,18 @@ class BillsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BillsUiState())
 
     fun settle(id: Long) = viewModelScope.launch { pendings.settle(id) }
+    private val _find = kotlinx.coroutines.flow.MutableStateFlow(FindUi(available = keys.hasKey()))
+    val find: StateFlow<FindUi> = _find
+
+    /** Runs Gemini over the payments now; says how many suggestions wait afterwards. */
+    fun findSubscriptions() = viewModelScope.launch {
+        _find.value = _find.value.copy(busy = true, found = null, failed = false)
+        _find.value = when (val r = assistant.run()) {
+            is com.grid.app.core.ai.AiRunResult.Ok -> _find.value.copy(busy = false, found = r.bills)
+            else -> _find.value.copy(busy = false, failed = true)
+        }
+    }
+
     fun addSuggested(id: Long) = viewModelScope.launch { subscriptions.acceptSuggestion(id) }
     fun rejectSuggested(id: Long) = viewModelScope.launch { subscriptions.dismissDetected(id) }
     fun reopen(id: Long) = viewModelScope.launch { pendings.reopen(id) }

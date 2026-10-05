@@ -59,11 +59,7 @@ class AiAssistant @Inject constructor(
     private val bank = db.bankDao()
 
     suspend fun run(): AiRunResult = mutex.withLock {
-        // Bills auto-added by earlier versions become suggestions, once.
-        if (!settings.detectedAreSuggestions()) {
-            subscriptions.detectedToSuggestions()
-            settings.markDetectedAreSuggestions()
-        }
+        prepare()
         if (!keys.hasKey()) return AiRunResult.NoKey
         return try {
             transactions.markTaughtRules()
@@ -77,6 +73,18 @@ class AiAssistant @Inject constructor(
             AiRunResult.Failed(e)
         }
     }
+
+    /** Local, no Gemini call (runs on every app open): bills auto-added by 3.0–3.1 become suggestions, once. */
+    suspend fun prepare() {
+        if (!settings.detectedAreSuggestions()) {
+            subscriptions.detectedToSuggestions()
+            settings.markDetectedAreSuggestions()
+        }
+    }
+
+    /** A pass is due when there's a key and the last one is older than [STALE_HOURS] (or never ran). */
+    suspend fun passDue(): Boolean = keys.hasKey() &&
+        (settings.settings.first().ai.lastRunAt ?: 0L) < clock.millis() - java.util.concurrent.TimeUnit.HOURS.toMillis(STALE_HOURS)
 
     /** One tiny request: is the key accepted? */
     suspend fun test(): AiError? = try {
@@ -210,6 +218,8 @@ class AiAssistant @Inject constructor(
     }
 
     companion object {
+        /** Opening the app runs a Gemini pass when the last one is older than this. */
+        private const val STALE_HOURS = 6L
         private const val RECOGNITION_BATCH = 50
         private const val BILLS_BATCH = 40
         private const val HISTORY_DAYS = 400L

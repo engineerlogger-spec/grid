@@ -49,6 +49,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -132,6 +135,7 @@ fun BillsScreen(
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(state: BillsUiState, onEdit: (Long?) -> Unit, vm: BillsViewModel) {
+    item { FindTile(vm) }
     if (state.suggested.isNotEmpty()) {
         item { SuggestionsHeader() }
         items(state.suggested, key = { "g${it.id}" }) { sub -> SuggestionRow(sub, onAdd = { vm.addSuggested(sub.id) }, onReject = { vm.rejectSuggested(sub.id) }) }
@@ -153,6 +157,29 @@ private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(
     if (state.inactive.isNotEmpty()) {
         item { CapsLabel(stringResource(R.string.bills_inactive), Modifier.padding(start = 4.dp, top = 10.dp)) }
         items(state.inactive, key = { "i${it.id}" }) { sub -> SubscriptionRow(sub, state.today, dimmed = true) { onEdit(sub.id) } }
+    }
+}
+
+/** ✨ Find subscriptions in my payments: Gemini's pass on demand, with what it found. */
+@Composable
+private fun FindTile(vm: BillsViewModel) {
+    val find by vm.find.collectAsStateWithLifecycle()
+    if (!find.available) return
+    val colors = GridTheme.colors
+    Tile(onClick = if (find.busy) null else ({ vm.findSubscriptions() }), borderColor = colors.accentText.copy(alpha = 0.5f), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = colors.accentText, modifier = Modifier.size(20.dp))
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(stringResource(if (find.busy) R.string.bills_finding else R.string.bills_find), style = MaterialTheme.typography.titleSmall, color = colors.text)
+                val note = when {
+                    find.failed -> stringResource(R.string.bills_find_failed)
+                    find.found != null -> pluralStringResource(R.plurals.bills_found, find.found!!, find.found!!)
+                    else -> stringResource(R.string.bills_find_body)
+                }
+                Text(note, style = MaterialTheme.typography.bodySmall, color = if (find.failed) colors.danger else colors.muted)
+            }
+        }
+        if (find.busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
     }
 }
 
