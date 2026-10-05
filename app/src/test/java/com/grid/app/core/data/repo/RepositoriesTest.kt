@@ -78,6 +78,18 @@ class RepositoriesTest {
         assertThat(tx.note).isEqualTo("Taxi home")
     }
 
+    @Test fun changingTheCategoryAppliesToEveryEntryOfThatPayee() = runTest {
+        val first = transactions.add(draft(1600, icon = "other", merchant = "Abdelhamid N26"))
+        val second = transactions.add(draft(5000, icon = "other", merchant = "ABDELHAMID N26"))
+        val other = transactions.add(draft(900, icon = "other", merchant = "Berfin"))
+        transactions.update(first, draft(1600, icon = "services", merchant = "Abdelhamid N26"))
+        assertThat(transactions.get(second)!!.category.iconKey).isEqualTo("services")
+        assertThat(transactions.get(other)!!.category.iconKey).isEqualTo("other")
+        // An edit that keeps the category leaves the payee's other entries alone.
+        transactions.update(other, draft(950, icon = "other", merchant = "Berfin"))
+        assertThat(transactions.get(second)!!.category.iconKey).isEqualTo("services")
+    }
+
     @Test fun suggestionsLearnRepeatedCombos() = runTest {
         transactions.add(draft(350, note = "Coffee"))
         transactions.add(draft(350, note = "Coffee"))

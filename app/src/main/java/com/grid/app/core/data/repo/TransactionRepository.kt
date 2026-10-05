@@ -63,7 +63,10 @@ class TransactionRepository @Inject constructor(
         return id
     }
 
-    /** A user edit is a review: it clears [TransactionDraft.needsReview]. */
+    /**
+     * A user edit is a review: it clears [TransactionDraft.needsReview]. A new category applies to every entry with
+     * the same payee (the owner sorts by who was paid, not entry by entry).
+     */
     suspend fun update(id: Long, draft: TransactionDraft) {
         val existing = dao.get(id) ?: return
         val now = clock.millis()
@@ -71,8 +74,16 @@ class TransactionRepository @Inject constructor(
         db.withTransaction {
             dao.update(reviewed.toEntity(id = id, createdAt = existing.createdAt, updatedAt = now))
             learnMerchant(reviewed, now)
+            if (existing.categoryId != reviewed.categoryId) recategorizeSamePayee(reviewed, now)
         }
         listeners.notifyAll()
+    }
+
+    private suspend fun recategorizeSamePayee(draft: TransactionDraft, now: Long) {
+        val key = draft.merchant?.let(MerchantKey::of) ?: return
+        dao.withMerchant(draft.type)
+            .filter { it.categoryId != draft.categoryId && MerchantKey.of(it.merchant!!) == key }
+            .forEach { dao.update(it.copy(categoryId = draft.categoryId, needsReview = false, updatedAt = now)) }
     }
 
     /** Gives an entry filed under the placeholder its category (automatic guess: no rule is learned from it). */

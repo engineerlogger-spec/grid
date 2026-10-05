@@ -125,6 +125,9 @@ interface TransactionDao {
     @Query("SELECT COUNT(*) FROM transactions WHERE categoryId = :categoryId")
     suspend fun countForCategory(categoryId: Long): Int
 
+    @Query("SELECT * FROM transactions WHERE type = :type AND merchant IS NOT NULL")
+    suspend fun withMerchant(type: TxType): List<TransactionEntity>
+
     @Query("SELECT COUNT(*) FROM transactions WHERE subscriptionId = :subscriptionId AND occurredAt >= :startMs AND occurredAt < :endMs")
     suspend fun countForSubscriptionBetween(subscriptionId: Long, startMs: Long, endMs: Long): Int
 
