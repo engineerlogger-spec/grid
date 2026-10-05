@@ -178,6 +178,21 @@ class BankSyncTest {
         assertThat(db.bankDao().stagedByState(BankTxState.BOOKED).single { it.counterparty == "Uber" }.transactionId).isEqualTo(entry.id)
     }
 
+    @Test fun everythingTheBankSendsIsStoredEvenWhatIsNotShown() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        scripted.txs = listOf(
+            uber("SCHD"),
+            uber("BOOK", ref = "zero").copy(amount = "0.00"),
+            uber("BOOK", ref = "undated").copy(transactionDate = null, bookingDate = null),
+        )
+        sync.run()
+        val ignored = db.bankDao().stagedByState(BankTxState.IGNORED).map { it.externalId }
+        assertThat(ignored).containsExactly("zero", "SCHD:${ExternalIds.assign(listOf(uber("SCHD"))).single().first}")
+        // No date from the bank: kept and shown on the day it was fetched.
+        assertThat(transactions.observeAll().first().filter { it.merchant == "Uber" }).hasSize(1)
+    }
+
     @Test fun cancelledPendingPaymentDisappears() = runTest {
         val scripted = Scripted()
         connect(scripted)

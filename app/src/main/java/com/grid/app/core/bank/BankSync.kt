@@ -78,12 +78,12 @@ class BankSync @Inject constructor(
                 } while (key != null)
                 fetched += all.size
 
+                // Everything the bank sends is stored; what is shown or counted is decided afterwards (row state).
                 val inserted = mutableListOf<BankTransactionEntity>()
                 for ((externalId, tx) in ExternalIds.assign(all.filter { it.isBooked })) {
-                    toEntity(account.id, externalId, tx, ownIbans)?.let { row ->
-                        val id = dao.insertStaged(row)
-                        if (id > 0) inserted += row.copy(id = id)
-                    }
+                    val row = toEntity(account.id, externalId, tx, ownIbans)
+                    val id = dao.insertStaged(row)
+                    if (id > 0) inserted += row.copy(id = id)
                 }
                 // Card payments Revolut hasn't settled yet show straight away; each is replaced by its booked version.
                 val pendingNow = ExternalIds.assign(all.filter { it.isPending }).map { (id, tx) -> PENDING_PREFIX + id to tx }
@@ -91,8 +91,10 @@ class BankSync @Inject constructor(
                 for (old in dao.stagedWithPrefix(account.id, PENDING_PREFIX)) {
                     if (old.externalId !in stillPending) settle(old, inserted)
                 }
-                for ((externalId, tx) in pendingNow) {
-                    toEntity(account.id, externalId, tx, ownIbans)?.let { dao.insertStaged(it) }
+                for ((externalId, tx) in pendingNow) dao.insertStaged(toEntity(account.id, externalId, tx, ownIbans))
+                // Any other status (scheduled, information…): kept, not shown.
+                for ((externalId, tx) in ExternalIds.assign(all.filter { !it.isBooked && !it.isPending })) {
+                    dao.insertStaged(toEntity(account.id, "${tx.status}:$externalId", tx, ownIbans).copy(state = BankTxState.IGNORED))
                 }
                 bank.updateAccount(account.copy(syncedThroughEpochDay = today.toEpochDay()))
             }
@@ -149,11 +151,11 @@ class BankSync @Inject constructor(
         }
     }
 
-    private fun toEntity(accountId: Long, externalId: String, tx: RemoteTx, ownIbans: Set<String>): BankTransactionEntity? {
-        val date = parseDate(tx.transactionDate) ?: parseDate(tx.bookingDate) ?: parseDate(tx.valueDate) ?: return null
+    private fun toEntity(accountId: Long, externalId: String, tx: RemoteTx, ownIbans: Set<String>): BankTransactionEntity {
+        val date = parseDate(tx.transactionDate) ?: parseDate(tx.bookingDate) ?: parseDate(tx.valueDate) ?: clock.today()
         val booking = parseDate(tx.bookingDate) ?: date
-        val amount = runCatching { abs(Currencies.toMinor(tx.amount.trim().removePrefix("-").removePrefix("+"), tx.currency)) }.getOrNull()
-        if (amount == null || amount == 0L) return null
+        // A row without a usable amount is kept (and its raw data) but never shown or counted.
+        val amount = runCatching { abs(Currencies.toMinor(tx.amount.trim().removePrefix("-").removePrefix("+"), tx.currency)) }.getOrNull() ?: 0L
         val cleaned = tx.counterparty?.let(DescriptorCleaner::clean)
         val noon = date.atTime(12, 0).atZone(clock.zone).toInstant().toEpochMilli()
         return BankTransactionEntity(
@@ -163,7 +165,7 @@ class BankSync @Inject constructor(
             kind = TxClassifier.classify(tx, ownIbans), counterparty = tx.counterparty,
             counterpartyKey = cleaned?.merchant?.let(MerchantKey::of), counterpartyIban = tx.counterpartyIban,
             description = tx.remittance.joinToString(" · ").ifBlank { null }, mcc = tx.mcc, via = cleaned?.via,
-            state = BankTxState.NEW, rawJson = tx.rawJson, createdAt = clock.millis(),
+            state = if (amount == 0L) BankTxState.IGNORED else BankTxState.NEW, rawJson = tx.rawJson, createdAt = clock.millis(),
         )
     }
 
