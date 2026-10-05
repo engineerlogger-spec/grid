@@ -40,16 +40,6 @@
     <string name="home_income_missing">Not confirmed yet</string>
     <string name="home_top_categories">Top categories</string>
     <string name="home_no_spending_yet">No spending yet</string>
-    <string name="spending_title">By category</string>
-    <string name="spending_total">spent</string>
-    <string name="spending_vs">vs %1$s</string>
-    <string name="spending_new">new</string>
-    <string name="spending_empty_title">No spending this month</string>
-    <string name="spending_empty_body">Payments show up here grouped by category.</string>
-    <plurals name="spending_payments">
-        <item quantity="one">%d payment</item>
-        <item quantity="other">%d payments</item>
-    </plurals>
     <string name="home_recent">Recent</string>
     <string name="home_empty_title">A fresh grid</string>
     <string name="home_empty_body">Tap + to log your first spend. Amount, category, done.</string>
