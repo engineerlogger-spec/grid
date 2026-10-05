@@ -65,3 +65,29 @@ data class TransactionEntity(
     /** Booked from the bank without a known category: shown in the review list until the user picks one. */
     @ColumnInfo(defaultValue = "0") val needsReview: Boolean = false,
 )
+
+/**
+ * A ledger entry the user deleted, kept for a while so it can be restored exactly (same id, same bank link).
+ * Ids are never reused (AUTOINCREMENT), so putting it back under [id] is safe.
+ */
+@Entity(tableName = "deleted_transactions", indices = [Index("deletedAt")])
+data class DeletedTransactionEntity(
+    @PrimaryKey val id: Long,
+    val type: TxType,
+    val amountMinor: Long,
+    val currency: String,
+    val categoryId: Long,
+    val paymentMethodId: Long?,
+    val merchant: String?,
+    val note: String?,
+    val occurredAt: Long,
+    val createdAt: Long,
+    val source: TxSource,
+    val subscriptionId: Long?,
+    val pendingId: Long?,
+    val captureId: Long?,
+    val needsReview: Boolean,
+    /** The bank row it was booked from: linked again on restore (and kept from being re-booked meanwhile). */
+    val bankRowId: Long?,
+    val deletedAt: Long,
+)

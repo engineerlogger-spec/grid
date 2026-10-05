@@ -2,10 +2,15 @@ package com.grid.app.core.data.repo
 
 import androidx.room.withTransaction
 import com.grid.app.core.data.db.GridDatabase
+import com.grid.app.core.data.db.Seed
 import com.grid.app.core.data.db.dao.CategoryUsage
+import com.grid.app.core.data.db.entities.DeletedTransactionEntity
 import com.grid.app.core.data.db.entities.MerchantRuleEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
 import com.grid.app.core.model.Category
+import com.grid.app.core.model.BankTxState
+import com.grid.app.core.model.CategoryKind
+import com.grid.app.core.model.DeletedEntry
 import com.grid.app.core.model.MerchantKey
 import com.grid.app.core.model.PaymentMethod
 import com.grid.app.core.model.QuickSuggestion
@@ -29,6 +34,7 @@ class TransactionRepository @Inject constructor(
     private val listeners: Set<@JvmSuppressWildcards LedgerListener>,
 ) {
     private val dao = db.transactionDao()
+    private val trash = db.trashDao()
 
     private val categories: Flow<Map<Long, Category>> =
         db.categoryDao().observeAll().map { list -> list.associate { it.id to it.toDomain() } }
@@ -106,18 +112,69 @@ class TransactionRepository @Inject constructor(
         listeners.notifyAll()
     }
 
-    /** Deletes and returns the transaction so the caller can offer Undo via [restore]. */
+    /**
+     * Deletes the transaction into "Recently deleted" (kept [TRASH_DAYS] days, restorable with its bank link) and
+     * returns it so the caller can offer Undo via [restore].
+     */
     suspend fun delete(id: Long): Transaction? {
         val tx = get(id) ?: return null
-        dao.delete(id)
+        val now = clock.millis()
+        db.withTransaction {
+            val row = dao.get(id) ?: return@withTransaction
+            val bankRow = db.bankDao().stagedLinkedTo(id)
+            trash.insert(
+                DeletedTransactionEntity(
+                    id = row.id, type = row.type, amountMinor = row.amountMinor, currency = row.currency, categoryId = row.categoryId,
+                    paymentMethodId = row.paymentMethodId, merchant = row.merchant, note = row.note, occurredAt = row.occurredAt,
+                    createdAt = row.createdAt, source = row.source, subscriptionId = row.subscriptionId, pendingId = row.pendingId,
+                    captureId = row.captureId, needsReview = row.needsReview, bankRowId = bankRow?.id, deletedAt = now,
+                ),
+            )
+            dao.delete(id)
+            // Gone for good after the grace period: their bank rows are marked so they're never offered again.
+            val expiry = now - TimeUnit.DAYS.toMillis(TRASH_DAYS)
+            trash.deletedBefore(expiry).mapNotNull { it.bankRowId?.let { rowId -> db.bankDao().staged(rowId) } }
+                .forEach { db.bankDao().updateStaged(it.copy(state = BankTxState.IGNORED)) }
+            trash.purgeBefore(expiry)
+        }
         listeners.notifyAll()
         return tx
     }
 
-    suspend fun restore(tx: Transaction): Long {
-        val id = dao.insert(tx.toDraft().toEntity(id = tx.id, createdAt = tx.createdAt, updatedAt = clock.millis()))
+    /** Undo of [delete]. */
+    suspend fun restore(tx: Transaction) {
+        restoreDeleted(tx.id)
+    }
+
+    /** Puts a deleted entry back under its old id and re-links the bank payment it came from. */
+    suspend fun restoreDeleted(id: Long) {
+        db.withTransaction {
+            val d = trash.get(id) ?: return@withTransaction
+            val categoryId = d.categoryId.takeIf { db.categoryDao().get(it) != null }
+                ?: db.categoryDao().byIconKey(if (d.type == TxType.EXPENSE) Seed.ICON_OTHER else Seed.ICON_OTHER_INCOME, if (d.type == TxType.EXPENSE) CategoryKind.EXPENSE else CategoryKind.INCOME)!!.id
+            dao.insert(
+                TransactionEntity(
+                    id = d.id, type = d.type, amountMinor = d.amountMinor, currency = d.currency, categoryId = categoryId,
+                    paymentMethodId = d.paymentMethodId?.takeIf { db.paymentMethodDao().get(it) != null }, merchant = d.merchant, note = d.note,
+                    occurredAt = d.occurredAt, createdAt = d.createdAt, updatedAt = clock.millis(), source = d.source,
+                    subscriptionId = d.subscriptionId, pendingId = d.pendingId, captureId = d.captureId, needsReview = d.needsReview,
+                ),
+            )
+            d.bankRowId?.let { db.bankDao().staged(it) }?.takeIf { it.transactionId == null }?.let { db.bankDao().updateStaged(it.copy(transactionId = d.id)) }
+            trash.delete(id)
+        }
         listeners.notifyAll()
-        return id
+    }
+
+    /** "Recently deleted", newest first. */
+    fun observeDeleted(): Flow<List<DeletedEntry>> = combine(trash.observeAll(), categories, methods) { rows, cats, ms ->
+        rows.mapNotNull { d ->
+            TransactionEntity(
+                id = d.id, type = d.type, amountMinor = d.amountMinor, currency = d.currency, categoryId = d.categoryId,
+                paymentMethodId = d.paymentMethodId, merchant = d.merchant, note = d.note, occurredAt = d.occurredAt,
+                createdAt = d.createdAt, updatedAt = d.deletedAt, source = d.source, needsReview = d.needsReview,
+            ).toDomain(cats, ms)?.let { DeletedEntry(it, d.deletedAt) }
+        }
     }
 
     /** Category usage over the last 90 days, most used first. */
@@ -133,6 +190,11 @@ class TransactionRepository @Inject constructor(
     }
 
     suspend fun lastPaymentMethodId(): Long? = dao.lastManualPaymentMethodId()
+
+    companion object {
+        /** How long deleted entries can be restored. */
+        const val TRASH_DAYS = 30L
+    }
 
     private suspend fun learnMerchant(draft: TransactionDraft, now: Long) {
         // A placeholder category ("Other" until reviewed) must not become the merchant's rule.

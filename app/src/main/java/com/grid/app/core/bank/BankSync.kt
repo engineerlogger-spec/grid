@@ -131,9 +131,16 @@ class BankSync @Inject constructor(
 
     /** Re-applies today's rules to what is already stored, without asking the bank (runs whenever the app opens). */
     suspend fun refreshLocal() = mutex.withLock {
+        bank.relinkOrphans()
         val currency = settings.settings.first().currency
         reconciler.revisit(currency, bank.accounts().mapNotNull { it.iban }.toSet())
         for (row in dao.stagedByState(BankTxState.NEW).sortedBy { it.occurredAt }) reconciler.process(row, currency)
+    }
+
+    /** Books again a bank payment whose entry was deleted before "Recently deleted" kept copies. */
+    suspend fun rebook(rowId: Long) = mutex.withLock {
+        val row = dao.staged(rowId)?.takeIf { it.state == BankTxState.BOOKED && it.transactionId == null } ?: return@withLock
+        reconciler.process(row.copy(state = BankTxState.NEW), settings.settings.first().currency)
     }
 
     /**

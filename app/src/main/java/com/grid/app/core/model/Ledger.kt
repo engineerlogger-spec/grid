@@ -55,6 +55,9 @@ data class Transaction(
     )
 }
 
+/** An entry in "Recently deleted". */
+data class DeletedEntry(val tx: Transaction, val deletedAt: Long)
+
 /** Everything needed to create or update a transaction. */
 data class TransactionDraft(
     val type: TxType,

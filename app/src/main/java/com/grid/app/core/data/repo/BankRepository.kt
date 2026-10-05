@@ -62,6 +62,22 @@ class BankRepository @Inject constructor(
 ) {
     private val dao = db.bankDao()
 
+    /** Bank payments whose ledger entry was deleted (before "Recently deleted" kept a copy): restorable from the bank. */
+    fun observeOrphans(): Flow<List<BankTransactionEntity>> = dao.observeOrphans()
+
+    /**
+     * A bank payment can lose its link while its entry still exists (an older Undo put the entry back unlinked):
+     * link it again to an unlinked entry of the same amount around the same day, so it isn't offered as deleted.
+     */
+    suspend fun relinkOrphans() {
+        val day = TimeUnit.DAYS.toMillis(1)
+        for (row in dao.orphans()) {
+            val type = if (row.direction == CaptureDirection.OUT) TxType.EXPENSE else TxType.INCOME
+            dao.unlinkedEntries(type, row.amountMinor, row.currency, row.occurredAt - day, row.occurredAt + day)
+                .firstOrNull()?.let { dao.updateStaged(row.copy(transactionId = it.id)) }
+        }
+    }
+
     fun observeConnection(): Flow<BankConnectionEntity?> = dao.observeConnection()
     suspend fun connection(): BankConnectionEntity? = dao.connection()
 

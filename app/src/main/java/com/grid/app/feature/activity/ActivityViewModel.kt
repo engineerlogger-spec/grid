@@ -133,7 +133,8 @@ class ActivityViewModel @Inject constructor(
         transactions.delete(tx.id)?.let(onDeleted)
     }
 
-    fun restore(tx: Transaction) = viewModelScope.launch { transactions.restore(tx) }
+    /** Suspends in the caller's scope: Undo must still work after the user has left this screen. */
+    suspend fun restore(tx: Transaction) = transactions.restore(tx)
 
     /** Moving the anchor a month moves exactly one budget period, whatever the period start day. */
     private fun shiftPeriod(back: Boolean) {

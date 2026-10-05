@@ -77,6 +77,13 @@
 
     <!-- Activity -->
     <string name="activity_title">Activity</string>
+    <string name="deleted_title">Recently deleted</string>
+    <string name="deleted_body">Deleted entries are kept %1$d days. Restore puts them back exactly as they were.</string>
+    <string name="deleted_on">%1$s · deleted %2$s</string>
+    <string name="deleted_restore">Restore</string>
+    <string name="deleted_earlier">Removed earlier · from your bank</string>
+    <string name="deleted_empty_title">Nothing deleted</string>
+    <string name="deleted_empty_body">Entries you delete stay here for a while, in case you change your mind.</string>
     <string name="activity_search">Search</string>
     <string name="activity_clear_search">Clear search</string>
     <string name="activity_all">All</string>

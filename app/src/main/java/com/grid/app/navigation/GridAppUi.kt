@@ -44,6 +44,7 @@ import com.grid.app.core.designsystem.components.GridSurface
 import com.grid.app.core.designsystem.components.LocalMoneyFormatter
 import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.feature.activity.ActivityScreen
+import com.grid.app.feature.activity.RecentlyDeletedScreen
 import com.grid.app.feature.bank.BankSetupScreen
 import com.grid.app.feature.bank.MovedScreen
 import com.grid.app.core.model.TxType
@@ -188,7 +189,10 @@ fun GridAppUi(
                             onOpenCategory = { id, month -> nav.navigate(ActivityRoute(categoryId = id, monthEpoch = month)) },
                         )
                     }
-                    composable<ActivityRoute> { ActivityScreen(contentPadding = padding, onOpenMoved = { nav.navigate(MovedRoute) }) }
+                    composable<ActivityRoute> {
+                        ActivityScreen(contentPadding = padding, onOpenMoved = { nav.navigate(MovedRoute) }, onOpenDeleted = { nav.navigate(DeletedRoute) })
+                    }
+                    composable<DeletedRoute> { RecentlyDeletedScreen(onBack = { nav.popBackStack() }) }
                     composable<BillsRoute> {
                         BillsScreen(
                             contentPadding = padding,

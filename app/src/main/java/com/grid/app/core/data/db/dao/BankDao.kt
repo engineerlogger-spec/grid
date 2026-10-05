@@ -62,6 +62,31 @@ interface BankDao {
     @Query("DELETE FROM bank_transactions WHERE id = :id")
     suspend fun deleteStaged(id: Long)
 
+    /**
+     * Bank payments whose ledger entry is gone (deleted before "Recently deleted" existed, or lost): booked, unlinked,
+     * and not waiting in the trash.
+     */
+    @Query(
+        """SELECT * FROM bank_transactions b WHERE b.state = 'BOOKED' AND b.transactionId IS NULL
+             AND NOT EXISTS (SELECT 1 FROM deleted_transactions d WHERE d.bankRowId = b.id)
+           ORDER BY b.occurredAt DESC""",
+    )
+    fun observeOrphans(): Flow<List<BankTransactionEntity>>
+
+    @Query(
+        """SELECT * FROM bank_transactions b WHERE b.state = 'BOOKED' AND b.transactionId IS NULL
+             AND NOT EXISTS (SELECT 1 FROM deleted_transactions d WHERE d.bankRowId = b.id)""",
+    )
+    suspend fun orphans(): List<BankTransactionEntity>
+
+    /** Ledger entries no bank row points to, around a time: candidates for an orphan's lost link. */
+    @Query(
+        """SELECT * FROM transactions t WHERE t.type = :type AND t.amountMinor = :amountMinor AND t.currency = :currency
+             AND t.occurredAt BETWEEN :fromMs AND :toMs
+             AND NOT EXISTS (SELECT 1 FROM bank_transactions b WHERE b.transactionId = t.id)""",
+    )
+    suspend fun unlinkedEntries(type: TxType, amountMinor: Long, currency: String, fromMs: Long, toMs: Long): List<TransactionEntity>
+
     /** Rows stored while the bank still showed them as pending (their external id starts with [prefix]). */
     @Query("SELECT * FROM bank_transactions WHERE accountId = :accountId AND externalId LIKE :prefix || '%'")
     suspend fun stagedWithPrefix(accountId: Long, prefix: String): List<BankTransactionEntity>
