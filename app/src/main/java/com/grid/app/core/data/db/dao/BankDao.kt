@@ -59,6 +59,13 @@ interface BankDao {
     @Query("SELECT * FROM bank_transactions WHERE id = :id")
     suspend fun staged(id: Long): BankTransactionEntity?
 
+    @Query("DELETE FROM bank_transactions WHERE id = :id")
+    suspend fun deleteStaged(id: Long)
+
+    /** Rows stored while the bank still showed them as pending (their external id starts with [prefix]). */
+    @Query("SELECT * FROM bank_transactions WHERE accountId = :accountId AND externalId LIKE :prefix || '%'")
+    suspend fun stagedWithPrefix(accountId: Long, prefix: String): List<BankTransactionEntity>
+
     @Query("SELECT * FROM bank_transactions WHERE state = :state ORDER BY occurredAt DESC")
     suspend fun stagedByState(state: BankTxState): List<BankTransactionEntity>
 

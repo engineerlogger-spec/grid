@@ -1,13 +1,16 @@
 package com.grid.app.core.bank
 
+import androidx.room.withTransaction
 import com.grid.app.core.data.db.GridDatabase
 import com.grid.app.core.data.db.entities.BankTransactionEntity
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.BankRepository
+import com.grid.app.core.data.repo.TransactionRepository
 import com.grid.app.core.model.BankStatus
 import com.grid.app.core.model.BankTxState
 import com.grid.app.core.model.CaptureDirection
 import com.grid.app.core.model.MerchantKey
+import com.grid.app.core.model.TxSource
 import com.grid.app.core.money.Currencies
 import com.grid.app.core.time.AppClock
 import kotlinx.coroutines.CancellationException
@@ -15,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
@@ -39,6 +43,7 @@ class BankSync @Inject constructor(
     private val reconciler: BankReconciler,
     private val settings: SettingsRepository,
     private val clock: AppClock,
+    private val transactions: TransactionRepository,
 ) {
     private val mutex = Mutex()
     private val dao = db.bankDao()
@@ -73,8 +78,20 @@ class BankSync @Inject constructor(
                 } while (key != null)
                 fetched += all.size
 
-                val booked = all.filter { it.status == null || it.status.equals("BOOK", ignoreCase = true) }
-                for ((externalId, tx) in ExternalIds.assign(booked)) {
+                val inserted = mutableListOf<BankTransactionEntity>()
+                for ((externalId, tx) in ExternalIds.assign(all.filter { it.isBooked })) {
+                    toEntity(account.id, externalId, tx, ownIbans)?.let { row ->
+                        val id = dao.insertStaged(row)
+                        if (id > 0) inserted += row.copy(id = id)
+                    }
+                }
+                // Card payments Revolut hasn't settled yet show straight away; each is replaced by its booked version.
+                val pendingNow = ExternalIds.assign(all.filter { it.isPending }).map { (id, tx) -> PENDING_PREFIX + id to tx }
+                val stillPending = pendingNow.map { it.first }.toSet()
+                for (old in dao.stagedWithPrefix(account.id, PENDING_PREFIX)) {
+                    if (old.externalId !in stillPending) settle(old, inserted)
+                }
+                for ((externalId, tx) in pendingNow) {
                     toEntity(account.id, externalId, tx, ownIbans)?.let { dao.insertStaged(it) }
                 }
                 bank.updateAccount(account.copy(syncedThroughEpochDay = today.toEpochDay()))
@@ -110,6 +127,28 @@ class BankSync @Inject constructor(
         return SyncResult.Ok(fetched, bookedCount, (dao.countToReview() - reviewBefore).coerceAtLeast(0))
     }
 
+    /**
+     * A payment the bank no longer lists as pending: its booked version (same id, else same amount, direction and
+     * name within a few days) takes over its ledger entry and the user's choices; with none, it was cancelled.
+     */
+    private suspend fun settle(old: BankTransactionEntity, inserted: MutableList<BankTransactionEntity>) = db.withTransaction {
+        val bookedVersion = inserted.firstOrNull { it.externalId == old.externalId.removePrefix(PENDING_PREFIX) }
+            ?: inserted.firstOrNull {
+                it.direction == old.direction && it.amountMinor == old.amountMinor && it.currency == old.currency &&
+                    abs(it.occurredAt - old.occurredAt) <= SETTLE_WINDOW_MS &&
+                    (it.counterpartyKey == null || old.counterpartyKey == null || it.counterpartyKey == old.counterpartyKey)
+            }
+        dao.deleteStaged(old.id)
+        if (bookedVersion != null) {
+            inserted.remove(bookedVersion)
+            dao.updateStaged(bookedVersion.copy(state = old.state, transactionId = old.transactionId, countInEpochDay = old.countInEpochDay))
+            old.transactionId?.let { if (bookedVersion.amountMinor != old.amountMinor) transactions.applyBank(it, bookedVersion.amountMinor, null) }
+        } else {
+            // A cancelled card authorisation: drop the entry Grid made for it (a notification the user saw stays).
+            old.transactionId?.let { id -> if (db.transactionDao().get(id)?.source == TxSource.BANK) transactions.delete(id) }
+        }
+    }
+
     private fun toEntity(accountId: Long, externalId: String, tx: RemoteTx, ownIbans: Set<String>): BankTransactionEntity? {
         val date = parseDate(tx.transactionDate) ?: parseDate(tx.bookingDate) ?: parseDate(tx.valueDate) ?: return null
         val booking = parseDate(tx.bookingDate) ?: date
@@ -134,5 +173,8 @@ class BankSync @Inject constructor(
         /** Where the bank's login sends the user back (a static page that forwards to the app). */
         const val REDIRECT_URL = "https://engineerlogger-spec.github.io/grid/bank-callback/"
         private const val OVERLAP_DAYS = 5L
+        /** External ids of rows stored while still pending. */
+        const val PENDING_PREFIX = "p:"
+        private val SETTLE_WINDOW_MS = TimeUnit.DAYS.toMillis(5)
     }
 }

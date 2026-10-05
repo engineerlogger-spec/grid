@@ -3,6 +3,7 @@ package com.grid.app.feature.activity
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import com.grid.app.R
+import com.grid.app.core.bank.MovedMoney
 import com.grid.app.core.bank.OwnTransfer
 import com.grid.app.core.data.repo.BankRepository
 import com.grid.app.core.model.CategoryKind
@@ -96,7 +97,8 @@ class ActivityViewModel @Inject constructor(
             combine(source, bank.observeOwnTransfers(), categories.observeAll(), categories.observePaymentMethods()) { txs, moves, cats, methods ->
                 // The monthly salary is a plan figure, not an entry; money moved in from own accounts counts as income.
                 val entries = txs.filter { it.source != TxSource.CHECKIN } +
-                    moves.filter { f.allTime || it.date in period }.map { it.toDisplayRow(s.currency) }
+                    // A transfer the user counted in another month (Savings › Next month) is listed in that month.
+                    moves.filter { f.allTime || MovedMoney.periodOf(it, s.periodStartDay) == period }.map { it.toDisplayRow(s.currency) }
                 val visible = entries.filter { matches(it, f) }
                 ActivityUiState(
                     loading = false,

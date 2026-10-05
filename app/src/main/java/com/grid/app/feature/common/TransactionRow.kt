@@ -17,6 +17,7 @@ import com.grid.app.core.designsystem.components.AmountText
 import com.grid.app.core.designsystem.components.CategoryBadge
 import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.core.model.Transaction
+import com.grid.app.core.model.TxSource
 import com.grid.app.core.model.TxType
 
 /** One transaction line: category badge, title, "Category · Method", signed amount. */
@@ -31,7 +32,8 @@ fun TransactionRow(
     val subtitle = buildList {
         if (tx.title != tx.category.name) add(tx.category.name)
         tx.method?.let { add(it.name) }
-        if (showTime) add(timeOfDay(tx.occurredAt))
+        // The bank only gives the day, so its entries have no time to show.
+        if (showTime && tx.source != TxSource.BANK) add(timeOfDay(tx.occurredAt))
     }.joinToString(" · ")
     Row(
         modifier = modifier

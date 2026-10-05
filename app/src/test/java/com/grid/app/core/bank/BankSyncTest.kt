@@ -62,12 +62,12 @@ class BankSyncTest {
     private lateinit var settings: SettingsRepository
     private fun settingsFor() = settings
 
-    private suspend fun TestScope.connect() {
+    private suspend fun TestScope.connect(using: BankConnector = connector) {
         settings = SettingsRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.newFile("s.preferences_pb").also { it.delete() } }, Locale.FRANCE)
         transactions = TransactionRepository(db, clock, emptySet())
         bank = BankRepository(db, transactions, clock)
         val reconciler = BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), CategoryRepository(db), clock)
-        sync = BankSync(db, bank, { connector }, reconciler, settings, clock)
+        sync = BankSync(db, bank, { using }, reconciler, settings, clock, transactions)
 
         val demo = DemoBankConnector(clock)
         bank.beginAuth(demo.aspsps("FR").single(), "st", today.minusMonths(3).toEpochDay())
@@ -90,7 +90,8 @@ class BankSyncTest {
         assertThat(byMerchant["Netflix"]!!.all { it.method?.kind == PaymentKind.PAYPAL }).isTrue()
         assertThat(byMerchant["EDF"]).isNotEmpty() // direct debits are booked straight away
         assertThat(byMerchant["Starbucks"]!!.single().category.iconKey).isEqualTo("restaurant") // MCC 5814
-        assertThat(byMerchant.keys).containsNoneOf("Uber", "To EUR Vault", "Sam Taylor", "Top-Up by *4421")
+        assertThat(byMerchant.keys).containsNoneOf("To EUR Vault", "Sam Taylor", "Top-Up by *4421")
+        assertThat(byMerchant["Uber"]).hasSize(1) // still pending at the bank: shown straight away
 
         assertThat(db.bankDao().stagedByState(BankTxState.NEEDS_DECISION)).isEmpty()
         assertThat(db.bankDao().stagedByState(BankTxState.IGNORED).single().counterparty).isEqualTo("To EUR Vault")
@@ -139,12 +140,52 @@ class BankSyncTest {
 
     @Test fun unexpectedTroubleFailsTheSyncInsteadOfCrashing() = runTest {
         connect()
-        val broken = BankSync(db, bank, { throwingConnector }, BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), CategoryRepository(db), clock), settingsFor(), clock)
+        val broken = BankSync(db, bank, { throwingConnector }, BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), CategoryRepository(db), clock), settingsFor(), clock, transactions)
         assertThat(broken.run()).isInstanceOf(SyncResult.Failed::class.java)
     }
 
     private val throwingConnector = object : BankConnector by DemoBankConnector(clock) {
         override suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean): TxPage = error("unexpected shape")
+    }
+
+    /** Returns exactly [txs], whatever is asked. */
+    private inner class Scripted : BankConnector by DemoBankConnector(clock) {
+        var txs: List<RemoteTx> = emptyList()
+        override suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean) = TxPage(txs, null)
+    }
+
+    private fun uber(status: String, ref: String? = null) = RemoteTx(
+        entryReference = ref, amount = "12.00", currency = "EUR", creditDebit = "DBIT", status = status,
+        transactionDate = today.minusDays(1).toString(), bookingDate = if (status == "BOOK") today.toString() else null,
+        creditorName = "Uber", bankTxCode = "CARD_PAYMENT",
+    )
+
+    @Test fun pendingPaymentIsReplacedByItsBookedVersionKeepingTheUsersChoices() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        scripted.txs = listOf(uber("PDNG"))
+        sync.run()
+        val entry = transactions.observeAll().first().single { it.merchant == "Uber" }
+        val restaurant = db.categoryDao().byIconKey("restaurant", com.grid.app.core.model.CategoryKind.EXPENSE)!!.id
+        transactions.recategorize(entry.id, restaurant) // the user re-sorts it while still pending
+
+        scripted.txs = listOf(uber("BOOK", ref = "e-9"))
+        sync.run()
+        val ubers = transactions.observeAll().first().filter { it.merchant == "Uber" }
+        assertThat(ubers.map { it.id }).containsExactly(entry.id)
+        assertThat(ubers.single().category.id).isEqualTo(restaurant)
+        assertThat(db.bankDao().stagedWithPrefix(1, BankSync.PENDING_PREFIX)).isEmpty()
+        assertThat(db.bankDao().stagedByState(BankTxState.BOOKED).single { it.counterparty == "Uber" }.transactionId).isEqualTo(entry.id)
+    }
+
+    @Test fun cancelledPendingPaymentDisappears() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        scripted.txs = listOf(uber("PDNG"))
+        sync.run()
+        scripted.txs = emptyList()
+        sync.run()
+        assertThat(transactions.observeAll().first().filter { it.merchant == "Uber" }).isEmpty()
     }
 
     @Test fun notConnectedWithoutSession() = runTest {

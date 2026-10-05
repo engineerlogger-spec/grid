@@ -19,7 +19,13 @@ import com.grid.app.feature.lock.AppLock
 import com.grid.app.feature.lock.LockScreen
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import com.grid.app.core.bank.BankAuthInbox
+import com.grid.app.core.bank.BankSyncWorker
+import com.grid.app.core.data.repo.BankRepository
+import com.grid.app.core.model.BankStatus
+import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 import com.grid.app.core.designsystem.components.LocalHideAmounts
 import com.grid.app.core.designsystem.components.LocalMoneyFormatter
 import com.grid.app.core.designsystem.theme.GridTheme
@@ -38,6 +44,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var moneyFormatter: MoneyFormatter
     @Inject lateinit var appLock: AppLock
     @Inject lateinit var bankAuthInbox: BankAuthInbox
+    @Inject lateinit var bank: BankRepository
 
     /** Set from notification taps, widget, tile and shortcuts; consumed once by the UI. */
     private var launchTarget by mutableStateOf<LaunchTarget?>(null)
@@ -98,6 +105,16 @@ class MainActivity : FragmentActivity() {
                 .setAllowedAuthenticators(AppLock.AUTHENTICATORS)
                 .build(),
         )
+    }
+
+    /** Opening the app fetches the latest bank payments, at most once an hour (banks limit how often apps may ask). */
+    override fun onStart() {
+        super.onStart()
+        lifecycleScope.launch {
+            val connection = bank.connection() ?: return@launch
+            val stale = (connection.lastSyncAt ?: 0L) < System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1)
+            if (connection.status == BankStatus.ACTIVE && stale) BankSyncWorker.runNow(this@MainActivity)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
