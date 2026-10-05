@@ -6,7 +6,6 @@ import kotlinx.serialization.Serializable
 @Serializable data object HomeRoute
 /** [dayEpoch] opens on that day (filtered to it); [monthEpoch] only opens on the month containing it. */
 @Serializable data class ActivityRoute(val categoryId: Long? = null, val dayEpoch: Long? = null, val monthEpoch: Long? = null)
-@Serializable data object SpendingRoute
 @Serializable data object DeletedRoute
 @Serializable data object BillsRoute
 @Serializable data object InsightsRoute

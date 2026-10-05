@@ -82,7 +82,7 @@ fun HomeScreen(
     onOpenDetected: () -> Unit,
     onOpenBank: () -> Unit,
     onOpenMoved: () -> Unit,
-    onOpenSpending: () -> Unit,
+    onOpenInsights: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -131,7 +131,7 @@ fun HomeScreen(
             item { SavingsTile(state.salaryMinor, moved, state.currency, onClick = onOpenMoved) }
         }
         item { UpcomingTile(state, onClick = onOpenBills) }
-        item { CategoriesTile(state, onClick = onOpenSpending) }
+        item { CategoriesTile(state, onClick = onOpenInsights) }
         item { SectionHeader(stringResource(R.string.home_recent), Modifier.padding(top = 6.dp), action = stringResource(R.string.action_see_all), onAction = { onOpenActivity(null) }) }
         item {
             Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)) {

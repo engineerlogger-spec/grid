@@ -67,7 +67,6 @@ import com.grid.app.feature.insights.InsightsScreen
 import com.grid.app.feature.onboarding.OnboardingScreen
 import com.grid.app.feature.settings.CategoriesScreen
 import com.grid.app.feature.settings.SettingsScreen
-import com.grid.app.feature.spending.SpendingScreen
 
 /** Root of the UI: navigation, bottom bar, quick-add sheet and snackbars. */
 @Composable
@@ -180,13 +179,7 @@ fun GridAppUi(
                             onOpenDetected = { nav.navigate(DetectedRoute) },
                             onOpenBank = { nav.navigate(BankSetupRoute) },
                             onOpenMoved = { nav.navigate(MovedRoute) },
-                            onOpenSpending = { nav.navigate(SpendingRoute) },
-                        )
-                    }
-                    composable<SpendingRoute> {
-                        SpendingScreen(
-                            onBack = { nav.popBackStack() },
-                            onOpenCategory = { id, month -> nav.navigate(ActivityRoute(categoryId = id, monthEpoch = month)) },
+                            onOpenInsights = { nav.navigateToTab("insights") },
                         )
                     }
                     composable<ActivityRoute> {
@@ -203,7 +196,7 @@ fun GridAppUi(
                     composable<SubscriptionEditRoute> { SubscriptionEditorScreen(onDone = { nav.popBackStack() }) }
                     composable<PendingEditRoute> { PendingEditorScreen(onDone = { nav.popBackStack() }) }
                     composable<InsightsRoute> {
-                        InsightsScreen(contentPadding = padding, onOpenCategory = { id -> nav.navigate(ActivityRoute(categoryId = id)) })
+                        InsightsScreen(contentPadding = padding, onOpenCategory = { id, month -> nav.navigate(ActivityRoute(categoryId = id, monthEpoch = month)) })
                     }
                     composable<CheckInRoute> {
                         CheckInScreen(

@@ -82,7 +82,8 @@ import kotlin.math.roundToInt
 @Composable
 fun InsightsScreen(
     contentPadding: PaddingValues,
-    onOpenCategory: (Long) -> Unit,
+    /** A category and the first day of the month shown, to open Activity on that month. */
+    onOpenCategory: (categoryId: Long, monthEpochDay: Long?) -> Unit,
     viewModel: InsightsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -207,7 +208,7 @@ private fun InsightCard(insight: Insight, state: InsightsUiState) {
 }
 
 @Composable
-private fun CategoryBreakdown(state: InsightsUiState, report: InsightsReport, onOpenCategory: (Long) -> Unit) {
+private fun CategoryBreakdown(state: InsightsUiState, report: InsightsReport, onOpenCategory: (Long, Long?) -> Unit) {
     val colors = GridTheme.colors
     Tile {
         CapsLabel(stringResource(R.string.insights_by_category))
@@ -226,7 +227,7 @@ private fun CategoryBreakdown(state: InsightsUiState, report: InsightsReport, on
         report.byCategory.forEach { share ->
             val category = state.categories[share.id] ?: return@forEach
             Row(
-                Modifier.fillMaxWidth().clickable { onOpenCategory(share.id) }.padding(vertical = 7.dp),
+                Modifier.fillMaxWidth().clickable { onOpenCategory(share.id, state.period?.start?.toEpochDay()) }.padding(vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 CategoryBadge(category.iconKey, category.colorKey, size = 30.dp)
