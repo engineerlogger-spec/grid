@@ -47,6 +47,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -122,15 +124,19 @@ fun BillsScreen(
         if (state.hasReminders) item { NotificationPermissionBanner() }
         if (!state.loading) {
             when (tab) {
-                BillsTab.SUBSCRIPTIONS -> subscriptionsContent(state, onEditSubscription)
+                BillsTab.SUBSCRIPTIONS -> subscriptionsContent(state, onEditSubscription, viewModel)
                 BillsTab.PENDING -> pendingContent(state, onEditPending, viewModel)
             }
         }
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(state: BillsUiState, onEdit: (Long?) -> Unit) {
-    if (state.active.isEmpty() && state.inactive.isEmpty()) {
+private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(state: BillsUiState, onEdit: (Long?) -> Unit, vm: BillsViewModel) {
+    if (state.suggested.isNotEmpty()) {
+        item { SuggestionsHeader() }
+        items(state.suggested, key = { "g${it.id}" }) { sub -> SuggestionRow(sub, onAdd = { vm.addSuggested(sub.id) }, onReject = { vm.rejectSuggested(sub.id) }) }
+    }
+    if (state.active.isEmpty() && state.inactive.isEmpty() && state.suggested.isEmpty()) {
         item {
             EmptyState(
                 Icons.Rounded.Autorenew,
@@ -147,6 +153,41 @@ private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(
     if (state.inactive.isNotEmpty()) {
         item { CapsLabel(stringResource(R.string.bills_inactive), Modifier.padding(start = 4.dp, top = 10.dp)) }
         items(state.inactive, key = { "i${it.id}" }) { sub -> SubscriptionRow(sub, state.today, dimmed = true) { onEdit(sub.id) } }
+    }
+}
+
+@Composable
+private fun SuggestionsHeader() {
+    val colors = GridTheme.colors
+    Column(Modifier.padding(start = 4.dp, top = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = colors.accentText, modifier = Modifier.size(16.dp))
+            CapsLabel(stringResource(R.string.bills_suggested), Modifier.padding(start = 6.dp), color = colors.accentText)
+        }
+        Text(stringResource(R.string.bills_suggested_body), style = MaterialTheme.typography.bodySmall, color = colors.muted)
+    }
+}
+
+/** A bill Gemini found in the payments: added only when the user says so. */
+@Composable
+private fun SuggestionRow(sub: Subscription, onAdd: () -> Unit, onReject: () -> Unit) {
+    val colors = GridTheme.colors
+    Tile(borderColor = colors.accentText.copy(alpha = 0.4f), contentPadding = PaddingValues(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MonogramBadge(sub.name, sub.colorKey, size = 40.dp)
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text(sub.name, style = MaterialTheme.typography.titleSmall, color = colors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    cycleLabel(sub) + if (sub.amountVaries) " · " + stringResource(R.string.bills_amount_varies) else "",
+                    style = MaterialTheme.typography.bodySmall, color = colors.muted, maxLines = 1,
+                )
+            }
+            AmountText(sub.amountMinor, sub.currency, style = GridText.moneySmall)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onReject) { Text(stringResource(R.string.sub_not_a_bill)) }
+            TextButton(onClick = onAdd) { Text(stringResource(R.string.bills_add_suggested)) }
+        }
     }
 }
 
@@ -194,6 +235,7 @@ private fun SubscriptionRow(sub: Subscription, today: LocalDate, dimmed: Boolean
                     SubscriptionStatus.ACTIVE -> cycleLabel(sub) + " · " + relativeDay(sub.nextCharge, today)
                     SubscriptionStatus.PAUSED -> stringResource(R.string.bills_paused)
                     SubscriptionStatus.CANCELLED -> stringResource(R.string.bills_cancelled)
+                    SubscriptionStatus.SUGGESTED -> cycleLabel(sub)
                 }
                 Text(status, style = MaterialTheme.typography.bodySmall, color = colors.muted, maxLines = 1)
                 if (sub.detected) {

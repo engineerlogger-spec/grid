@@ -23,6 +23,7 @@ import com.grid.app.core.model.BankTxState
 import com.grid.app.core.model.CaptureDirection
 import com.grid.app.core.model.CategoryKind
 import com.grid.app.core.model.MerchantKey
+import com.grid.app.core.model.SubscriptionStatus
 import com.grid.app.core.time.FixedClock
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -143,25 +144,61 @@ class AiAssistantTest {
         // What the user chose stays.
         assertThat(transactions.get(lidl.transactionId!!)!!.category.iconKey).isEqualTo("health")
 
-        // SFR: a detected bill whose amount varies, linked to every payment, next charge after today.
-        val bill = subscriptions.all().single()
-        assertThat(bill.detected).isTrue()
-        assertThat(bill.amountVaries).isTrue()
-        assertThat(bill.payeeKey).isEqualTo("sfr")
-        assertThat(bill.amountMinor).isEqualTo(1600)
-        assertThat(bill.nextCharge).isGreaterThan(today)
-        sfr.forEach { assertThat(transactions.get(it.transactionId!!)!!.subscriptionId).isEqualTo(bill.id) }
+        // SFR: suggested, not added — a bill whose amount varies, waiting for the user, linked to nothing yet.
+        val suggestion = subscriptions.all().single()
+        assertThat(suggestion.status).isEqualTo(SubscriptionStatus.SUGGESTED)
+        assertThat(suggestion.detected).isTrue()
+        assertThat(suggestion.amountVaries).isTrue()
+        assertThat(suggestion.payeeKey).isEqualTo("sfr")
+        assertThat(suggestion.amountMinor).isEqualTo(1600)
+        assertThat(suggestion.nextCharge).isGreaterThan(today)
+        sfr.forEach { assertThat(transactions.get(it.transactionId!!)!!.subscriptionId).isNull() }
         assertThat(settings.settings.first().ai.bills).isEqualTo(1)
 
-        // A new SFR bill of another amount is linked to it on arrival.
+        // Added by the user: it takes its past payments, and the next one of another amount on arrival.
+        subscriptions.acceptSuggestion(suggestion.id)
+        val bill = subscriptions.get(suggestion.id)!!
+        assertThat(bill.status).isEqualTo(SubscriptionStatus.ACTIVE)
+        sfr.forEach { assertThat(transactions.get(it.transactionId!!)!!.subscriptionId).isEqualTo(bill.id) }
         val next = pay("SFR", 2599, "2026-10-05", BankTxKind.TRANSFER_OUT)
         assertThat(transactions.get(next.transactionId!!)!!.subscriptionId).isEqualTo(bill.id)
+
+        // Found again on the next pass: already tracked, nothing new suggested.
+        server.enqueue(gemini("""[{"key":"sfr","name":"SFR","cadence":"monthly","amount":16.00,"varies":true,"active":true,"confidence":0.95}]"""))
+        assistant.run()
+        assertThat(subscriptions.all()).hasSize(1)
 
         // "Not a bill": gone, and never found again.
         subscriptions.dismissDetected(bill.id)
         server.enqueue(gemini("""[{"key":"sfr","name":"SFR","cadence":"monthly","amount":16.00,"varies":true,"active":true,"confidence":0.95}]"""))
         assistant.run()
         assertThat(subscriptions.all()).isEmpty()
+    }
+
+    @Test fun aBillTheUserAlreadyTracksIsNotSuggestedButLinkedToItsPayee() = runTest {
+        ready()
+        listOf("2026-08-05", "2026-09-05", "2026-10-03").forEach { pay("SFR", 1499, it, BankTxKind.TRANSFER_OUT) }
+        val own = subscriptions.add(
+            com.grid.app.core.model.SubscriptionDraft("SFR Mobile", 1500, "EUR", com.grid.app.core.model.Cycle.Monthly, LocalDate.parse("2026-11-05"), db.categoryDao().byIconKey("bills", CategoryKind.EXPENSE)!!.id, colorKey = "red"),
+        )
+        server.enqueue(gemini("""[{"key":"sfr","name":"SFR","about":"Mobile operator","category":"bills","confidence":0.95}]"""))
+        server.enqueue(gemini("""[{"key":"sfr","name":"SFR","cadence":"monthly","amount":14.99,"varies":true,"active":true,"confidence":0.95}]"""))
+        assistant.run()
+        assertThat(subscriptions.all().map { it.id }).containsExactly(own)
+        assertThat(subscriptions.get(own)!!.payeeKey).isEqualTo("sfr")
+    }
+
+    @Test fun billsAddedByEarlierVersionsBecomeSuggestionsOnce() = runTest {
+        ready()
+        val old = subscriptions.add(
+            com.grid.app.core.model.SubscriptionDraft("Netflix", 899, "EUR", com.grid.app.core.model.Cycle.Monthly, LocalDate.parse("2026-11-03"), db.categoryDao().byIconKey("subscriptions", CategoryKind.EXPENSE)!!.id, colorKey = "red", detected = true),
+        )
+        AiKeyStore(tmp.root.resolve("ai.key"), Plain).clear()
+        assistant.run()
+        assertThat(subscriptions.get(old)!!.status).isEqualTo(SubscriptionStatus.SUGGESTED)
+        subscriptions.acceptSuggestion(old)
+        assistant.run() // not again
+        assertThat(subscriptions.get(old)!!.status).isEqualTo(SubscriptionStatus.ACTIVE)
     }
 
     @Test fun withoutAKeyNothingIsSent() = runTest {

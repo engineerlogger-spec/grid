@@ -136,6 +136,7 @@ class SettingsRepository(
         val aiBills = intPreferencesKey("ai_bills")
         val aiDigestDay = longPreferencesKey("ai_digest_day")
         val aiDigest = stringPreferencesKey("ai_digest")
+        val detectedAreSuggestions = booleanPreferencesKey("detected_are_suggestions")
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -202,6 +203,10 @@ class SettingsRepository(
 
     /** Gemini's monthly notes as written on [epochDay] (JSON). */
     suspend fun digest(): Pair<Long, String>? = store.data.first().let { p -> p[Keys.aiDigestDay]?.let { day -> p[Keys.aiDigest]?.let { day to it } } }
+    /** Once: bills detected before suggestions existed (3.0–3.1) become suggestions for the user to confirm. */
+    suspend fun detectedAreSuggestions(): Boolean = store.data.first()[Keys.detectedAreSuggestions] == true
+    suspend fun markDetectedAreSuggestions() = store.edit { it[Keys.detectedAreSuggestions] = true }
+
     suspend fun saveDigest(epochDay: Long, json: String) = store.edit {
         it[Keys.aiDigestDay] = epochDay
         it[Keys.aiDigest] = json

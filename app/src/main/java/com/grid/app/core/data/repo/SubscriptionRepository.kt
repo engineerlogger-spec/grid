@@ -96,6 +96,43 @@ class SubscriptionRepository @Inject constructor(
 
     suspend fun delete(id: Long) = dao.delete(id)
 
+    /**
+     * The user added a suggestion: it becomes a tracked subscription and takes its payee's past payments (about the
+     * same price, or any when the amount varies).
+     */
+    suspend fun acceptSuggestion(id: Long) {
+        val sub = dao.get(id)?.takeIf { it.status == SubscriptionStatus.SUGGESTED } ?: return
+        dao.update(sub.copy(status = SubscriptionStatus.ACTIVE))
+        linkPayments(id, pastPaymentsOf(sub))
+    }
+
+    /** Entries paid to a subscription's payee (by bank payee, else by name) not linked to anything yet. */
+    private suspend fun pastPaymentsOf(sub: SubscriptionEntity): List<Long> {
+        val nameKey = MerchantKey.of(sub.name)
+        val byBank = sub.payeeKey?.let { key -> db.bankDao().bookedWithEntry().filter { it.counterpartyKey == key }.mapNotNull { it.transactionId }.toSet() }.orEmpty()
+        return db.transactionDao().withMerchant(TxType.EXPENSE)
+            .filter { it.subscriptionId == null && (it.id in byBank || (nameKey != null && MerchantKey.of(it.merchant!!) == nameKey)) }
+            .filter { sub.amountVaries || kotlin.math.abs(it.amountMinor - sub.amountMinor) <= sub.amountMinor * PRICE_TOLERANCE }
+            .map { it.id }
+    }
+
+    /** One of the user's own subscriptions is paid to this bank payee: link it, so its payments are recognised. */
+    suspend fun linkPayee(id: Long, payeeKey: String) {
+        val sub = dao.get(id)?.takeIf { it.payeeKey == null } ?: return
+        dao.update(sub.copy(payeeKey = payeeKey))
+    }
+
+    /** Bills auto-added by 3.0–3.1 become suggestions for the user to confirm (their payment links are dropped). */
+    suspend fun detectedToSuggestions() {
+        db.withTransaction {
+            dao.all().filter { it.detected && it.status == SubscriptionStatus.ACTIVE }.forEach {
+                db.transactionDao().unlinkSubscription(it.id)
+                dao.update(it.copy(status = SubscriptionStatus.SUGGESTED))
+            }
+        }
+        listeners.notifyAll()
+    }
+
     /** A detected bill's expected amount, kept current from its latest payments (phone, energy). */
     suspend fun refreshExpected(id: Long, amountMinor: Long, varies: Boolean) {
         val existing = dao.get(id) ?: return
