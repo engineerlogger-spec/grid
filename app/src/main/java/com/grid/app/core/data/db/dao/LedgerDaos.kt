@@ -154,6 +154,20 @@ interface TransactionDao {
     @Query("UPDATE transactions SET subscriptionId = NULL WHERE subscriptionId = :subscriptionId")
     suspend fun unlinkSubscription(subscriptionId: Long)
 
+    /** Bank-booked entries no notification has joined yet, around a time. */
+    @Query(
+        """SELECT * FROM transactions WHERE source = 'BANK' AND captureId IS NULL AND type = :type AND currency = :currency
+             AND occurredAt BETWEEN :fromMs AND :toMs""",
+    )
+    suspend fun bankEntriesWithoutCapture(type: TxType, currency: String, fromMs: Long, toMs: Long): List<TransactionEntity>
+
+    /** Entries made from a notification that no bank payment is linked to. */
+    @Query(
+        """SELECT * FROM transactions t WHERE t.source = 'CAPTURE' AND t.captureId IS NOT NULL
+             AND NOT EXISTS (SELECT 1 FROM bank_transactions b WHERE b.transactionId = t.id)""",
+    )
+    suspend fun captureEntriesWithoutBank(): List<TransactionEntity>
+
     /** Charges older versions auto-logged for subscriptions, except those a bank payment was merged into. */
     @Query(
         """DELETE FROM transactions WHERE source = 'SUBSCRIPTION'

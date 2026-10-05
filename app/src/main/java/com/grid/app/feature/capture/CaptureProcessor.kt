@@ -24,7 +24,9 @@ interface CaptureAlerts {
     fun detected(capture: CaptureItem, suggestions: List<Category>)
 }
 
-enum class CaptureOutcome { DISABLED, IGNORED, UNPARSED, DUPLICATE, AUTO_ADDED, QUEUED }
+enum class CaptureOutcome { DISABLED, IGNORED, UNPARSED, DUPLICATE, AUTO_ADDED, QUEUED, 
+    /** The bank had already booked it: the notification joined that entry (no second entry, no alert). */
+    JOINED_BANK }
 
 /**
  * Parses a payment notification and decides what to do with it. Auto-adds only when it's safe:
@@ -49,6 +51,7 @@ class CaptureProcessor @Inject constructor(
             }
             is CaptureParse.Parsed -> {
                 val item = captures.recordParsed(source, title, text, postedAt, parsed) ?: return CaptureOutcome.DUPLICATE
+                if (captures.joinBankTwin(item.id) != null) return CaptureOutcome.JOINED_BANK
                 val rule = captures.ruleFor(item.merchant)
                 val canAutoAdd = s.capture.autoAdd && rule != null && item.direction == CaptureDirection.OUT && item.currency == s.currency
                 if (canAutoAdd) {
