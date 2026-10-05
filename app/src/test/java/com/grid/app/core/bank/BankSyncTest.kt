@@ -195,6 +195,22 @@ class BankSyncTest {
         assertThat(transactions.observeAll().first().filter { it.merchant == "Uber" }).hasSize(1)
     }
 
+    @Test fun aDateTheUserChangedStaysAfterSyncs() = runTest {
+        connect()
+        sync.run()
+        val sent = transactions.observeAll().first().first { it.merchant == "Sam Taylor" && it.type == TxType.EXPENSE }
+        val before = transactions.observeAll().first().size
+        val newDate = today.atTime(12, 0).atZone(clock.zone).toInstant().toEpochMilli()
+        transactions.update(sent.id, com.grid.app.core.model.TransactionDraft(
+            sent.type, sent.amountMinor, sent.currency, sent.category.id, sent.method?.id, sent.merchant, sent.note, newDate, sent.source,
+        ))
+        sync.refreshLocal()
+        sync.run()
+        sync.refreshLocal()
+        assertThat(transactions.get(sent.id)!!.occurredAt).isEqualTo(newDate)
+        assertThat(transactions.observeAll().first()).hasSize(before)
+    }
+
     @Test fun cancelledPendingPaymentDisappears() = runTest {
         val scripted = Scripted()
         connect(scripted)
