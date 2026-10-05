@@ -38,7 +38,8 @@ object RecurringDetector {
     private const val GRACE_DAYS = 7L
 
     /** Habits, not bills: a monthly pizza night isn't a payment to forecast. */
-    private val notBills = setOf("restaurant", "groceries", "shopping", "clothing", "cash", "personal_care", "entertainment")
+    /** Everyday spending: frequent, but never a bill. */
+    val notBills = setOf("restaurant", "groceries", "shopping", "clothing", "cash", "personal_care", "entertainment")
 
     /** Monthly bills found in the ledger's last 400 days of spending (bank, captured and typed-in payments). */
     fun fromLedger(txs: List<Transaction>, today: LocalDate, zone: ZoneId): List<RecurringPayment> {

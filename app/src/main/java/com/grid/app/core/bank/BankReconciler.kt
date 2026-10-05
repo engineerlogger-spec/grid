@@ -63,7 +63,9 @@ class BankReconciler @Inject constructor(
         if (isOwnTransfer(row)) return Outcome(BankTxState.OWN_TRANSFER)
 
         val type = if (row.direction == CaptureDirection.OUT) TxType.EXPENSE else TxType.INCOME
-        val merchant = BankRepository.displayName(row)
+        // What Gemini learned about this payee: its real name, and a category when nobody taught one.
+        val profile = row.counterpartyKey?.let { db.payeeProfileDao().get(it) }
+        val merchant = profile?.name ?: BankRepository.displayName(row)
         val methods = db.paymentMethodDao().all().filter { !it.archived }
         fun method(kind: PaymentKind?) = kind?.let { k -> methods.firstOrNull { it.kind == k }?.id }
         val viaMethod = method(row.via)
@@ -101,7 +103,8 @@ class BankReconciler @Inject constructor(
 
         // 3. Everything else is real money in or out: always booked, so Activity shows it all. The category comes from
         //    what the user taught, else the bank's code, else the name; when nothing knows, "Other" (marked to sort).
-        val guessedId = ruleCategory?.id ?: guessCategory(row, merchant, wantedKind)?.id
+        val profileCategory = profile?.categoryIconKey?.takeIf { wantedKind == CategoryKind.EXPENSE }?.let { categories.ensure(it, wantedKind) }
+        val guessedId = ruleCategory?.id ?: profileCategory?.id ?: guessCategory(row, merchant, wantedKind)?.id
         val categoryId = guessedId
             ?: db.categoryDao().byIconKey(if (type == TxType.EXPENSE) Seed.ICON_OTHER else Seed.ICON_OTHER_INCOME, wantedKind)!!.id
         val id = book(row, merchant, categoryId, rule?.paymentMethodId ?: viaMethod ?: revolut, needsReview = guessedId == null)
@@ -178,6 +181,11 @@ class BankReconciler @Inject constructor(
 
     /** An active subscription charging about this amount within ±3 days that has no entry for that charge yet. */
     private suspend fun matchSubscription(row: BankTransactionEntity, merchant: String?): SubscriptionEntity? {
+        // A bill linked to this payee: whatever the day, and any amount when it varies (phone, energy).
+        db.subscriptionDao().all().firstOrNull {
+            it.status == SubscriptionStatus.ACTIVE && it.currency == row.currency && it.payeeKey != null && it.payeeKey == row.counterpartyKey &&
+                (it.amountVaries || MatchRules.relativeDiff(row.amountMinor, it.amountMinor) <= 0.25)
+        }?.let { return it }
         val day = Instant.ofEpochMilli(row.occurredAt).atZone(clock.zone).toLocalDate()
         val from = day.minusDays(SLACK_DAYS)
         val to = day.plusDays(SLACK_DAYS)

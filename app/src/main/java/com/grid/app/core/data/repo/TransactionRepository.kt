@@ -16,6 +16,7 @@ import com.grid.app.core.model.PaymentMethod
 import com.grid.app.core.model.QuickSuggestion
 import com.grid.app.core.model.Transaction
 import com.grid.app.core.model.TransactionDraft
+import com.grid.app.core.model.TxSource
 import com.grid.app.core.model.TxType
 import com.grid.app.core.time.AppClock
 import com.grid.app.core.time.BudgetPeriod
@@ -62,7 +63,8 @@ class TransactionRepository @Inject constructor(
         val now = clock.millis()
         val id = db.withTransaction {
             val id = dao.insert(draft.toEntity(createdAt = now, updatedAt = now))
-            learnMerchant(draft, now)
+            // Bank and subscription bookings are automatic guesses: they keep the rule warm but never count as the user's choice.
+            learnMerchant(draft, now, userSet = draft.source != TxSource.BANK && draft.source != TxSource.SUBSCRIPTION)
             id
         }
         listeners.notifyAll()
@@ -81,7 +83,7 @@ class TransactionRepository @Inject constructor(
         db.withTransaction {
             dao.update(reviewed.toEntity(id = id, createdAt = existing.createdAt, updatedAt = now))
             // A one-off exception ("this one was a gift") must not retrain the payee.
-            if (!categoryChanged || samePayeeToo || samePayeeIds(id, reviewed.merchant, reviewed.type).isEmpty()) learnMerchant(reviewed, now)
+            if (!categoryChanged || samePayeeToo || samePayeeIds(id, reviewed.merchant, reviewed.type).isEmpty()) learnMerchant(reviewed, now, userSet = true)
             if (categoryChanged && samePayeeToo) {
                 samePayeeIds(id, reviewed.merchant, reviewed.type).mapNotNull { dao.get(it) }
                     .forEach { dao.update(it.copy(categoryId = reviewed.categoryId, needsReview = false, updatedAt = now)) }
@@ -194,14 +196,67 @@ class TransactionRepository @Inject constructor(
     companion object {
         /** How long deleted entries can be restored. */
         const val TRASH_DAYS = 30L
+        private const val TAUGHT_GAP_MS = 2_000L
     }
 
-    private suspend fun learnMerchant(draft: TransactionDraft, now: Long) {
+    private suspend fun learnMerchant(draft: TransactionDraft, now: Long, userSet: Boolean) {
         // A placeholder category ("Other" until reviewed) must not become the merchant's rule.
         if (draft.needsReview) return
         val key = draft.merchant?.let(MerchantKey::of) ?: return
         val rules = db.merchantRuleDao()
-        val hits = (rules.get(key)?.hits ?: 0) + 1
-        rules.upsert(MerchantRuleEntity(key, draft.categoryId, draft.paymentMethodId, hits, now))
+        val existing = rules.get(key)
+        val hits = (existing?.hits ?: 0) + 1
+        // An automatic booking never replaces what the user chose.
+        if (existing?.userSet == true && !userSet) {
+            rules.upsert(existing.copy(hits = hits))
+            return
+        }
+        rules.upsert(MerchantRuleEntity(key, draft.categoryId, draft.paymentMethodId, hits, now, userSet = userSet))
+    }
+
+    /**
+     * Gemini recognised the payee of these entries: they take its real name, and its category unless the user chose
+     * one for that payee (or the entry belongs to a subscription). The payee's rule follows the new name.
+     */
+    suspend fun applyPayeeProfile(ids: List<Long>, name: String?, categoryId: Long?) {
+        if (ids.isEmpty()) return
+        val now = clock.millis()
+        db.withTransaction {
+            val rules = db.merchantRuleDao()
+            for (id in ids) {
+                val tx = dao.get(id) ?: continue
+                val oldKey = tx.merchant?.let(MerchantKey::of)
+                val taught = oldKey?.let { rules.get(it) }?.userSet == true
+                val newName = name?.trim()?.takeIf { it.isNotBlank() && it != tx.merchant }
+                val newCategory = categoryId?.takeIf { !taught && tx.subscriptionId == null && it != tx.categoryId }
+                if (newName == null && newCategory == null) continue
+                dao.update(
+                    tx.copy(
+                        merchant = newName ?: tx.merchant, categoryId = newCategory ?: tx.categoryId,
+                        needsReview = if (newCategory != null) false else tx.needsReview, updatedAt = now,
+                    ),
+                )
+                val newKey = newName?.let(MerchantKey::of)
+                if (oldKey != null && newKey != null && newKey != oldKey && rules.get(newKey) == null) {
+                    rules.get(oldKey)?.let { rules.upsert(it.copy(merchantKey = newKey)) }
+                }
+            }
+        }
+        listeners.notifyAll()
+    }
+
+    /**
+     * Rules from before Grid recorded who chose a category: one changed after the payee's last booking was the user's
+     * edit, so it is marked as theirs.
+     */
+    suspend fun markTaughtRules() {
+        val rules = db.merchantRuleDao()
+        val latest = (dao.withMerchant(TxType.EXPENSE) + dao.withMerchant(TxType.INCOME))
+            .groupBy { MerchantKey.of(it.merchant!!) }
+            .mapValues { (_, txs) -> txs.maxOf { it.createdAt } }
+        rules.all().filter { !it.userSet }.forEach { rule ->
+            val lastBooked = latest[rule.merchantKey] ?: return@forEach
+            if (rule.updatedAt > lastBooked + TAUGHT_GAP_MS) rules.upsert(rule.copy(userSet = true))
+        }
     }
 }

@@ -62,6 +62,18 @@ interface BankDao {
     @Query("DELETE FROM bank_transactions WHERE id = :id")
     suspend fun deleteStaged(id: Long)
 
+    /** Money paid out to payees Gemini hasn't looked at yet. */
+    @Query(
+        """SELECT * FROM bank_transactions b WHERE b.direction = 'OUT' AND b.state = 'BOOKED' AND b.counterpartyKey IS NOT NULL
+             AND b.kind IN ('CARD_SPEND', 'DIRECT_DEBIT', 'TRANSFER_OUT')
+             AND NOT EXISTS (SELECT 1 FROM payee_profiles p WHERE p.`key` = b.counterpartyKey)""",
+    )
+    suspend fun unprofiledPayments(): List<BankTransactionEntity>
+
+    /** Booked payments with their ledger entry: who was paid, for the entries' payee links. */
+    @Query("SELECT * FROM bank_transactions WHERE state = 'BOOKED' AND transactionId IS NOT NULL AND counterpartyKey IS NOT NULL")
+    suspend fun bookedWithEntry(): List<BankTransactionEntity>
+
     /**
      * Bank payments whose ledger entry is gone (deleted before "Recently deleted" existed, or lost): booked, unlinked,
      * and not waiting in the trash.

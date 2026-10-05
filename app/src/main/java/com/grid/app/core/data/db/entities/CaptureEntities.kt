@@ -32,4 +32,6 @@ data class MerchantRuleEntity(
     val paymentMethodId: Long? = null,
     val hits: Int = 1,
     val updatedAt: Long,
+    /** The user chose this category (an edit, a quick add, a detected payment): automatic sorting never overrides it. */
+    @androidx.room.ColumnInfo(defaultValue = "0") val userSet: Boolean = false,
 )

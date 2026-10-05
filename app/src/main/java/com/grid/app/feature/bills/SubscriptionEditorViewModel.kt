@@ -70,6 +70,8 @@ data class SubscriptionEditorState(
     /** Made from a payment: its date anchors the schedule, and these earlier payments get linked on save. */
     val lastPaid: LocalDate? = null,
     val paymentIds: List<Long> = emptyList(),
+    val amountVaries: Boolean = false,
+    val detected: Boolean = false,
 ) {
     val cycle: Cycle get() = choice.cycle ?: Cycle(customUnit, customCount.coerceAtLeast(1))
     val amountMinor: Long? get() = parseMoney(amount, currency)?.takeIf { it > 0 }
@@ -116,6 +118,7 @@ class SubscriptionEditorViewModel @Inject constructor(
                     currency = existing.currency, choice = CycleChoice.of(existing.cycle), customUnit = existing.cycle.unit, customCount = existing.cycle.count,
                     nextCharge = existing.nextCharge, today = clock.today(), categories = categories, categoryId = existing.category.id,
                     methods = methods, methodId = existing.paymentMethodId, remindDays = existing.remindDaysBefore,
+                    amountVaries = existing.amountVaries, detected = existing.detected,
                     colorKey = existing.colorKey, note = existing.note.orEmpty(), status = existing.status,
                 )
             } else {
@@ -151,6 +154,16 @@ class SubscriptionEditorViewModel @Inject constructor(
     fun setRemind(days: Int?) = _state.update { it.copy(remindDays = days) }
     fun setColor(key: String) = _state.update { it.copy(colorKey = key) }
     fun setNote(v: String) = _state.update { it.copy(note = v) }
+    fun setAmountVaries(on: Boolean) = _state.update { it.copy(amountVaries = on) }
+
+    /** A detected subscription that isn't a bill: removed, and its payee never detected again. */
+    fun notABill() {
+        val id = _state.value.id ?: return
+        viewModelScope.launch {
+            subscriptions.dismissDetected(id)
+            _state.update { it.copy(done = true) }
+        }
+    }
 
     fun save() {
         val s = _state.value
@@ -162,7 +175,7 @@ class SubscriptionEditorViewModel @Inject constructor(
         }
         val draft = SubscriptionDraft(
             name = s.name, amountMinor = amount, currency = s.currency, cycle = s.cycle, nextCharge = s.nextCharge,
-            categoryId = categoryId, paymentMethodId = s.methodId, remindDaysBefore = s.remindDays, autoLog = false,
+            categoryId = categoryId, paymentMethodId = s.methodId, remindDaysBefore = s.remindDays, autoLog = false, amountVaries = s.amountVaries,
             colorKey = s.colorKey, note = s.note,
         )
         viewModelScope.launch {

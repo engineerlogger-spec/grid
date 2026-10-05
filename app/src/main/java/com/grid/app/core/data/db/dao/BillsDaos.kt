@@ -4,6 +4,8 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Upsert
+import com.grid.app.core.data.db.entities.PayeeProfileEntity
 import com.grid.app.core.data.db.entities.PendingPaymentEntity
 import com.grid.app.core.data.db.entities.SubscriptionEntity
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +32,21 @@ interface SubscriptionDao {
 
     @Query("DELETE FROM subscriptions WHERE id = :id")
     suspend fun delete(id: Long)
+}
+
+@Dao
+interface PayeeProfileDao {
+    @Query("SELECT * FROM payee_profiles WHERE `key` = :key")
+    suspend fun get(key: String): PayeeProfileEntity?
+
+    @Query("SELECT * FROM payee_profiles")
+    suspend fun all(): List<PayeeProfileEntity>
+
+    @Query("SELECT COUNT(*) FROM payee_profiles")
+    fun observeCount(): Flow<Int>
+
+    @Upsert
+    suspend fun upsert(profiles: List<PayeeProfileEntity>)
 }
 
 @Dao

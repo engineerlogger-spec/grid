@@ -151,6 +151,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE type = :type AND merchant IS NOT NULL")
     suspend fun withMerchant(type: TxType): List<TransactionEntity>
 
+    @Query("UPDATE transactions SET subscriptionId = NULL WHERE subscriptionId = :subscriptionId")
+    suspend fun unlinkSubscription(subscriptionId: Long)
+
     /** Charges older versions auto-logged for subscriptions, except those a bank payment was merged into. */
     @Query(
         """DELETE FROM transactions WHERE source = 'SUBSCRIPTION'
@@ -175,4 +178,7 @@ interface MerchantRuleDao {
 
     @Query("SELECT * FROM merchant_rules ORDER BY hits DESC")
     fun observeAll(): Flow<List<MerchantRuleEntity>>
+
+    @Query("SELECT * FROM merchant_rules")
+    suspend fun all(): List<MerchantRuleEntity>
 }

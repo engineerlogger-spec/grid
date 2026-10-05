@@ -3,6 +3,8 @@ package com.grid.app.core.di
 import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.grid.app.core.ai.AiKeyStore
+import com.grid.app.core.ai.GeminiClient
 import com.grid.app.core.bank.BankConnectorProvider
 import com.grid.app.core.bank.BankConnectors
 import com.grid.app.core.bank.BankKeyStore
@@ -82,6 +84,14 @@ object AppModule {
     @Provides @Singleton
     fun bankKeyStore(@ApplicationContext context: Context): BankKeyStore =
         BankKeyStore(File(context.noBackupFilesDir, "bank.key"), KeystoreSecretBox())
+
+    /** The user's Gemini key: same protection as the bank credentials. */
+    @Provides @Singleton
+    fun aiKeyStore(@ApplicationContext context: Context): AiKeyStore =
+        AiKeyStore(File(context.noBackupFilesDir, "ai.key"), KeystoreSecretBox("grid.ai"))
+
+    @Provides @Singleton
+    fun gemini(http: OkHttpClient, keys: AiKeyStore): GeminiClient = GeminiClient(http, keys::load)
 }
 
 @Module

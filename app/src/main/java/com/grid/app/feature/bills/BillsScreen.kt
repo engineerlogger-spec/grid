@@ -196,6 +196,12 @@ private fun SubscriptionRow(sub: Subscription, today: LocalDate, dimmed: Boolean
                     SubscriptionStatus.CANCELLED -> stringResource(R.string.bills_cancelled)
                 }
                 Text(status, style = MaterialTheme.typography.bodySmall, color = colors.muted, maxLines = 1)
+                if (sub.detected) {
+                    Text(
+                        stringResource(if (sub.amountVaries) R.string.bills_detected_varies else R.string.bills_detected),
+                        style = MaterialTheme.typography.labelSmall, color = colors.accentText, maxLines = 1,
+                    )
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 AmountText(sub.amountMinor, sub.currency, style = GridText.moneySmall)

@@ -208,7 +208,10 @@ class BankSetupViewModel @Inject constructor(
 
     private suspend fun runSync() {
         val event = when (val result = sync.run()) {
-            is SyncResult.Ok -> BankEvent.Synced(result.toReview + result.booked)
+            is SyncResult.Ok -> {
+                com.grid.app.core.ai.AiWorker.runNow(context) // Gemini tidies what was just imported
+                BankEvent.Synced(result.toReview + result.booked)
+            }
             SyncResult.RateLimited -> BankEvent.RateLimited
             SyncResult.Expired -> BankEvent.Expired
             is SyncResult.Failed -> BankEvent.Failed(result.message)
