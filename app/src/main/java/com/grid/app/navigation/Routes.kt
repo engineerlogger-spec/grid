@@ -11,7 +11,8 @@ import kotlinx.serialization.Serializable
 @Serializable data object InsightsRoute
 @Serializable data object CheckInRoute
 @Serializable data object SettingsRoute
-@Serializable data class SubscriptionEditRoute(val id: Long? = null)
+/** [fromTransactionId]: a new subscription made from that payment (prefilled; its earlier payments get linked). */
+@Serializable data class SubscriptionEditRoute(val id: Long? = null, val fromTransactionId: Long? = null)
 @Serializable data class PendingEditRoute(val id: Long? = null)
 @Serializable data object DetectedRoute
 @Serializable data object CaptureSetupRoute

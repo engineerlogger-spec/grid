@@ -64,26 +64,32 @@ class TransactionRepository @Inject constructor(
     }
 
     /**
-     * A user edit is a review: it clears [TransactionDraft.needsReview]. A new category applies to every entry with
-     * the same payee (the owner sorts by who was paid, not entry by entry).
+     * A user edit is a review: it clears [TransactionDraft.needsReview]. With [samePayeeToo], a new category also
+     * goes to every other entry with the same payee and becomes the payee's rule; without it, only this entry changes.
      */
-    suspend fun update(id: Long, draft: TransactionDraft) {
+    suspend fun update(id: Long, draft: TransactionDraft, samePayeeToo: Boolean = false) {
         val existing = dao.get(id) ?: return
         val now = clock.millis()
         val reviewed = draft.copy(needsReview = false)
+        val categoryChanged = existing.categoryId != reviewed.categoryId
         db.withTransaction {
             dao.update(reviewed.toEntity(id = id, createdAt = existing.createdAt, updatedAt = now))
-            learnMerchant(reviewed, now)
-            if (existing.categoryId != reviewed.categoryId) recategorizeSamePayee(reviewed, now)
+            // A one-off exception ("this one was a gift") must not retrain the payee.
+            if (!categoryChanged || samePayeeToo || samePayeeIds(id, reviewed.merchant, reviewed.type).isEmpty()) learnMerchant(reviewed, now)
+            if (categoryChanged && samePayeeToo) {
+                samePayeeIds(id, reviewed.merchant, reviewed.type).mapNotNull { dao.get(it) }
+                    .forEach { dao.update(it.copy(categoryId = reviewed.categoryId, needsReview = false, updatedAt = now)) }
+            }
         }
         listeners.notifyAll()
     }
 
-    private suspend fun recategorizeSamePayee(draft: TransactionDraft, now: Long) {
-        val key = draft.merchant?.let(MerchantKey::of) ?: return
-        dao.withMerchant(draft.type)
-            .filter { it.categoryId != draft.categoryId && MerchantKey.of(it.merchant!!) == key }
-            .forEach { dao.update(it.copy(categoryId = draft.categoryId, needsReview = false, updatedAt = now)) }
+    /** The other entries paid to (or received from) the same payee as [tx]. */
+    suspend fun samePayeeIds(tx: Transaction): List<Long> = samePayeeIds(tx.id, tx.merchant, tx.type)
+
+    private suspend fun samePayeeIds(id: Long, merchant: String?, type: TxType): List<Long> {
+        val key = merchant?.let(MerchantKey::of) ?: return emptyList()
+        return dao.withMerchant(type).filter { it.id != id && MerchantKey.of(it.merchant!!) == key }.map { it.id }
     }
 
     /** Gives an entry filed under the placeholder its category (automatic guess: no rule is learned from it). */

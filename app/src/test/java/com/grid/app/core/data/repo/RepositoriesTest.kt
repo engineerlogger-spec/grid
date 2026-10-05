@@ -78,16 +78,22 @@ class RepositoriesTest {
         assertThat(tx.note).isEqualTo("Taxi home")
     }
 
-    @Test fun changingTheCategoryAppliesToEveryEntryOfThatPayee() = runTest {
+    @Test fun aNewCategoryGoesToThisEntryOrToEveryEntryOfThePayee() = runTest {
         val first = transactions.add(draft(1600, icon = "other", merchant = "Abdelhamid N26"))
         val second = transactions.add(draft(5000, icon = "other", merchant = "ABDELHAMID N26"))
         val other = transactions.add(draft(900, icon = "other", merchant = "Berfin"))
-        transactions.update(first, draft(1600, icon = "services", merchant = "Abdelhamid N26"))
+        assertThat(transactions.samePayeeIds(transactions.get(first)!!)).containsExactly(second)
+
+        // Only this one: the payee's other entries and its rule stay as they were.
+        transactions.update(first, draft(1600, icon = "gifts", merchant = "Abdelhamid N26"))
+        assertThat(transactions.get(second)!!.category.iconKey).isEqualTo("other")
+        assertThat(db.merchantRuleDao().get(MerchantKey.of("Abdelhamid N26")!!)?.categoryId).isNotEqualTo(cat("gifts"))
+
+        // All similar: every entry of the payee follows, and so will the next ones.
+        transactions.update(first, draft(1600, icon = "services", merchant = "Abdelhamid N26"), samePayeeToo = true)
         assertThat(transactions.get(second)!!.category.iconKey).isEqualTo("services")
+        assertThat(db.merchantRuleDao().get(MerchantKey.of("Abdelhamid N26")!!)!!.categoryId).isEqualTo(cat("services"))
         assertThat(transactions.get(other)!!.category.iconKey).isEqualTo("other")
-        // An edit that keeps the category leaves the payee's other entries alone.
-        transactions.update(other, draft(950, icon = "other", merchant = "Berfin"))
-        assertThat(transactions.get(second)!!.category.iconKey).isEqualTo("services")
     }
 
     @Test fun suggestionsLearnRepeatedCombos() = runTest {

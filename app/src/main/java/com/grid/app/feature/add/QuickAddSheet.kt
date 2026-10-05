@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -37,6 +38,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -74,6 +76,7 @@ import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.core.model.Category
 import com.grid.app.core.model.TxType
 import com.grid.app.core.money.Currencies
+import com.grid.app.feature.common.MoneyField
 import com.grid.app.feature.common.QuickAddRequest
 import com.grid.app.feature.common.shortDate
 import java.time.Instant
@@ -91,6 +94,7 @@ fun QuickAddSheet(
     onDismiss: () -> Unit,
     onSaved: (QuickAddEvent.Saved) -> Unit,
     onDeleted: (QuickAddEvent.Deleted) -> Unit,
+    onMakeSubscription: (transactionId: Long) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -116,13 +120,13 @@ fun QuickAddSheet(
         dragHandle = null,
         shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
     ) {
-        if (!state.loading) QuickAddContent(state, viewModel)
+        if (!state.loading) QuickAddContent(state, viewModel, onMakeSubscription)
         else Spacer(Modifier.height(520.dp))
     }
 }
 
 @Composable
-private fun QuickAddContent(state: QuickAddUiState, vm: QuickAddViewModel) {
+private fun QuickAddContent(state: QuickAddUiState, vm: QuickAddViewModel, onMakeSubscription: (Long) -> Unit) {
     // The keypad is pinned to the bottom; everything above it scrolls when space runs out (small
     // phones, note field open, keyboard up), so Save is always reachable.
     Column(
@@ -137,25 +141,40 @@ private fun QuickAddContent(state: QuickAddUiState, vm: QuickAddViewModel) {
             Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            UpperSection(state, vm)
+            UpperSection(state, vm, onMakeSubscription)
         }
-        Keypad(
-            onKey = vm::press,
-            onSave = vm::saveSelected,
-            saveLabel = stringResource(R.string.action_save),
-            decimalEnabled = Currencies.fractionDigits(state.currency) > 0,
-        )
+        if (state.isEditing) {
+            // Editing uses the system keyboard for the amount; the calculator keypad is for quick adding.
+            Button(onClick = vm::saveSelected, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
+                Text(stringResource(R.string.action_save))
+            }
+        } else {
+            Keypad(
+                onKey = vm::press,
+                onSave = vm::saveSelected,
+                saveLabel = stringResource(R.string.action_save),
+                decimalEnabled = Currencies.fractionDigits(state.currency) > 0,
+            )
+        }
     }
 }
 
 @Composable
-private fun ColumnScope.UpperSection(state: QuickAddUiState, vm: QuickAddViewModel) {
+private fun ColumnScope.UpperSection(state: QuickAddUiState, vm: QuickAddViewModel, onMakeSubscription: (Long) -> Unit) {
     val colors = GridTheme.colors
     run {
         Surface(Modifier.align(Alignment.CenterHorizontally).size(width = 38.dp, height = 4.dp), shape = RoundedCornerShape(2.dp), color = colors.hairline) {}
         if (state.isEditing) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.add_edit_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                // A payment that repeats: make it a subscription, with its earlier payments linked.
+                val editing = state.editing
+                if (editing != null && editing.type == TxType.EXPENSE && editing.subscriptionId == null) {
+                    GridChip(
+                        label = stringResource(R.string.add_make_subscription), icon = Icons.Rounded.Autorenew,
+                        selected = false, onClick = { onMakeSubscription(editing.id) },
+                    )
+                }
                 IconButton(onClick = vm::delete) {
                     Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.action_delete), tint = colors.danger)
                 }
@@ -169,7 +188,14 @@ private fun ColumnScope.UpperSection(state: QuickAddUiState, vm: QuickAddViewMod
             modifier = Modifier.fillMaxWidth(),
         )
 
-        AmountDisplay(state)
+        if (state.isEditing) {
+            MoneyField(
+                state.amountText, vm::setAmountText, state.currency, modifier = Modifier.fillMaxWidth(),
+                label = stringResource(R.string.add_amount), isError = state.error == QuickAddError.ENTER_AMOUNT,
+            )
+        } else {
+            AmountDisplay(state)
+        }
 
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -214,6 +240,20 @@ private fun ColumnScope.UpperSection(state: QuickAddUiState, vm: QuickAddViewMod
         }
 
         CategoryGrid(state, vm)
+
+        if (state.asksScope) {
+            Text(
+                stringResource(R.string.add_scope_title, state.editing?.title.orEmpty()),
+                style = MaterialTheme.typography.labelMedium, color = colors.muted,
+            )
+            Segmented(
+                options = listOf(false, true),
+                selected = state.applyToAll,
+                label = { all -> if (all) stringResource(R.string.add_scope_all, state.similarCount + 1) else stringResource(R.string.add_scope_this) },
+                onSelect = vm::setApplyToAll,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         Text(
             text = when {

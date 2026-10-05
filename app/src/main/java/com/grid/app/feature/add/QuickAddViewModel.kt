@@ -18,6 +18,8 @@ import com.grid.app.core.money.Currencies
 import com.grid.app.core.money.KeypadKey
 import com.grid.app.core.time.AppClock
 import com.grid.app.feature.common.QuickAddRequest
+import com.grid.app.feature.common.moneyFieldText
+import com.grid.app.feature.common.parseMoney
 import com.grid.app.feature.common.toLocalDate
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -53,9 +55,17 @@ data class QuickAddUiState(
     val error: QuickAddError? = null,
     /** Incremented to replay the shake animation. */
     val shake: Int = 0,
+    /** Editing: the amount as typed with the system keyboard (the calculator keypad is for quick adding). */
+    val amountText: String = "",
+    /** Editing: other entries with the same payee, and whether a new category applies to them too. */
+    val similarCount: Int = 0,
+    val applyToAll: Boolean = true,
 ) {
     val isEditing: Boolean get() = editing != null
     val method: PaymentMethod? get() = methods.firstOrNull { it.id == methodId }
+    val amountMinor: Long? get() = if (isEditing) parseMoney(amountText, currency) else input.valueMinor
+    /** Ask "only this / all similar" once the category is changed on an entry whose payee has other entries. */
+    val asksScope: Boolean get() = editing != null && similarCount > 0 && selectedCategoryId != editing.category.id
 }
 
 sealed interface QuickAddEvent {
@@ -108,6 +118,8 @@ class QuickAddViewModel @Inject constructor(
                 noteOpen = !editing?.note.isNullOrBlank(),
                 suggestions = if (editing == null && type == TxType.EXPENSE) transactions.suggestions() else emptyList(),
                 editing = editing,
+                similarCount = editing?.let { transactions.samePayeeIds(it).size } ?: 0,
+                amountText = editing?.let { moneyFieldText(it.amountMinor, it.currency) }.orEmpty(),
             )
         }
     }
@@ -126,6 +138,8 @@ class QuickAddViewModel @Inject constructor(
     }
 
     fun press(key: KeypadKey) = _state.update { it.copy(input = it.input.press(key), error = null) }
+    fun setAmountText(text: String) = _state.update { it.copy(amountText = text, error = null) }
+    fun setApplyToAll(all: Boolean) = _state.update { it.copy(applyToAll = all) }
 
     /** Fast path: with an amount typed, tapping a category saves immediately. */
     fun tapCategory(category: Category) {
@@ -146,7 +160,7 @@ class QuickAddViewModel @Inject constructor(
 
     fun saveSelected() {
         val s = _state.value
-        val amount = s.input.valueMinor
+        val amount = s.amountMinor
         when {
             amount == null || amount <= 0 -> _state.update { it.copy(error = QuickAddError.ENTER_AMOUNT, shake = it.shake + 1) }
             s.selectedCategoryId == null -> _state.update { it.copy(error = QuickAddError.PICK_CATEGORY, shake = it.shake + 1) }
@@ -195,7 +209,7 @@ class QuickAddViewModel @Inject constructor(
         )
         viewModelScope.launch {
             val id = if (editing != null) {
-                transactions.update(editing.id, draft)
+                transactions.update(editing.id, draft, samePayeeToo = s.asksScope && s.applyToAll)
                 editing.id
             } else {
                 transactions.add(draft)

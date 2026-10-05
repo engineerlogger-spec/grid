@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
@@ -44,7 +45,10 @@ fun GridTheme(
         scheme = colors.toMaterialScheme()
     }
     CompositionLocalProvider(LocalGridColors provides colors) {
-        MaterialTheme(colorScheme = scheme, typography = GridTypography, shapes = GridShapes, content = content)
+        MaterialTheme(colorScheme = scheme, typography = GridTypography, shapes = GridShapes) {
+            // Icons and text outside a Surface (back/‹/› buttons on full screens) default to black otherwise.
+            CompositionLocalProvider(LocalContentColor provides colors.text, content = content)
+        }
     }
 }
 

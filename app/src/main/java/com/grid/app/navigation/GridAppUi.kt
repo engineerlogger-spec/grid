@@ -234,6 +234,10 @@ fun GridAppUi(
                     onDeleted = { e ->
                         messenger.show(deletedText.replace("%1\$s", formatter.format(e.tx.amountMinor, e.tx.currency)), undo) { quickAddVm.undoDelete(e.tx) }
                     },
+                    onMakeSubscription = { id ->
+                        quickAdd.close()
+                        nav.navigate(SubscriptionEditRoute(fromTransactionId = id))
+                    },
                 )
             }
         }

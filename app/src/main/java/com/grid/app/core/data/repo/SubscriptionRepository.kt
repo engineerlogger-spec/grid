@@ -2,10 +2,13 @@ package com.grid.app.core.data.repo
 
 import androidx.room.withTransaction
 import com.grid.app.core.data.db.GridDatabase
+import com.grid.app.core.data.db.entities.MerchantRuleEntity
 import com.grid.app.core.data.db.entities.SubscriptionEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
 import com.grid.app.core.model.Category
 import com.grid.app.core.model.Cycle
+import com.grid.app.core.model.MerchantKey
+import com.grid.app.core.model.Transaction
 import com.grid.app.core.model.Subscription
 import com.grid.app.core.model.SubscriptionDraft
 import com.grid.app.core.model.SubscriptionStatus
@@ -90,6 +93,31 @@ class SubscriptionRepository @Inject constructor(
 
     suspend fun delete(id: Long) = dao.delete(id)
 
+    /** Earlier payments a subscription made from [payment] covers: same payee, not linked yet, about the same price. */
+    suspend fun pastPaymentsLike(payment: Transaction): List<Long> {
+        val key = payment.merchant?.let(MerchantKey::of) ?: return listOf(payment.id)
+        return db.transactionDao().withMerchant(TxType.EXPENSE)
+            .filter { it.id == payment.id || isSamePayment(it, key, payment.amountMinor) }
+            .map { it.id }
+    }
+
+    /** Files [ids] under the subscription (and its category), and teaches the payee's category for later bank payments. */
+    suspend fun linkPayments(subscriptionId: Long, ids: List<Long>) {
+        val sub = dao.get(subscriptionId) ?: return
+        val now = clock.millis()
+        db.withTransaction {
+            val txDao = db.transactionDao()
+            ids.mapNotNull { txDao.get(it) }.forEach {
+                txDao.update(it.copy(subscriptionId = sub.id, categoryId = sub.categoryId, needsReview = false, updatedAt = now))
+            }
+            ids.firstNotNullOfOrNull { txDao.get(it)?.merchant }?.let(MerchantKey::of)?.let { key ->
+                val rules = db.merchantRuleDao()
+                rules.upsert(MerchantRuleEntity(key, sub.categoryId, sub.paymentMethodId, (rules.get(key)?.hits ?: 0) + 1, now))
+            }
+        }
+        listeners.notifyAll()
+    }
+
     /**
      * Books every charge due on or before [today] for active, auto-logging subscriptions and moves
      * their next charge forward. Idempotent per subscription and day. Returns how many were booked.
@@ -128,8 +156,14 @@ class SubscriptionRepository @Inject constructor(
 
     private fun SubscriptionEntity.cycle() = Cycle(cycleUnit, cycleCount)
 
-    private companion object {
-        const val CHARGE_SLACK_DAYS = 3L
+    companion object {
+        private const val CHARGE_SLACK_DAYS = 3L
+        /** Prices move (a plan going from €7.99 to €8.99): a quarter either way still counts as the same charge. */
+        private const val PRICE_TOLERANCE = 0.25
+
+        fun isSamePayment(row: TransactionEntity, payeeKey: String, amountMinor: Long): Boolean =
+            row.subscriptionId == null && row.merchant?.let(MerchantKey::of) == payeeKey &&
+                kotlin.math.abs(row.amountMinor - amountMinor) <= amountMinor * PRICE_TOLERANCE
     }
 
     private fun SubscriptionEntity.toDomain(cats: Map<Long, Category>): Subscription? {

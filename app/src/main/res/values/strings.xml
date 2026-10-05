@@ -349,6 +349,15 @@
     <string name="unit_years">Years</string>
     <string name="sub_edit_title">Subscription</string>
     <string name="sub_new_title">New subscription</string>
+    <plurals name="sub_from_payment">
+        <item quantity="one">%1$d payment to %2$s will be linked to this subscription.</item>
+        <item quantity="other">%1$d payments to %2$s (about the same amount) will be linked to this subscription.</item>
+    </plurals>
+    <string name="add_make_subscription">Subscription</string>
+    <string name="add_amount">Amount</string>
+    <string name="add_scope_title">New category for payments to %1$s</string>
+    <string name="add_scope_this">Only this one</string>
+    <string name="add_scope_all">All %1$d</string>
     <string name="sub_popular">Popular</string>
     <string name="sub_name">Name</string>
     <string name="sub_amount">Amount</string>
