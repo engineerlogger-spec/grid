@@ -60,6 +60,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.grid.app.R
 import com.grid.app.core.bank.BankSync
+import com.grid.app.core.bank.EndpointLimit
+import com.grid.app.core.bank.LimitReport
 import com.grid.app.core.data.db.entities.BankAccountEntity
 import com.grid.app.core.designsystem.components.CapsLabel
 import com.grid.app.core.designsystem.components.GridChip
@@ -99,6 +101,7 @@ fun BankSetupScreen(onBack: () -> Unit, viewModel: BankSetupViewModel = hiltView
                 BankEvent.RateLimited -> messenger.show(res.getString(R.string.bank_rate_limited))
                 BankEvent.Expired -> messenger.show(res.getString(R.string.bank_expired_snack))
                 is BankEvent.Failed -> messenger.show(res.getString(R.string.bank_failed, event.message))
+                is BankEvent.Info -> messenger.show(event.message)
             }
         }
     }
@@ -244,6 +247,11 @@ private fun ConnectedStep(state: BankSetupUi, viewModel: BankSetupViewModel, onS
         Spacer(Modifier.weight(1f))
         TextButton(onClick = { confirmDisconnect = true }) { Text(stringResource(R.string.bank_disconnect), color = colors.warning) }
     }
+    if (!expired) {
+        TextButton(onClick = viewModel::testLimit, enabled = !state.busy) { Text(stringResource(R.string.bank_limit_test)) }
+    }
+    val report by viewModel.limitReport.collectAsStateWithLifecycle()
+    report?.let { LimitReportDialog(it, onDismiss = viewModel::dismissLimit) }
     if (confirmDisconnect) {
         AlertDialog(
             onDismissRequest = { confirmDisconnect = false },
@@ -253,6 +261,37 @@ private fun ConnectedStep(state: BankSetupUi, viewModel: BankSetupViewModel, onS
             dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
+}
+
+/** What the daily limit test measured, line by line, as the bank answered. */
+@Composable
+private fun LimitReportDialog(report: LimitReport, onDismiss: () -> Unit) {
+    val colors = GridTheme.colors
+    @Composable
+    fun line(label: String, limit: EndpointLimit, refusedText: Int, allText: Int) = when {
+        limit.error != null -> stringResource(R.string.bank_limit_failed, label, limit.answered, limit.error)
+        limit.refused -> stringResource(refusedText, limit.answered)
+        else -> stringResource(allText, limit.answered)
+    }
+    val present = when {
+        report.presentTried == 0 -> stringResource(R.string.bank_limit_present_none)
+        report.presentError != null -> stringResource(R.string.bank_limit_present_failed, report.presentAnswered, report.presentTried, report.presentError)
+        else -> stringResource(R.string.bank_limit_present, report.presentAnswered, report.presentTried)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.bank_limit_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(line(stringResource(R.string.bank_limit_details_label), report.details, R.string.bank_limit_details_refused, R.string.bank_limit_details_all), color = colors.text)
+                Text(line(stringResource(R.string.bank_limit_balance_label), report.balance, R.string.bank_limit_balance_refused, R.string.bank_limit_balance_all), color = colors.text)
+                Text(present, color = colors.text)
+                Text(stringResource(R.string.bank_limit_note), style = MaterialTheme.typography.bodySmall, color = colors.muted)
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_done)) } },
+        containerColor = colors.tile,
+    )
 }
 
 @Composable

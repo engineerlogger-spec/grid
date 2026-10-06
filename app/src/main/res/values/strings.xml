@@ -215,6 +215,20 @@
     </plurals>
     <string name="bank_synced_none">Synced, nothing new</string>
     <string name="bank_rate_limited">Revolut\'s daily limit is reached. Try again later.</string>
+    <string name="bank_limit_test">Test Revolut\'s daily limit</string>
+    <string name="bank_limit_title">Revolut\'s daily limit</string>
+    <string name="bank_limit_unavailable">The limit test needs a real bank connection.</string>
+    <string name="bank_limit_details_label">Account details</string>
+    <string name="bank_limit_balance_label">Balance</string>
+    <string name="bank_limit_details_refused">Account details (Grid never asks for them): %1$d answered, then refused.</string>
+    <string name="bank_limit_details_all">Account details: all %1$d answered, no limit reached.</string>
+    <string name="bank_limit_balance_refused">Balance (each sync asks once): %1$d more answered today, then refused.</string>
+    <string name="bank_limit_balance_all">Balance: all %1$d answered, no limit reached.</string>
+    <string name="bank_limit_failed">%1$s: %2$d answered, then an error: %3$s</string>
+    <string name="bank_limit_present">As you, in the app: %1$d of %2$d answered.</string>
+    <string name="bank_limit_present_failed">As you, in the app: %1$d of %2$d answered, then refused (%3$s).</string>
+    <string name="bank_limit_present_none">As you, in the app: not tested, your phone\'s internet address couldn\'t be found.</string>
+    <string name="bank_limit_note">Each sync asks once for your payments and once for your balance. When you\'re not in the app, each has its own daily limit. The test never asks for payments, so your syncs keep their allowance.</string>
     <string name="bank_expired_snack">Revolut access expired. Reconnect.</string>
     <string name="bank_failed">Sync failed: %1$s</string>
     <string name="bank_err_bad_key">That file isn\'t a private key.</string>

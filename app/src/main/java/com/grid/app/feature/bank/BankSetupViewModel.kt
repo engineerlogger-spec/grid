@@ -13,8 +13,11 @@ import com.grid.app.core.bank.BankConnectorProvider
 import com.grid.app.core.bank.BankConnectors
 import com.grid.app.core.bank.BankCredentials
 import com.grid.app.core.bank.BankError
+import com.grid.app.R
 import com.grid.app.core.bank.BankKeyStore
+import com.grid.app.core.bank.BankLimitProbe
 import com.grid.app.core.bank.BankSync
+import com.grid.app.core.bank.LimitReport
 import com.grid.app.core.bank.PemKeys
 import com.grid.app.core.bank.SyncResult
 import com.grid.app.core.data.db.entities.BankAccountEntity
@@ -53,6 +56,7 @@ sealed interface BankEvent {
     data object RateLimited : BankEvent
     data object Expired : BankEvent
     data class Failed(val message: String) : BankEvent
+    data class Info(val message: String) : BankEvent
 }
 
 data class BankSetupUi(
@@ -77,7 +81,22 @@ class BankSetupViewModel @Inject constructor(
     private val sync: BankSync,
     private val settings: SettingsRepository,
     private val clock: AppClock,
+    private val limitProbe: BankLimitProbe,
 ) : ViewModel() {
+
+    private val _limitReport = MutableStateFlow<LimitReport?>(null)
+    /** The last daily limit test, shown until dismissed. */
+    val limitReport: StateFlow<LimitReport?> = _limitReport
+
+    /** Asks Revolut until it refuses, then as the person in the app: proves the daily limit on the user's own account. */
+    fun testLimit() = work {
+        val report = limitProbe.run()
+        if (report == null) _events.emit(BankEvent.Info(context.getString(R.string.bank_limit_unavailable))) else _limitReport.value = report
+    }
+
+    fun dismissLimit() {
+        _limitReport.value = null
+    }
 
     private val appId = MutableStateFlow(keyStore.load()?.appId)
     private val busy = MutableStateFlow(false)
