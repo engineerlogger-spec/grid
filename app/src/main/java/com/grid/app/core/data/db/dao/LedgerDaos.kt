@@ -93,6 +93,9 @@ interface RevertedDao {
     @Query("SELECT * FROM reverted_payments WHERE id = :id")
     suspend fun get(id: Long): RevertedPaymentEntity?
 
+    @Query("SELECT * FROM reverted_payments WHERE bankRowId = :bankRowId LIMIT 1")
+    suspend fun byBankRow(bankRowId: Long): RevertedPaymentEntity?
+
     @Query("SELECT * FROM reverted_payments WHERE occurredAt >= :startMs AND occurredAt < :endMs ORDER BY occurredAt DESC")
     fun observeBetween(startMs: Long, endMs: Long): Flow<List<RevertedPaymentEntity>>
 

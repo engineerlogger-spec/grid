@@ -260,6 +260,42 @@ class BankSyncTest {
         assertThat(revertedUbers()).hasSize(1)
     }
 
+    /** As Revolut sent them: a ride's first price, then its final one, both still pending, same order number. */
+    private fun bolt(ref: String, amount: String, status: String = "PDNG") = RemoteTx(
+        entryReference = ref, amount = amount, currency = "EUR", creditDebit = "DBIT", status = status,
+        bookingDate = today.toString(), creditorName = "Paypal *bolt.eu/o/2610061", remittance = listOf("Paypal *bolt.eu/o/2610061"),
+        bankTxCode = "CARD_PAYMENT",
+    )
+    private val firstPrice = "6ac529a0-5dcf-a4ab-9a25-9d4a03329917"
+    private val finalPrice = "6ac537f8-224a-a751-b4f9-86aaa48a9996"
+
+    @Test fun aSecondChargeForTheSameOrderRevertsTheFirst() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        // Listed newest first, as a bank may: the order of the ids decides, not the order in the list.
+        scripted.txs = listOf(bolt(finalPrice, "23.20"), bolt(firstPrice, "19.70"), uber("PDNG"), uber("PDNG", ref = "u-2").copy(amount = "8.00"))
+        sync.run()
+        val ledger = transactions.observeAll().first()
+        assertThat(ledger.filter { it.amountMinor == 2320L || it.amountMinor == 1970L }.map { it.amountMinor }).containsExactly(2320L)
+        assertThat(transactions.observeReverted(null).first().map { it.amountMinor }).containsExactly(1970L)
+        assertThat(ledgerUbers()).hasSize(2) // two payments to a plain shop name are two payments
+        sync.run()
+        assertThat(transactions.observeReverted(null).first()).hasSize(1)
+    }
+
+    @Test fun aChargeTakenForReplacedThatTheBankBooksComesBack() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        scripted.txs = listOf(bolt(firstPrice, "19.70"), bolt(finalPrice, "23.20"))
+        sync.run()
+        val first = transactions.observeReverted(null).first().single()
+        scripted.txs = listOf(bolt(firstPrice, "19.70", status = "BOOK"), bolt(finalPrice, "23.20", status = "BOOK"))
+        sync.run()
+        assertThat(transactions.observeReverted(null).first()).isEmpty()
+        assertThat(transactions.observeAll().first().filter { it.amountMinor == 1970L || it.amountMinor == 2320L }.map { it.id }).contains(first.id)
+        assertThat(transactions.observeAll().first().count { it.amountMinor == 1970L }).isEqualTo(1)
+    }
+
     @Test fun aFinalAmountWithATipSettlesThePendingPayment() = runTest {
         val scripted = Scripted()
         connect(scripted)
