@@ -127,7 +127,7 @@ fun HomeScreen(
             item { SortLink(state.otherToSort, onOpenDetected) }
         }
         if (state.suggestedSubscriptions > 0) {
-            item { SuggestedLink(state.suggestedSubscriptions, onOpenBills) }
+            item { SuggestedLink(state.suggestedSubscriptions) { com.grid.app.feature.bills.BillsTabRequest.next.value = com.grid.app.feature.bills.BillsTab.SUGGESTED; onOpenBills() } }
         }
         item {
             HeroCard(state, summary, onDayClick = { onOpenActivity(it.toEpochDay()) })

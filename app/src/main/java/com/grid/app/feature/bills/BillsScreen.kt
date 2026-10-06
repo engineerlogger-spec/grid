@@ -85,7 +85,12 @@ import com.grid.app.feature.common.shortDate
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-enum class BillsTab { SUBSCRIPTIONS, PENDING }
+enum class BillsTab { SUBSCRIPTIONS, SUGGESTED, PENDING }
+
+/** Lets another screen open Bills on a given tab (Home's "Gemini suggests…" opens Suggested). */
+object BillsTabRequest {
+    val next = kotlinx.coroutines.flow.MutableStateFlow<BillsTab?>(null)
+}
 
 @Composable
 fun BillsScreen(
@@ -96,6 +101,8 @@ fun BillsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(BillsTab.SUBSCRIPTIONS) }
+    val requested by BillsTabRequest.next.collectAsStateWithLifecycle()
+    androidx.compose.runtime.LaunchedEffect(requested) { requested?.let { tab = it; BillsTabRequest.next.value = null } }
     val colors = GridTheme.colors
 
     LazyColumn(
@@ -107,13 +114,13 @@ fun BillsScreen(
             Row(Modifier.fillMaxWidth().statusBarsPadding().padding(top = 12.dp, start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.bills_title), style = MaterialTheme.typography.headlineMedium, color = colors.text, modifier = Modifier.weight(1f))
                 Surface(
-                    onClick = { if (tab == BillsTab.SUBSCRIPTIONS) onEditSubscription(null) else onEditPending(null) },
+                    onClick = { if (tab == BillsTab.PENDING) onEditPending(null) else onEditSubscription(null) },
                     shape = CircleShape, color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(40.dp),
                 ) {
                     Icon(
                         Icons.Rounded.Add,
-                        contentDescription = stringResource(if (tab == BillsTab.SUBSCRIPTIONS) R.string.bills_add_subscription else R.string.bills_add_pending),
+                        contentDescription = stringResource(if (tab == BillsTab.PENDING) R.string.bills_add_pending else R.string.bills_add_subscription),
                         modifier = Modifier.padding(8.dp),
                     )
                 }
@@ -123,7 +130,13 @@ fun BillsScreen(
             Segmented(
                 options = BillsTab.entries,
                 selected = tab,
-                label = { stringResource(if (it == BillsTab.SUBSCRIPTIONS) R.string.bills_subscriptions else R.string.bills_pending) },
+                label = {
+                    when (it) {
+                        BillsTab.SUBSCRIPTIONS -> stringResource(R.string.bills_subscriptions)
+                        BillsTab.SUGGESTED -> stringResource(R.string.bills_suggested_tab) + if (state.suggested.isNotEmpty()) " · ${state.suggested.size}" else ""
+                        BillsTab.PENDING -> stringResource(R.string.bills_pending)
+                    }
+                },
                 onSelect = { tab = it },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -131,16 +144,17 @@ fun BillsScreen(
         if (state.hasReminders) item { NotificationPermissionBanner() }
         if (!state.loading) {
             when (tab) {
-                BillsTab.SUBSCRIPTIONS -> subscriptionsContent(state, onEditSubscription, viewModel)
+                BillsTab.SUBSCRIPTIONS -> subscriptionsContent(state, onEditSubscription)
+                BillsTab.SUGGESTED -> suggestedContent(state, viewModel)
                 BillsTab.PENDING -> pendingContent(state, onEditPending, viewModel)
             }
         }
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(state: BillsUiState, onEdit: (Long?) -> Unit, vm: BillsViewModel) {
-    if (state.active.isEmpty() && state.inactive.isEmpty() && state.suggested.isEmpty()) {
-        item { FindTile(vm) }
+/** What the user tracks, by category. Gemini's suggestions have their own tab. */
+private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(state: BillsUiState, onEdit: (Long?) -> Unit) {
+    if (state.active.isEmpty() && state.inactive.isEmpty()) {
         item {
             EmptyState(
                 Icons.Rounded.Autorenew,
@@ -152,8 +166,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(
         return
     }
     if (state.active.isNotEmpty()) item { SubscriptionSummary(state) }
-
-    // What the user tracks, by category (biggest monthly cost first).
     items(state.activeGroups, key = { "ag${it.category.id}" }) { group ->
         GroupTile(group, state.currency) {
             group.subs.forEachIndexed { i, sub ->
@@ -162,21 +174,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(
             }
         }
     }
-
-    // Gemini's suggestions, by category, each waiting for Add / Not a bill.
-    if (state.suggested.isNotEmpty()) {
-        item { SuggestionsHeader(state.suggested.size, onAddAll = vm::addAllSuggested) }
-        items(state.suggestedGroups, key = { "sg${it.category.id}" }) { group ->
-            GroupTile(group, state.currency, suggested = true) {
-                group.subs.forEachIndexed { i, sub ->
-                    if (i > 0) Divider()
-                    SuggestionLine(sub, state.today, onAdd = { vm.addSuggested(sub.id) }, onReject = { vm.rejectSuggested(sub.id) })
-                }
-            }
-        }
-    }
-    item { FindTile(vm) }
-
     if (state.inactive.isNotEmpty()) {
         item { CapsLabel(stringResource(R.string.bills_inactive), Modifier.padding(start = 4.dp, top = 10.dp)) }
         item {
@@ -185,6 +182,24 @@ private fun androidx.compose.foundation.lazy.LazyListScope.subscriptionsContent(
                     if (i > 0) Divider()
                     SubscriptionLine(sub, state.today, null, onClick = { onEdit(sub.id) })
                 }
+            }
+        }
+    }
+}
+
+/** Gemini's suggestions on their own: found in the payments, not yet tracked, waiting for Add / Not a bill. */
+private fun androidx.compose.foundation.lazy.LazyListScope.suggestedContent(state: BillsUiState, vm: BillsViewModel) {
+    item { FindTile(vm) }
+    if (state.suggested.isEmpty()) {
+        item { EmptyState(Icons.Rounded.AutoAwesome, stringResource(R.string.bills_no_suggestions_title), stringResource(R.string.bills_no_suggestions_body)) }
+        return
+    }
+    item { SuggestionsHeader(state.suggested.size, onAddAll = vm::addAllSuggested) }
+    items(state.suggestedGroups, key = { "sg${it.category.id}" }) { group ->
+        GroupTile(group, state.currency, suggested = true) {
+            group.subs.forEachIndexed { i, sub ->
+                if (i > 0) Divider()
+                SuggestionLine(sub, state.today, onAdd = { vm.addSuggested(sub.id) }, onReject = { vm.rejectSuggested(sub.id) })
             }
         }
     }
