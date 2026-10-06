@@ -138,6 +138,7 @@ class SettingsRepository(
         val aiDigest = stringPreferencesKey("ai_digest")
         val detectedAreSuggestions = booleanPreferencesKey("detected_are_suggestions")
         val sameDescriptorGuessUndone = booleanPreferencesKey("same_descriptor_guess_undone")
+        val bankPausedUntil = longPreferencesKey("bank_paused_until")
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -210,6 +211,9 @@ class SettingsRepository(
     /** Once: card payments 3.4.1 took for replaced by a later one with the same descriptor come back. */
     suspend fun sameDescriptorGuessUndone(): Boolean = store.data.first()[Keys.sameDescriptorGuessUndone] == true
     suspend fun markSameDescriptorGuessUndone() = store.edit { it[Keys.sameDescriptorGuessUndone] = true }
+    /** Background bank syncs wait until then after the bank refused one (0 = not paused). */
+    suspend fun bankPausedUntil(): Long = store.data.first()[Keys.bankPausedUntil] ?: 0L
+    suspend fun pauseBank(until: Long) = store.edit { it[Keys.bankPausedUntil] = until }
 
     suspend fun saveDigest(epochDay: Long, json: String) = store.edit {
         it[Keys.aiDigestDay] = epochDay

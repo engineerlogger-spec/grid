@@ -155,7 +155,34 @@ class BankSyncTest {
     /** Returns exactly [txs], whatever is asked. */
     private inner class Scripted : BankConnector by DemoBankConnector(clock) {
         var txs: List<RemoteTx> = emptyList()
-        override suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean) = TxPage(txs, null)
+        /** Answers like a bank whose daily background limit is reached. */
+        var refuse = false
+        var calls = 0
+        override suspend fun transactions(accountUid: String, dateFrom: LocalDate?, continuationKey: String?, longest: Boolean): TxPage {
+            calls++
+            if (refuse) throw BankError.RateLimited()
+            return TxPage(txs, null)
+        }
+    }
+
+    @Test fun aRefusedBackgroundSyncPausesBackgroundSyncsButNotTheOnesYouAsk() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        scripted.refuse = true
+        assertThat(sync.run(SyncMode.BACKGROUND)).isEqualTo(SyncResult.RateLimited)
+        scripted.refuse = false
+        assertThat(sync.run(SyncMode.BACKGROUND)).isEqualTo(SyncResult.RateLimited) // paused: the bank isn't even asked
+        assertThat(scripted.calls).isEqualTo(1)
+        assertThat(sync.run(SyncMode.PRESENT)).isInstanceOf(SyncResult.Ok::class.java)
+    }
+
+    @Test fun newRowsAreThePaymentsListedForTheFirstTime() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        scripted.txs = listOf(uber("PDNG"))
+        assertThat((sync.run() as SyncResult.Ok).newRowIds).hasSize(1)
+        scripted.txs = listOf(uber("BOOK", ref = "e-1"))
+        assertThat((sync.run() as SyncResult.Ok).newRowIds).isEmpty() // the booked version of a payment already listed
     }
 
     private fun uber(status: String, ref: String? = null) = RemoteTx(

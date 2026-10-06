@@ -33,7 +33,12 @@ class EnableBankingClient(
     private val credentials: suspend () -> BankCredentials,
     private val nowSeconds: () -> Long = { System.currentTimeMillis() / 1000 },
     private val base: HttpUrl = "https://api.enablebanking.com/".toHttpUrl(),
+    /** Set: every request says the person is in the app (PSU headers), so the bank doesn't count it as background. */
+    private val presence: Presence? = null,
 ) : BankConnector {
+
+    /** The same client, asking as the person in the app. */
+    fun present(presence: Presence) = EnableBankingClient(http, credentials, nowSeconds, base, presence)
 
     private val json = Json { ignoreUnknownKeys = true }
     private val jsonType = "application/json".toMediaType()
@@ -119,7 +124,9 @@ class EnableBankingClient(
     }
 
     private suspend fun call(builder: Request.Builder): JsonObject {
-        val request = builder.header("Authorization", authorization()).header("Accept", "application/json").build()
+        val request = builder.header("Authorization", authorization()).header("Accept", "application/json")
+            .apply { presence?.let { header("Psu-Ip-Address", it.ipAddress).header("Psu-User-Agent", it.userAgent) } }
+            .build()
         return withContext(Dispatchers.IO) {
             val response = try {
                 http.newCall(request).execute()

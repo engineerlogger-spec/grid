@@ -23,8 +23,15 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
 
+/**
+ * PRESENT: the person asked for it in the app (pull to refresh, Sync now, opening Grid, Ask Grid); the bank is told so
+ * and doesn't count it against its daily background limit. BACKGROUND: Grid on its own (after a payment, every 6 hours).
+ */
+enum class SyncMode { PRESENT, BACKGROUND }
+
 sealed interface SyncResult {
-    data class Ok(val fetched: Int, val booked: Int, val toReview: Int) : SyncResult
+    /** [newRowIds]: the bank's rows of payments listed for the first time in this sync (not settlements of earlier ones). */
+    data class Ok(val fetched: Int, val booked: Int, val toReview: Int, val newRowIds: List<Long> = emptyList()) : SyncResult
     data object NotConnected : SyncResult
     data object Expired : SyncResult
     data object RateLimited : SyncResult
@@ -45,24 +52,30 @@ class BankSync @Inject constructor(
     private val clock: AppClock,
     private val transactions: TransactionRepository,
     private val reversals: Reversals,
+    /** Optional only so tests about other rules can leave it out; the app always provides it. */
+    private val presence: PresenceProvider? = null,
 ) {
     private val mutex = Mutex()
     private val dao = db.bankDao()
 
-    suspend fun run(): SyncResult = mutex.withLock {
+    suspend fun run(mode: SyncMode = SyncMode.BACKGROUND): SyncResult = mutex.withLock {
         val connection = bank.connection()
         if (connection?.sessionId == null || connection.status == BankStatus.NEEDS_SETUP) return SyncResult.NotConnected
         if (connection.validUntil != null && connection.validUntil < clock.millis()) {
             bank.markStatus(BankStatus.EXPIRED)
             return SyncResult.Expired
         }
-        val connector = connectors.current() ?: return SyncResult.NotConnected
+        // The bank refused a background sync not long ago: Grid waits; what the person asks for still goes through.
+        if (mode == SyncMode.BACKGROUND && settings.bankPausedUntil() > clock.millis()) return SyncResult.RateLimited
+        val base = connectors.current() ?: return SyncResult.NotConnected
+        val connector = if (mode == SyncMode.PRESENT) presence?.now()?.let { p -> (base as? EnableBankingClient)?.present(p) } ?: base else base
         val currency = settings.settings.first().currency
         val accounts = bank.accounts()
         val ownIbans = accounts.mapNotNull { it.iban }.toSet()
         val today = clock.today()
         val reviewBefore = dao.countToReview()
         var fetched = 0
+        val newRowIds = mutableListOf<Long>()
 
         try {
             for (account in accounts.filter { it.enabled }) {
@@ -96,7 +109,12 @@ class BankSync @Inject constructor(
                 for (old in dao.stagedWithPrefix(account.id, PENDING_PREFIX)) {
                     if (old.state != BankTxState.REVERTED && old.externalId !in stillPending) settle(old, inserted)
                 }
-                for ((externalId, tx) in pendingNow) dao.insertStaged(toEntity(account.id, externalId, tx, ownIbans))
+                // Booked rows left over didn't settle a pending one: payments listed for the first time, like new pending ones.
+                newRowIds += inserted.map { it.id }
+                for ((externalId, tx) in pendingNow) {
+                    val id = dao.insertStaged(toEntity(account.id, externalId, tx, ownIbans))
+                    if (id > 0) newRowIds += id
+                }
                 reversals.stillListed(account.id, stillPending)
                 // Any other status (scheduled, information…): kept, not shown. Cancelled or rejected: the payment is reverted.
                 for ((externalId, tx) in ExternalIds.assign(all.filter { !it.isBooked && !it.isPending })) {
@@ -125,7 +143,11 @@ class BankSync @Inject constructor(
                     bank.markStatus(BankStatus.EXPIRED, e.message)
                     SyncResult.Expired
                 }
-                is BankError.RateLimited -> SyncResult.RateLimited
+                is BankError.RateLimited -> {
+                    // Enable Banking's advice: wait about 6 hours before asking again in the background.
+                    if (mode == SyncMode.BACKGROUND) settings.pauseBank(clock.millis() + PAUSE_MS)
+                    SyncResult.RateLimited
+                }
                 is BankError.Http, is BankError.Network -> {
                     bank.recordError(e.message ?: "Sync failed")
                     SyncResult.Failed(e.message ?: "Sync failed")
@@ -150,7 +172,7 @@ class BankSync @Inject constructor(
         }
         unlisted(connection, clock.millis())
         bank.recordSync(clock.millis())
-        return SyncResult.Ok(fetched, bookedCount, (dao.countToReview() - reviewBefore).coerceAtLeast(0))
+        return SyncResult.Ok(fetched, bookedCount, (dao.countToReview() - reviewBefore).coerceAtLeast(0), newRowIds)
     }
 
     /** Re-applies today's rules to what is already stored, without asking the bank (runs whenever the app opens). */
@@ -238,5 +260,6 @@ class BankSync @Inject constructor(
         private const val SETTLE_AMOUNT_DIFF = 0.15
         /** Card payments pending longer than this are given up on (banks release them by then). */
         private const val PENDING_DAYS = 30L
+        private val PAUSE_MS = TimeUnit.HOURS.toMillis(6)
     }
 }
