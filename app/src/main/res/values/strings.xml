@@ -416,6 +416,9 @@
     <string name="sub_not_a_bill">Not a bill</string>
     <string name="bills_detected">Detected from your payments</string>
     <string name="bills_suggested">Suggested from your payments</string>
+    <string name="bills_suggested_tab">Suggested</string>
+    <string name="bills_no_suggestions_title">No suggestions</string>
+    <string name="bills_no_suggestions_body">Bills Gemini finds in your payments, and that you don\'t track yet, appear here.</string>
     <string name="bills_find">Find subscriptions in my payments</string>
     <string name="bills_finding">Gemini is reading your payments…</string>
     <string name="bills_find_body">Gemini looks for bills and subscriptions you pay regularly and suggests them here.</string>
@@ -424,7 +427,7 @@
         <item quantity="one">%d suggestion waiting below</item>
         <item quantity="other">%d suggestions waiting below</item>
     </plurals>
-    <string name="bills_suggested_body">Gemini found these in your history. Add the ones you want to track.</string>
+    <string name="bills_suggested_body">Found in your payments and not in your subscriptions. Add the ones you want to track.</string>
     <string name="bills_add_suggested">Add</string>
     <string name="bills_add_all">Add all</string>
     <string name="bills_per_month_short"> / month</string>

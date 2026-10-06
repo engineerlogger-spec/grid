@@ -80,6 +80,8 @@ class AiAssistant @Inject constructor(
             subscriptions.detectedToSuggestions()
             settings.markDetectedAreSuggestions()
         }
+        // Suggestions for bills the user already tracks go away.
+        subscriptions.pruneSuggestions()
     }
 
     /** A pass is due when there's a key and the last one is older than [STALE_HOURS] (or never ran). */
@@ -170,6 +172,7 @@ class AiAssistant @Inject constructor(
             }
             val choices = categoryChoices()
             val valid = choices.map { it.first }.toSet()
+            val links = subscriptions.subscriptionsByPayee()
             val found = histories.chunked(BILLS_BATCH).flatMap { batch ->
                 AiPrompts.parseBills(gemini.askJson(AiPrompts.bills(today, currency, batch, choices)), currency)
             }.filter { it.confidence >= BILL_CONFIDENCE && it.key in groups }
@@ -178,14 +181,23 @@ class AiAssistant @Inject constructor(
                 val txs = groups.getValue(bill.key)
                 val last = txs.maxBy { it.occurredAt }
                 val name = known[bill.key]?.name ?: bill.name ?: last.merchant!!
-                val existing = alreadyTracked(subs, bill.key, name)
+                val next = BillingSchedule.nextAfter(dateOf(last), bill.cycle, today)
+                val facts = com.grid.app.core.bills.FoundBillFacts(bill.key, name, bill.amountMinor, bill.cycle.unit, bill.cycle.count, next, bill.varies)
+                val tracked = subscriptions.trackedFor(facts, links)
+                val suggestion = db.subscriptionDao().all().firstOrNull { it.status == SubscriptionStatus.SUGGESTED && it.payeeKey == bill.key }
                 when {
-                    // The user tracks it already: link their subscription to this payee, suggest nothing.
-                    existing != null && !existing.detected -> subscriptions.linkPayee(existing.id, bill.key)
-                    existing != null -> when {
-                        !bill.active && existing.status == SubscriptionStatus.SUGGESTED -> subscriptions.delete(existing.id)
-                        !bill.active && existing.status == SubscriptionStatus.ACTIVE -> subscriptions.setStatus(existing.id, SubscriptionStatus.CANCELLED)
-                        existing.amountVaries || bill.varies -> subscriptions.refreshExpected(existing.id, bill.amountMinor, bill.varies)
+                    // Already tracked (by payee, name, its payments or its schedule and amount): suggest nothing.
+                    tracked != null -> {
+                        if (!tracked.detected) subscriptions.linkPayee(tracked.id, bill.key)
+                        when {
+                            tracked.detected && !bill.active && tracked.status == SubscriptionStatus.ACTIVE -> subscriptions.setStatus(tracked.id, SubscriptionStatus.CANCELLED)
+                            tracked.detected && (tracked.amountVaries || bill.varies) -> subscriptions.refreshExpected(tracked.id, bill.amountMinor, bill.varies)
+                        }
+                        suggestion?.let { subscriptions.delete(it.id) }
+                    }
+                    suggestion != null -> when {
+                        !bill.active -> subscriptions.delete(suggestion.id)
+                        suggestion.amountVaries || bill.varies -> subscriptions.refreshExpected(suggestion.id, bill.amountMinor, bill.varies)
                     }
                     bill.active -> {
                         // Gemini's category for the bill (rent → Housing), else the payee's, else the payments'.
@@ -194,7 +206,7 @@ class AiAssistant @Inject constructor(
                         val id = subscriptions.add(
                             SubscriptionDraft(
                                 name = name, amountMinor = bill.amountMinor, currency = currency, cycle = bill.cycle,
-                                nextCharge = BillingSchedule.nextAfter(dateOf(last), bill.cycle, today), categoryId = categoryId,
+                                nextCharge = next, categoryId = categoryId,
                                 paymentMethodId = last.paymentMethodId, remindDaysBefore = 1, autoLog = false,
                                 colorKey = db.categoryDao().get(categoryId)?.colorKey ?: "violet",
                                 payeeKey = bill.key, amountVaries = bill.varies, detected = true,
@@ -205,14 +217,9 @@ class AiAssistant @Inject constructor(
                 }
             }
         }
+        subscriptions.pruneSuggestions()
         return db.subscriptionDao().all().count { it.status == SubscriptionStatus.SUGGESTED }
     }
-
-    /** A subscription that already covers this payee: linked to it, or with the same or a similar name. */
-    private fun alreadyTracked(subs: List<SubscriptionEntity>, payeeKey: String, name: String): SubscriptionEntity? =
-        subs.firstOrNull { it.payeeKey == payeeKey }
-            ?: subs.firstOrNull { MerchantKey.of(it.name).let { k -> k == payeeKey || k == MerchantKey.of(name) } }
-            ?: subs.firstOrNull { MatchRules.similar(it.name, name) }
 
     /** The categories Gemini may choose from: the user's active spending categories and Grid's standard ones. */
     private suspend fun categoryChoices(): List<Pair<String, String>> {

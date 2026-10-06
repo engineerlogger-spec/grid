@@ -188,6 +188,22 @@ class AiAssistantTest {
         assertThat(subscriptions.get(own)!!.payeeKey).isEqualTo("sfr")
     }
 
+    @Test fun existingSuggestionsForBillsTheUserTracksAreRemovedAndTheirSubscriptionLinked() = runTest {
+        ready()
+        val loyer = subscriptions.add(
+            com.grid.app.core.model.SubscriptionDraft("Loyer", 85_000, "EUR", com.grid.app.core.model.Cycle.Monthly, LocalDate.parse("2026-11-01"), db.categoryDao().byIconKey("housing", CategoryKind.EXPENSE)!!.id, colorKey = "sand"),
+        )
+        val suggestion = subscriptions.add(
+            com.grid.app.core.model.SubscriptionDraft("J. Dupont", 85_000, "EUR", com.grid.app.core.model.Cycle.Monthly, LocalDate.parse("2026-11-01"), db.categoryDao().byIconKey("other", CategoryKind.EXPENSE)!!.id, colorKey = "sand", payeeKey = "j dupont", detected = true),
+        )
+        subscriptions.setStatus(suggestion, SubscriptionStatus.SUGGESTED)
+
+        assistant.prepare()
+
+        assertThat(subscriptions.all().map { it.id }).containsExactly(loyer)
+        assertThat(subscriptions.get(loyer)!!.payeeKey).isEqualTo("j dupont")
+    }
+
     @Test fun billsAddedByEarlierVersionsBecomeSuggestionsOnce() = runTest {
         ready()
         val old = subscriptions.add(

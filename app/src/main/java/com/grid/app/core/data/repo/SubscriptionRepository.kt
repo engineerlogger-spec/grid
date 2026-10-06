@@ -5,6 +5,8 @@ import com.grid.app.core.data.db.GridDatabase
 import com.grid.app.core.data.db.entities.MerchantRuleEntity
 import com.grid.app.core.data.db.entities.SubscriptionEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
+import com.grid.app.core.bills.FoundBillFacts
+import com.grid.app.core.bills.SuggestionMatch
 import com.grid.app.core.model.Category
 import com.grid.app.core.model.Cycle
 import com.grid.app.core.model.MerchantKey
@@ -120,6 +122,40 @@ class SubscriptionRepository @Inject constructor(
     suspend fun linkPayee(id: Long, payeeKey: String) {
         val sub = dao.get(id)?.takeIf { it.payeeKey == null } ?: return
         dao.update(sub.copy(payeeKey = payeeKey))
+    }
+
+    /** For each bank payee, the subscriptions its booked payments are linked to. */
+    suspend fun subscriptionsByPayee(): Map<String, Set<Long>> {
+        val txDao = db.transactionDao()
+        return db.bankDao().bookedWithEntry().mapNotNull { row -> txDao.get(row.transactionId!!)?.subscriptionId?.let { row.counterpartyKey!! to it } }
+            .groupBy({ it.first }, { it.second }).mapValues { it.value.toSet() }
+    }
+
+    /** The subscription the user already tracks for this found bill, if any (see [SuggestionMatch]). */
+    suspend fun trackedFor(found: FoundBillFacts, links: Map<String, Set<Long>>? = null): SubscriptionEntity? {
+        val byPayee = links ?: subscriptionsByPayee()
+        val linked = found.payeeKey?.let { byPayee[it] }.orEmpty()
+        return dao.all().firstOrNull { SuggestionMatch.isTracked(it, found, linked) }
+    }
+
+    /**
+     * Suggestions for bills the user already tracks go away (their own subscription is linked to the payee instead).
+     * Runs on every app open and after each Gemini pass. Returns how many were removed.
+     */
+    suspend fun pruneSuggestions(): Int {
+        val links = subscriptionsByPayee()
+        var removed = 0
+        db.withTransaction {
+            for (s in dao.all().filter { it.status == SubscriptionStatus.SUGGESTED }) {
+                val facts = FoundBillFacts(s.payeeKey, s.name, s.amountMinor, s.cycleUnit, s.cycleCount, LocalDate.ofEpochDay(s.nextChargeEpochDay), s.amountVaries)
+                val tracked = trackedFor(facts, links) ?: continue
+                if (tracked.payeeKey == null && s.payeeKey != null) dao.update(tracked.copy(payeeKey = s.payeeKey))
+                dao.delete(s.id)
+                removed++
+            }
+        }
+        if (removed > 0) listeners.notifyAll()
+        return removed
     }
 
     /** Bills auto-added by 3.0–3.1 become suggestions for the user to confirm (their payment links are dropped). */
