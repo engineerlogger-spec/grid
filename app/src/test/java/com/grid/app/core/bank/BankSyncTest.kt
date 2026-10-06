@@ -68,7 +68,7 @@ class BankSyncTest {
         transactions = TransactionRepository(db, clock, emptySet())
         bank = BankRepository(db, transactions, clock)
         val reconciler = BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), CategoryRepository(db), clock)
-        reversals = Reversals(db, transactions, clock)
+        reversals = Reversals(db, transactions)
         sync = BankSync(db, bank, { using }, reconciler, settings, clock, transactions, reversals)
 
         val demo = DemoBankConnector(clock)
@@ -260,40 +260,98 @@ class BankSyncTest {
         assertThat(revertedUbers()).hasSize(1)
     }
 
-    /** As Revolut sent them: a ride's first price, then its final one, both still pending, same order number. */
+    /**
+     * The owner's evening of 6 October, as Revolut's feed and app showed it: two Bolt rides paid through PayPal. Each
+     * first charged a price (€12.60, €15.50) that Revolut reverted when it charged the final one (€19.70, €23.20).
+     * The feed lists only the final ones, both pending under the same descriptor (it names the day, not the ride).
+     */
     private fun bolt(ref: String, amount: String, status: String = "PDNG") = RemoteTx(
         entryReference = ref, amount = amount, currency = "EUR", creditDebit = "DBIT", status = status,
         bookingDate = today.toString(), creditorName = "Paypal *bolt.eu/o/2610061", remittance = listOf("Paypal *bolt.eu/o/2610061"),
         bankTxCode = "CARD_PAYMENT",
     )
-    private val firstPrice = "6ac529a0-5dcf-a4ab-9a25-9d4a03329917"
-    private val finalPrice = "6ac537f8-224a-a751-b4f9-86aaa48a9996"
+    private val ride1 = "6ac529a0-5dcf-a4ab-9a25-9d4a03329917"
+    private val ride2 = "6ac537f8-224a-a751-b4f9-86aaa48a9996"
 
-    @Test fun aSecondChargeForTheSameOrderRevertsTheFirst() = runTest {
-        val scripted = Scripted()
-        connect(scripted)
-        // Listed newest first, as a bank may: the order of the ids decides, not the order in the list.
-        scripted.txs = listOf(bolt(finalPrice, "23.20"), bolt(firstPrice, "19.70"), uber("PDNG"), uber("PDNG", ref = "u-2").copy(amount = "8.00"))
-        sync.run()
-        val ledger = transactions.observeAll().first()
-        assertThat(ledger.filter { it.amountMinor == 2320L || it.amountMinor == 1970L }.map { it.amountMinor }).containsExactly(2320L)
-        assertThat(transactions.observeReverted(null).first().map { it.amountMinor }).containsExactly(1970L)
-        assertThat(ledgerUbers()).hasSize(2) // two payments to a plain shop name are two payments
-        sync.run()
-        assertThat(transactions.observeReverted(null).first()).hasSize(1)
+    /** An entry recorded from [source]'s notification of a payment out, [minutesAgo] before now. */
+    private suspend fun notifiedBy(source: com.grid.app.core.model.CaptureSource, amount: Long, merchant: String, minutesAgo: Long): Long {
+        val at = clock.millis() - minutesAgo * 60_000L
+        val other = db.categoryDao().byIconKey(com.grid.app.core.data.db.Seed.ICON_OTHER, com.grid.app.core.model.CategoryKind.EXPENSE)!!.id
+        val captureId = db.captureDao().insert(
+            com.grid.app.core.data.db.entities.CaptureEntity(
+                source = source, postedAt = at, title = source.name, text = "Paid €$amount at $merchant", amountMinor = amount, currency = "EUR",
+                merchant = merchant, status = com.grid.app.core.model.CaptureStatus.ADDED, dedupeKey = "$source$amount$minutesAgo",
+            ),
+        )
+        return transactions.add(
+            com.grid.app.core.model.TransactionDraft(
+                TxType.EXPENSE, amount, "EUR", other, merchant = merchant, occurredAt = at,
+                source = com.grid.app.core.model.TxSource.CAPTURE, captureId = captureId,
+            ),
+        )
     }
 
-    @Test fun aChargeTakenForReplacedThatTheBankBooksComesBack() = runTest {
+    private suspend fun revertedAmounts() = transactions.observeReverted(null).first().map { it.amountMinor }
+    private suspend fun countedAmounts() = transactions.observeAll().first().map { it.amountMinor }
+
+    @Test fun twoRidesUnderTheSameDescriptorAreTwoPayments() = runTest {
         val scripted = Scripted()
         connect(scripted)
-        scripted.txs = listOf(bolt(firstPrice, "19.70"), bolt(finalPrice, "23.20"))
+        scripted.txs = listOf(bolt(ride2, "23.20"), bolt(ride1, "19.70"))
         sync.run()
-        val first = transactions.observeReverted(null).first().single()
-        scripted.txs = listOf(bolt(firstPrice, "19.70", status = "BOOK"), bolt(finalPrice, "23.20", status = "BOOK"))
+        sync.refreshLocal()
+        assertThat(countedAmounts()).containsAtLeast(1970L, 2320L)
+        assertThat(revertedAmounts()).isEmpty()
+    }
+
+    @Test fun theFirstPricesRevolutRevertedShowAsRevertedAndTheFinalOnesCount() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        db.bankDao().updateConnection(bank.connection()!!.copy(aspspName = "Revolut", createdAt = clock.millis() - 10 * 86_400_000L))
+        val paypal = com.grid.app.core.model.CaptureSource.PAYPAL
+        notifiedBy(paypal, 1260, "Bolt", minutesAgo = 200) // ride 1, first price: reverted
+        notifiedBy(paypal, 1970, "Bolt", minutesAgo = 80) // ride 1, final price
+        notifiedBy(paypal, 1550, "Bolt", minutesAgo = 79) // ride 2, first price: reverted
+        notifiedBy(paypal, 2320, "Bolt", minutesAgo = 20) // ride 2, final price
+        // The day before: Allianz, close to €12.60 but another payment.
+        val allianz = uber("BOOK", ref = "allianz").copy(amount = "11.78", creditorName = "Allianz Direct Vers.", bankTxCode = "TRANSFER")
+        scripted.txs = listOf(bolt(ride1, "19.70"), bolt(ride2, "23.20"), allianz)
         sync.run()
-        assertThat(transactions.observeReverted(null).first()).isEmpty()
-        assertThat(transactions.observeAll().first().filter { it.amountMinor == 1970L || it.amountMinor == 2320L }.map { it.id }).contains(first.id)
-        assertThat(transactions.observeAll().first().count { it.amountMinor == 1970L }).isEqualTo(1)
+        assertThat(revertedAmounts()).containsExactly(1260L, 1550L)
+        assertThat(countedAmounts()).containsExactly(1970L, 2320L, 1178L)
+        // Nothing changes when the app opens again.
+        sync.refreshLocal()
+        assertThat(revertedAmounts()).containsExactly(1260L, 1550L)
+    }
+
+    @Test fun aNotifiedPaymentTheBankListsAfterAllComesBack() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        db.bankDao().updateConnection(bank.connection()!!.copy(aspspName = "Revolut", createdAt = clock.millis() - 10 * 86_400_000L))
+        val late = notifiedBy(com.grid.app.core.model.CaptureSource.REVOLUT, 1200, "Uber", minutesAgo = 90)
+        sync.run()
+        assertThat(revertedAmounts()).containsExactly(1200L)
+        scripted.txs = listOf(uber("PDNG"))
+        sync.run()
+        assertThat(revertedAmounts()).isEmpty()
+        assertThat(ledgerUbers().map { it.id }).containsExactly(late)
+        assertThat(db.bankDao().stagedLinkedTo(late)).isNotNull()
+    }
+
+    @Test fun aPendingPaymentTakenForRevertedThatTheBankStillListsComesBack() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        scripted.txs = listOf(bolt(ride1, "19.70"), bolt(ride2, "23.20"))
+        sync.run()
+        // What 3.4.1 did: the first ride taken for replaced by the second.
+        reversals.revertRow(db.bankDao().stagedWithPrefix(1, BankSync.PENDING_PREFIX).single { it.amountMinor == 1970L })
+        assertThat(revertedAmounts()).containsExactly(1970L)
+        sync.refreshLocal() // once, on the first open of the fixed version
+        assertThat(revertedAmounts()).isEmpty()
+        reversals.revertRow(db.bankDao().stagedWithPrefix(1, BankSync.PENDING_PREFIX).single { it.amountMinor == 1970L })
+        sync.run() // and whenever the bank still lists it as pending
+        assertThat(revertedAmounts()).isEmpty()
+        assertThat(countedAmounts()).containsAtLeast(1970L, 2320L)
     }
 
     @Test fun aFinalAmountWithATipSettlesThePendingPayment() = runTest {

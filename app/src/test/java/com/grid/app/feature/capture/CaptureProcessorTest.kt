@@ -62,7 +62,7 @@ class CaptureProcessorTest {
         settings = SettingsRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.newFile("s.preferences_pb").also { it.delete() } }, Locale.FRANCE)
         transactions = TransactionRepository(db, clock, emptySet())
         captures = CaptureRepository(db, transactions, clock, com.grid.app.core.data.repo.PaymentTwins(db, transactions, clock, emptySet()))
-        processor = CaptureProcessor(captures, CategoryRepository(db), transactions, settings, alerts, com.grid.app.core.bank.Reversals(db, transactions, clock))
+        processor = CaptureProcessor(captures, CategoryRepository(db), transactions, settings, alerts, com.grid.app.core.bank.Reversals(db, transactions))
     }
 
     private suspend fun restaurants() = db.categoryDao().byIconKey("restaurant", CategoryKind.EXPENSE)!!.id

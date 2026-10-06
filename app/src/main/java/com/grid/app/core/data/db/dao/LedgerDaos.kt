@@ -99,6 +99,9 @@ interface RevertedDao {
     @Query("SELECT * FROM reverted_payments WHERE occurredAt >= :startMs AND occurredAt < :endMs ORDER BY occurredAt DESC")
     fun observeBetween(startMs: Long, endMs: Long): Flow<List<RevertedPaymentEntity>>
 
+    @Query("SELECT * FROM reverted_payments WHERE occurredAt BETWEEN :fromMs AND :toMs")
+    suspend fun between(fromMs: Long, toMs: Long): List<RevertedPaymentEntity>
+
     @Query("SELECT * FROM reverted_payments ORDER BY occurredAt DESC")
     fun observeAll(): Flow<List<RevertedPaymentEntity>>
 
@@ -182,6 +185,10 @@ interface TransactionDao {
              AND occurredAt BETWEEN :fromMs AND :toMs""",
     )
     suspend fun bankEntriesWithoutCapture(type: TxType, currency: String, fromMs: Long, toMs: Long): List<TransactionEntity>
+
+    /** Bank-booked entries a notification joined. */
+    @Query("SELECT * FROM transactions WHERE source = 'BANK' AND captureId IS NOT NULL")
+    suspend fun bankEntriesWithCapture(): List<TransactionEntity>
 
     /** Entries made from a notification that no bank payment is linked to. */
     @Query(
