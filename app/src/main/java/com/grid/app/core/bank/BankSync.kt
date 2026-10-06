@@ -86,7 +86,8 @@ class BankSync @Inject constructor(
                 for ((externalId, tx) in ExternalIds.assign(all.filter { it.isBooked })) {
                     val row = toEntity(account.id, externalId, tx, ownIbans)
                     val id = dao.insertStaged(row)
-                    if (id > 0) inserted += row.copy(id = id)
+                    // A pending payment taken for reverted that the bank books after all: its entry comes back.
+                    if (id > 0 && !reversals.bookedAfterAll(row.copy(id = id))) inserted += row.copy(id = id)
                 }
                 // Card payments Revolut hasn't settled yet show straight away; each is replaced by its booked version.
                 val pendingNow = ExternalIds.assign(all.filter { it.isPending }).map { (id, tx) -> PENDING_PREFIX + id to tx }
@@ -143,6 +144,7 @@ class BankSync @Inject constructor(
         for (row in dao.stagedByState(BankTxState.NEW).sortedBy { it.occurredAt }) {
             if (reconciler.process(row, currency) == BankTxState.BOOKED) bookedCount++
         }
+        for (account in accounts.filter { it.enabled }) reversals.superseded(account.id)
         // Notified payments the bank still doesn't list were reverted before it did (only where every account was read).
         val synced = accounts.filter { it.enabled }.map { it.currency }.toSet() - accounts.filter { !it.enabled }.map { it.currency }.toSet()
         reversals.unlisted(connection.aspspName, synced, connection.createdAt)
@@ -156,6 +158,7 @@ class BankSync @Inject constructor(
         val currency = settings.settings.first().currency
         reconciler.revisit(currency, bank.accounts().mapNotNull { it.iban }.toSet())
         for (row in dao.stagedByState(BankTxState.NEW).sortedBy { it.occurredAt }) reconciler.process(row, currency)
+        for (account in bank.accounts()) reversals.superseded(account.id)
     }
 
     /** Books again a bank payment whose entry was deleted before "Recently deleted" kept copies. */
