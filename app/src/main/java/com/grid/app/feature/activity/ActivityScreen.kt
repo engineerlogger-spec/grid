@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -74,6 +75,7 @@ import com.grid.app.core.designsystem.components.MoneyText
 import com.grid.app.core.designsystem.components.Tile
 import com.grid.app.core.designsystem.theme.GridText
 import com.grid.app.core.designsystem.theme.GridTheme
+import com.grid.app.core.model.Transaction
 import com.grid.app.core.model.TxType
 import com.grid.app.feature.common.LocalMessenger
 import com.grid.app.feature.common.LocalQuickAdd
@@ -96,6 +98,7 @@ fun ActivityScreen(
     val deletedLabel = stringResource(R.string.add_deleted, "%s")
     val undoLabel = stringResource(R.string.action_undo)
     var categorySheet by remember { mutableStateOf(false) }
+    var revertedSheet by remember { mutableStateOf<Transaction?>(null) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -129,8 +132,13 @@ fun ActivityScreen(
                     }
                 }
             }
-            items(group.items, key = { it.id }) { tx ->
-                if (tx.ownTransfer) {
+            // A reverted payment keeps its entry's id: keyed apart so "Count it anyway" never shows the same key twice.
+            items(group.items, key = { if (it.reverted) "r${it.id}" else it.id }) { tx ->
+                if (tx.reverted) {
+                    Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp)) {
+                        TransactionRow(tx, showTime = true, onClick = { revertedSheet = tx })
+                    }
+                } else if (tx.ownTransfer) {
                     // Money moved between own accounts: shown with its sign, managed on the "Moved to Revolut" screen.
                     Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp)) {
                         TransactionRow(tx, showTime = false, onClick = onOpenMoved)
@@ -152,6 +160,18 @@ fun ActivityScreen(
 
     if (categorySheet) {
         CategoryFilterSheet(state, onToggle = viewModel::toggleCategory, onClear = { viewModel.setCategories(emptySet()) }, onDismiss = { categorySheet = false })
+    }
+    revertedSheet?.let { tx ->
+        AlertDialog(
+            onDismissRequest = { revertedSheet = null },
+            title = { Text(stringResource(R.string.activity_reverted_title)) },
+            text = { Text(stringResource(R.string.activity_reverted_body, formatter.format(tx.amountMinor, tx.currency))) },
+            confirmButton = { TextButton(onClick = { revertedSheet = null }) { Text(stringResource(R.string.action_done)) } },
+            dismissButton = {
+                TextButton(onClick = { viewModel.countAnyway(tx); revertedSheet = null }) { Text(stringResource(R.string.activity_reverted_count)) }
+            },
+            containerColor = GridTheme.colors.tile,
+        )
     }
 }
 

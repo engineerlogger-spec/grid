@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.grid.app.R
 import com.grid.app.core.bank.MovedMoney
 import com.grid.app.core.bank.OwnTransfer
+import com.grid.app.core.bank.Reversals
 import com.grid.app.core.data.repo.BankRepository
 import com.grid.app.core.model.CategoryKind
 import com.grid.app.core.model.TxSource
@@ -73,6 +74,7 @@ class ActivityViewModel @Inject constructor(
     private val transactions: TransactionRepository,
     categories: CategoryRepository,
     bank: BankRepository,
+    private val reversals: Reversals,
     private val clock: AppClock,
 ) : ViewModel() {
 
@@ -94,11 +96,14 @@ class ActivityViewModel @Inject constructor(
             val today = clock.today()
             val period = BudgetPeriods.periodFor(a ?: today, s.periodStartDay)
             val source = if (f.allTime) transactions.observeAll() else transactions.observePeriod(period)
-            combine(source, bank.observeOwnTransfers(), categories.observeAll(), categories.observePaymentMethods()) { txs, moves, cats, methods ->
+            val reverted = transactions.observeReverted(if (f.allTime) null else period)
+            combine(source, bank.observeOwnTransfers(), categories.observeAll(), categories.observePaymentMethods(), reverted) { txs, moves, cats, methods, gone ->
                 // The monthly salary is a plan figure, not an entry; money moved in from own accounts is income, out is spent.
                 val entries = txs.filter { it.source != TxSource.CHECKIN } +
                     // A transfer the user counted in another month (Savings › Next month) is listed in that month.
-                    moves.filter { f.allTime || MovedMoney.periodOf(it, s.periodStartDay) == period }.map { it.toDisplayRow(s.currency) }
+                    moves.filter { f.allTime || MovedMoney.periodOf(it, s.periodStartDay) == period }.map { it.toDisplayRow(s.currency) } +
+                    // Payments the bank reverted: listed, counted nowhere.
+                    gone
                 val visible = entries.filter { matches(it, f) }
                 ActivityUiState(
                     loading = false,
@@ -135,6 +140,9 @@ class ActivityViewModel @Inject constructor(
 
     /** Suspends in the caller's scope: Undo must still work after the user has left this screen. */
     suspend fun restore(tx: Transaction) = transactions.restore(tx)
+
+    /** A payment Grid took for reverted is counted again. */
+    fun countAnyway(tx: Transaction) = viewModelScope.launch { reversals.countAnyway(tx.id) }
 
     /** Moving the anchor a month moves exactly one budget period, whatever the period start day. */
     private fun shiftPeriod(back: Boolean) {
@@ -183,10 +191,10 @@ class ActivityViewModel @Inject constructor(
     }
 
     companion object {
-        /** Everything that left the account, transfers to the user's other accounts included. */
-        fun spentOf(items: List<Transaction>): Long = items.filter { it.type == TxType.EXPENSE }.sumOf { it.amountMinor }
+        /** Everything that left the account, transfers to the user's other accounts included (reverted payments didn't). */
+        fun spentOf(items: List<Transaction>): Long = items.filter { it.type == TxType.EXPENSE && !it.reverted }.sumOf { it.amountMinor }
 
         /** Everything that came into the account, transfers from the user's other accounts included. */
-        fun incomeOf(items: List<Transaction>): Long = items.filter { it.type == TxType.INCOME }.sumOf { it.amountMinor }
+        fun incomeOf(items: List<Transaction>): Long = items.filter { it.type == TxType.INCOME && !it.reverted }.sumOf { it.amountMinor }
     }
 }

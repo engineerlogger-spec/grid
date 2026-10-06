@@ -10,7 +10,6 @@ import com.grid.app.core.model.BankStatus
 import com.grid.app.core.model.BankTxState
 import com.grid.app.core.model.CaptureDirection
 import com.grid.app.core.model.MerchantKey
-import com.grid.app.core.model.TxSource
 import com.grid.app.core.money.Currencies
 import com.grid.app.core.time.AppClock
 import kotlinx.coroutines.CancellationException
@@ -44,6 +43,7 @@ class BankSync @Inject constructor(
     private val settings: SettingsRepository,
     private val clock: AppClock,
     private val transactions: TransactionRepository,
+    private val reversals: Reversals,
 ) {
     private val mutex = Mutex()
     private val dao = db.bankDao()
@@ -67,8 +67,11 @@ class BankSync @Inject constructor(
             for (account in accounts.filter { it.enabled }) {
                 // First fetch after the user approves access: the whole history (banks only allow it in that window).
                 // Afterwards: from a few days before the last sync, so late bookings are caught.
+                // Also from the oldest payment still pending, so a missing one really means the bank dropped it.
                 val longest = account.syncedThroughEpochDay == null
-                val from = account.syncedThroughEpochDay?.let { LocalDate.ofEpochDay(it).minusDays(OVERLAP_DAYS) }
+                val oldestPending = dao.stagedWithPrefix(account.id, PENDING_PREFIX).filter { it.state != BankTxState.REVERTED }
+                    .minOfOrNull { it.bookingEpochDay }?.coerceAtLeast(today.minusDays(PENDING_DAYS).toEpochDay())
+                val from = account.syncedThroughEpochDay?.let { LocalDate.ofEpochDay(minOf(it - OVERLAP_DAYS, oldestPending ?: it)) }
                 val all = mutableListOf<RemoteTx>()
                 var key: String? = null
                 do {
@@ -89,12 +92,13 @@ class BankSync @Inject constructor(
                 val pendingNow = ExternalIds.assign(all.filter { it.isPending }).map { (id, tx) -> PENDING_PREFIX + id to tx }
                 val stillPending = pendingNow.map { it.first }.toSet()
                 for (old in dao.stagedWithPrefix(account.id, PENDING_PREFIX)) {
-                    if (old.externalId !in stillPending) settle(old, inserted)
+                    if (old.state != BankTxState.REVERTED && old.externalId !in stillPending) settle(old, inserted)
                 }
                 for ((externalId, tx) in pendingNow) dao.insertStaged(toEntity(account.id, externalId, tx, ownIbans))
-                // Any other status (scheduled, information…): kept, not shown.
+                // Any other status (scheduled, information…): kept, not shown. Cancelled or rejected: the payment is reverted.
                 for ((externalId, tx) in ExternalIds.assign(all.filter { !it.isBooked && !it.isPending })) {
-                    dao.insertStaged(toEntity(account.id, "${tx.status}:$externalId", tx, ownIbans).copy(state = BankTxState.IGNORED))
+                    val id = dao.insertStaged(toEntity(account.id, "${tx.status}:$externalId", tx, ownIbans).copy(state = BankTxState.IGNORED))
+                    if (id > 0 && tx.isCancelled) reversals.cancelled(account.id, externalId)
                 }
                 // The balance feeds the low-funds warning; a bank that won't give it never fails the sync.
                 val balance = try {
@@ -139,6 +143,9 @@ class BankSync @Inject constructor(
         for (row in dao.stagedByState(BankTxState.NEW).sortedBy { it.occurredAt }) {
             if (reconciler.process(row, currency) == BankTxState.BOOKED) bookedCount++
         }
+        // Notified payments the bank still doesn't list were reverted before it did (only where every account was read).
+        val synced = accounts.filter { it.enabled }.map { it.currency }.toSet() - accounts.filter { !it.enabled }.map { it.currency }.toSet()
+        reversals.unlisted(connection.aspspName, synced, connection.createdAt)
         bank.recordSync(clock.millis())
         return SyncResult.Ok(fetched, bookedCount, (dao.countToReview() - reviewBefore).coerceAtLeast(0))
     }
@@ -158,24 +165,31 @@ class BankSync @Inject constructor(
     }
 
     /**
-     * A payment the bank no longer lists as pending: its booked version (same id, else same amount, direction and
-     * name within a few days) takes over its ledger entry and the user's choices; with none, it was cancelled.
+     * A payment the bank no longer lists as pending: its booked version (same id, else same money and name within a
+     * few days, the final amount of a tip or exchange rate within 15%) takes over its ledger entry and the user's
+     * choices; with none, the bank reverted it.
      */
     private suspend fun settle(old: BankTransactionEntity, inserted: MutableList<BankTransactionEntity>) = db.withTransaction {
+        fun near(it: BankTransactionEntity) = it.direction == old.direction && it.currency == old.currency && abs(it.occurredAt - old.occurredAt) <= SETTLE_WINDOW_MS
         val bookedVersion = inserted.firstOrNull { it.externalId == old.externalId.removePrefix(PENDING_PREFIX) }
             ?: inserted.firstOrNull {
-                it.direction == old.direction && it.amountMinor == old.amountMinor && it.currency == old.currency &&
-                    abs(it.occurredAt - old.occurredAt) <= SETTLE_WINDOW_MS &&
+                near(it) && it.amountMinor == old.amountMinor &&
                     (it.counterpartyKey == null || old.counterpartyKey == null || it.counterpartyKey == old.counterpartyKey)
             }
-        dao.deleteStaged(old.id)
-        if (bookedVersion != null) {
-            inserted.remove(bookedVersion)
-            dao.updateStaged(bookedVersion.copy(state = old.state, transactionId = old.transactionId, countInEpochDay = old.countInEpochDay))
-            old.transactionId?.let { if (bookedVersion.amountMinor != old.amountMinor) transactions.applyBank(it, bookedVersion.amountMinor, null) }
-        } else {
-            // A cancelled card authorisation: drop the entry Grid made for it (a notification the user saw stays).
-            old.transactionId?.let { id -> if (db.transactionDao().get(id)?.source == TxSource.BANK) transactions.delete(id) }
+            ?: inserted.firstOrNull {
+                near(it) && old.counterpartyKey != null && it.counterpartyKey == old.counterpartyKey &&
+                    MatchRules.relativeDiff(it.amountMinor, old.amountMinor) <= SETTLE_AMOUNT_DIFF
+            }
+        when {
+            bookedVersion != null -> {
+                dao.deleteStaged(old.id)
+                inserted.remove(bookedVersion)
+                dao.updateStaged(bookedVersion.copy(state = old.state, transactionId = old.transactionId, countInEpochDay = old.countInEpochDay))
+                old.transactionId?.let { if (bookedVersion.amountMinor != old.amountMinor) transactions.applyBank(it, bookedVersion.amountMinor, null) }
+            }
+            // Reverted (the shop released the card payment): shown as such, counted nowhere, whoever recorded it first.
+            old.transactionId != null -> reversals.revertRow(old)
+            else -> dao.deleteStaged(old.id)
         }
     }
 
@@ -206,5 +220,8 @@ class BankSync @Inject constructor(
         /** External ids of rows stored while still pending. */
         const val PENDING_PREFIX = "p:"
         private val SETTLE_WINDOW_MS = TimeUnit.DAYS.toMillis(5)
+        private const val SETTLE_AMOUNT_DIFF = 0.15
+        /** Card payments pending longer than this are given up on (banks release them by then). */
+        private const val PENDING_DAYS = 30L
     }
 }

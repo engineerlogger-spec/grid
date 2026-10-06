@@ -21,6 +21,7 @@ import com.grid.app.core.data.db.dao.PlanDao
 import com.grid.app.core.data.db.dao.SubscriptionDao
 import com.grid.app.core.data.db.dao.TransactionDao
 import com.grid.app.core.data.db.dao.TrashDao
+import com.grid.app.core.data.db.dao.RevertedDao
 import com.grid.app.core.data.db.entities.CaptureEntity
 import com.grid.app.core.data.db.entities.DeletedTransactionEntity
 import com.grid.app.core.data.db.entities.CategoryEntity
@@ -30,16 +31,17 @@ import com.grid.app.core.data.db.entities.PayeeProfileEntity
 import com.grid.app.core.data.db.entities.PaymentMethodEntity
 import com.grid.app.core.data.db.entities.PendingPaymentEntity
 import com.grid.app.core.data.db.entities.PeriodPlanEntity
+import com.grid.app.core.data.db.entities.RevertedPaymentEntity
 import com.grid.app.core.data.db.entities.SubscriptionEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
 
 /**
- * Schema v5 (v1 + bank sync, v3: own-transfer month override, v4: recently deleted entries, v5: account balance, v6: payee profiles and detected bills). Every schema change must
+ * Schema v7 (v1 + bank sync, v3: own-transfer month override, v4: recently deleted entries, v5: account balance, v6: payee profiles and detected bills, v7: reverted payments). Every schema change must
  * bump the version and ship a tested Migration — never fall back to destructive migration: this is people's financial history.
  */
 @Database(
     entities = [
-        CategoryEntity::class, PaymentMethodEntity::class, TransactionEntity::class, DeletedTransactionEntity::class,
+        CategoryEntity::class, PaymentMethodEntity::class, TransactionEntity::class, DeletedTransactionEntity::class, RevertedPaymentEntity::class,
         PeriodPlanEntity::class, IncomeSourceEntity::class,
         SubscriptionEntity::class, PendingPaymentEntity::class, PayeeProfileEntity::class,
         CaptureEntity::class, MerchantRuleEntity::class,
@@ -47,7 +49,7 @@ import com.grid.app.core.data.db.entities.TransactionEntity
     ],
     version = GridDatabase.VERSION,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6)],
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7)],
 )
 abstract class GridDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
@@ -60,12 +62,13 @@ abstract class GridDatabase : RoomDatabase() {
     abstract fun captureDao(): CaptureDao
     abstract fun bankDao(): BankDao
     abstract fun trashDao(): TrashDao
+    abstract fun revertedDao(): RevertedDao
     abstract fun payeeProfileDao(): PayeeProfileDao
 
     companion object {
         const val NAME = "grid.db"
         /** Schema version. Bump together with a Migration and an exported schema; backups record it. */
-        const val VERSION = 6
+        const val VERSION = 7
 
         fun build(context: Context): GridDatabase =
             Room.databaseBuilder(context, GridDatabase::class.java, NAME).addCallback(SeedCallback).build()

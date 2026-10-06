@@ -62,7 +62,7 @@ class CaptureProcessorTest {
         settings = SettingsRepository(PreferenceDataStoreFactory.create(scope = backgroundScope) { tmp.newFile("s.preferences_pb").also { it.delete() } }, Locale.FRANCE)
         transactions = TransactionRepository(db, clock, emptySet())
         captures = CaptureRepository(db, transactions, clock, com.grid.app.core.data.repo.PaymentTwins(db, transactions, clock, emptySet()))
-        processor = CaptureProcessor(captures, CategoryRepository(db), transactions, settings, alerts)
+        processor = CaptureProcessor(captures, CategoryRepository(db), transactions, settings, alerts, com.grid.app.core.bank.Reversals(db, transactions, clock))
     }
 
     private suspend fun restaurants() = db.categoryDao().byIconKey("restaurant", CategoryKind.EXPENSE)!!.id
@@ -162,6 +162,34 @@ class CaptureProcessorTest {
         build()
         assertThat(processor.process(REVOLUT, "Revolut", "Payment at Uber", now)).isEqualTo(CaptureOutcome.UNPARSED)
         assertThat(captures.observeUnparsed().first().single().text).isEqualTo("Payment at Uber")
+    }
+
+    @Test fun aRevertedNotificationRevertsThePaymentItRecorded() = runTest {
+        build()
+        processor.process(REVOLUT, "Revolut", "Paid €12.00 at Amazon", now)
+        captures.accept(alerts.detected.single().first.id, restaurants())
+        val paid = transactions.observeAll().first().single()
+        assertThat(processor.process(REVOLUT, "Payment reverted", "Your payment of €12.00 to Amazon was reverted", now + 3_600_000))
+            .isEqualTo(CaptureOutcome.REVERTED)
+        assertThat(transactions.observeAll().first()).isEmpty()
+        assertThat(transactions.observeReverted(null).first().single().id).isEqualTo(paid.id)
+    }
+
+    @Test fun aRevertedNotificationClearsTheOneWaitingInDetected() = runTest {
+        build()
+        processor.process(REVOLUT, "Revolut", "Paid €4.50 at Starbucks", now)
+        val waiting = alerts.detected.single().first
+        assertThat(processor.process(REVOLUT, "Revolut", "€4.50 at Starbucks reversed", now + 60_000)).isEqualTo(CaptureOutcome.REVERTED)
+        assertThat(captures.get(waiting.id)!!.status).isEqualTo(CaptureStatus.DISMISSED)
+        assertThat(transactions.observeAll().first()).isEmpty()
+    }
+
+    @Test fun aReversedTopUpTouchesNoPayment() = runTest {
+        build()
+        processor.process(REVOLUT, "Revolut", "Paid €20.00 at Fnac", now)
+        captures.accept(alerts.detected.single().first.id, restaurants())
+        assertThat(processor.process(REVOLUT, "Revolut", "Top-up of €20.00 reversed", now + 60_000)).isEqualTo(CaptureOutcome.IGNORED)
+        assertThat(transactions.observeAll().first()).hasSize(1)
     }
 
     @Test fun undoAutoAddPutsItBackInTheInbox() = runTest {

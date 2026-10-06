@@ -10,6 +10,7 @@ import com.grid.app.core.data.db.entities.CategoryEntity
 import com.grid.app.core.data.db.entities.DeletedTransactionEntity
 import com.grid.app.core.data.db.entities.MerchantRuleEntity
 import com.grid.app.core.data.db.entities.PaymentMethodEntity
+import com.grid.app.core.data.db.entities.RevertedPaymentEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
 import com.grid.app.core.model.CategoryKind
 import com.grid.app.core.model.TxType
@@ -82,6 +83,24 @@ interface TrashDao {
 
     @Query("DELETE FROM deleted_transactions WHERE deletedAt < :before")
     suspend fun purgeBefore(before: Long)
+}
+
+@Dao
+interface RevertedDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(row: RevertedPaymentEntity)
+
+    @Query("SELECT * FROM reverted_payments WHERE id = :id")
+    suspend fun get(id: Long): RevertedPaymentEntity?
+
+    @Query("SELECT * FROM reverted_payments WHERE occurredAt >= :startMs AND occurredAt < :endMs ORDER BY occurredAt DESC")
+    fun observeBetween(startMs: Long, endMs: Long): Flow<List<RevertedPaymentEntity>>
+
+    @Query("SELECT * FROM reverted_payments ORDER BY occurredAt DESC")
+    fun observeAll(): Flow<List<RevertedPaymentEntity>>
+
+    @Query("DELETE FROM reverted_payments WHERE id = :id")
+    suspend fun delete(id: Long)
 }
 
 /** How often a category was used — drives quick-add ordering. */

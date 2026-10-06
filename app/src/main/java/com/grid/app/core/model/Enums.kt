@@ -41,5 +41,6 @@ enum class BankTxKind { CARD_SPEND, DIRECT_DEBIT, TRANSFER_OUT, MONEY_IN, TOP_UP
 /**
  * NEW = fetched but not reconciled yet (a sync interrupted midway resumes from these).
  * OWN_TRANSFER = money moved between the user's own accounts: not income or spending, summed as "moved to Revolut".
+ * REVERTED = a payment the bank gave back (released card payment, cancelled): shown as "Reverted", never counted.
  */
-enum class BankTxState { NEW, BOOKED, NEEDS_DECISION, IGNORED, OWN_TRANSFER }
+enum class BankTxState { NEW, BOOKED, NEEDS_DECISION, IGNORED, OWN_TRANSFER, REVERTED }

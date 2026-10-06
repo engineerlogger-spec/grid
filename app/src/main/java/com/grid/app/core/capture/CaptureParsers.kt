@@ -8,6 +8,8 @@ sealed interface CaptureParse {
     data class Parsed(val amount: Money, val merchant: String?, val direction: CaptureDirection) : CaptureParse
     /** Recognised but not a spend to record (declined, top-up, exchange, marketing…). */
     data class Ignored(val reason: String) : CaptureParse
+    /** A payment given back ("Payment of €12 to Amazon reverted"): the entry recording it is reverted. */
+    data class Reverted(val amount: Money, val merchant: String?) : CaptureParse
     /** Looks like a payment but the format wasn't understood — kept in the diagnostics log. */
     data object Unparsed : CaptureParse
 }
@@ -23,6 +25,9 @@ object CaptureParsers {
         """\b(declined|refused|failed|unsuccessful|insufficient|reverted|reversed|top.?up|topped up|exchanged|exchange|verification|verify|log ?in|sign.?in|offer|reward points|security)\b""",
         RegexOption.IGNORE_CASE,
     )
+    private val revertCues = Regex("""\b(reverted|reversed|reversal)\b""", RegexOption.IGNORE_CASE)
+    /** Reversals that aren't of a payment out. */
+    private val notPaymentCues = Regex("""\b(top.?up|topped up|exchanged?|refund(ed)?|received|transfer from)\b""", RegexOption.IGNORE_CASE)
     private val incomingCues = Regex(
         """\b(received|refund|refunded|returned|sent you|you got|you've got|cashback|money in|incoming|deposit(ed)?)\b""",
         RegexOption.IGNORE_CASE,
@@ -45,6 +50,10 @@ object CaptureParsers {
     fun parse(source: CaptureSource, title: String, text: String, defaultCurrency: String): CaptureParse {
         val combined = listOf(title, text).filter { it.isNotBlank() }.joinToString("\n")
         if (combined.isBlank()) return CaptureParse.Ignored("empty")
+        if (revertCues.containsMatchIn(combined) && !notPaymentCues.containsMatchIn(combined)) {
+            val amount = AmountParser.find(text, defaultCurrency).firstOrNull() ?: AmountParser.find(title, defaultCurrency).firstOrNull()
+            if (amount != null) return CaptureParse.Reverted(amount, merchant(source, title, text, defaultCurrency))
+        }
         if (ignoreCues.containsMatchIn(combined)) return CaptureParse.Ignored("not a completed payment")
 
         val amount = AmountParser.find(text, defaultCurrency).firstOrNull()

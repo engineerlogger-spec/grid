@@ -91,3 +91,27 @@ data class DeletedTransactionEntity(
     val bankRowId: Long?,
     val deletedAt: Long,
 )
+
+/**
+ * A payment the bank reverted (a card payment the shop released, a cancelled payment): out of the ledger so nothing
+ * counts it, and shown in Activity as "Reverted". It keeps the id of the entry it was, so "Count it anyway" puts it back.
+ */
+@Entity(tableName = "reverted_payments", indices = [Index("occurredAt")])
+data class RevertedPaymentEntity(
+    @PrimaryKey val id: Long,
+    val type: TxType,
+    val amountMinor: Long,
+    val currency: String,
+    val categoryId: Long,
+    val paymentMethodId: Long?,
+    val merchant: String?,
+    val note: String?,
+    val occurredAt: Long,
+    val createdAt: Long,
+    val source: TxSource,
+    val subscriptionId: Long?,
+    val captureId: Long?,
+    /** The bank's row of the payment (state REVERTED), if the bank ever listed it. */
+    val bankRowId: Long?,
+    val revertedAt: Long,
+)

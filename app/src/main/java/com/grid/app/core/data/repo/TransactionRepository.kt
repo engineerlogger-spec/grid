@@ -6,6 +6,7 @@ import com.grid.app.core.data.db.Seed
 import com.grid.app.core.data.db.dao.CategoryUsage
 import com.grid.app.core.data.db.entities.DeletedTransactionEntity
 import com.grid.app.core.data.db.entities.MerchantRuleEntity
+import com.grid.app.core.data.db.entities.RevertedPaymentEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
 import com.grid.app.core.model.Category
 import com.grid.app.core.model.BankTxState
@@ -36,6 +37,7 @@ class TransactionRepository @Inject constructor(
 ) {
     private val dao = db.transactionDao()
     private val trash = db.trashDao()
+    private val reverted = db.revertedDao()
 
     private val categories: Flow<Map<Long, Category>> =
         db.categoryDao().observeAll().map { list -> list.associate { it.id to it.toDomain() } }
@@ -155,8 +157,7 @@ class TransactionRepository @Inject constructor(
     suspend fun restoreDeleted(id: Long) {
         db.withTransaction {
             val d = trash.get(id) ?: return@withTransaction
-            val categoryId = d.categoryId.takeIf { db.categoryDao().get(it) != null }
-                ?: db.categoryDao().byIconKey(if (d.type == TxType.EXPENSE) Seed.ICON_OTHER else Seed.ICON_OTHER_INCOME, if (d.type == TxType.EXPENSE) CategoryKind.EXPENSE else CategoryKind.INCOME)!!.id
+            val categoryId = existingCategory(d.categoryId, d.type)
             dao.insert(
                 TransactionEntity(
                     id = d.id, type = d.type, amountMinor = d.amountMinor, currency = d.currency, categoryId = categoryId,
@@ -170,6 +171,63 @@ class TransactionRepository @Inject constructor(
         }
         listeners.notifyAll()
     }
+
+    /**
+     * The bank reverted this payment: it leaves the ledger (no total, budget or bill counts it) and shows in Activity
+     * as "Reverted". [bankRowId]: the bank's row of it, which the caller marks REVERTED in the same transaction.
+     */
+    suspend fun revert(id: Long, bankRowId: Long?) {
+        db.withTransaction {
+            val row = dao.get(id) ?: return@withTransaction
+            reverted.insert(
+                RevertedPaymentEntity(
+                    id = row.id, type = row.type, amountMinor = row.amountMinor, currency = row.currency, categoryId = row.categoryId,
+                    paymentMethodId = row.paymentMethodId, merchant = row.merchant, note = row.note, occurredAt = row.occurredAt,
+                    createdAt = row.createdAt, source = row.source, subscriptionId = row.subscriptionId, captureId = row.captureId,
+                    bankRowId = bankRowId, revertedAt = clock.millis(),
+                ),
+            )
+            dao.delete(id)
+        }
+        listeners.notifyAll()
+    }
+
+    /** "Count it anyway": a payment Grid took for reverted goes back in the ledger, linked again to its bank row. */
+    suspend fun unrevert(id: Long) {
+        db.withTransaction {
+            val r = reverted.get(id) ?: return@withTransaction
+            dao.insert(
+                TransactionEntity(
+                    id = r.id, type = r.type, amountMinor = r.amountMinor, currency = r.currency, categoryId = existingCategory(r.categoryId, r.type),
+                    paymentMethodId = r.paymentMethodId?.takeIf { db.paymentMethodDao().get(it) != null }, merchant = r.merchant, note = r.note,
+                    occurredAt = r.occurredAt, createdAt = r.createdAt, updatedAt = clock.millis(),
+                    // A notification the bank never listed, confirmed by the user: never taken for reverted again.
+                    source = if (r.source == TxSource.CAPTURE && r.bankRowId == null) TxSource.MANUAL else r.source,
+                    subscriptionId = r.subscriptionId, captureId = r.captureId,
+                ),
+            )
+            r.bankRowId?.let { db.bankDao().staged(it) }?.let { db.bankDao().updateStaged(it.copy(state = BankTxState.BOOKED, transactionId = r.id)) }
+            reverted.delete(id)
+        }
+        listeners.notifyAll()
+    }
+
+    /** Reverted payments dated in [period] (all of them when null), as display-only rows. */
+    fun observeReverted(period: BudgetPeriod?): Flow<List<Transaction>> {
+        val rows = if (period == null) reverted.observeAll() else reverted.observeBetween(period.startMillis(clock.zone), period.endMillis(clock.zone))
+        return combine(rows, categories, methods) { list, cats, ms ->
+            list.mapNotNull { r ->
+                TransactionEntity(
+                    id = r.id, type = r.type, amountMinor = r.amountMinor, currency = r.currency, categoryId = r.categoryId,
+                    paymentMethodId = r.paymentMethodId, merchant = r.merchant, note = r.note, occurredAt = r.occurredAt,
+                    createdAt = r.createdAt, updatedAt = r.revertedAt, source = r.source,
+                ).toDomain(cats, ms)?.copy(reverted = true)
+            }
+        }
+    }
+
+    private suspend fun existingCategory(id: Long, type: TxType): Long = id.takeIf { db.categoryDao().get(it) != null }
+        ?: db.categoryDao().byIconKey(if (type == TxType.EXPENSE) Seed.ICON_OTHER else Seed.ICON_OTHER_INCOME, if (type == TxType.EXPENSE) CategoryKind.EXPENSE else CategoryKind.INCOME)!!.id
 
     /** "Recently deleted", newest first. */
     fun observeDeleted(): Flow<List<DeletedEntry>> = combine(trash.observeAll(), categories, methods) { rows, cats, ms ->

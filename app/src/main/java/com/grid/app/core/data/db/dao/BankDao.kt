@@ -103,6 +103,13 @@ interface BankDao {
     @Query("SELECT * FROM bank_transactions WHERE accountId = :accountId AND externalId LIKE :prefix || '%'")
     suspend fun stagedWithPrefix(accountId: Long, prefix: String): List<BankTransactionEntity>
 
+    @Query("SELECT * FROM bank_transactions WHERE accountId = :accountId AND externalId = :externalId")
+    suspend fun stagedByExternalId(accountId: Long, externalId: String): BankTransactionEntity?
+
+    /** Every row the bank sent dated around a time, whatever Grid did with it. */
+    @Query("SELECT * FROM bank_transactions WHERE occurredAt BETWEEN :fromMs AND :toMs")
+    suspend fun stagedBetween(fromMs: Long, toMs: Long): List<BankTransactionEntity>
+
     @Query("SELECT * FROM bank_transactions WHERE state = :state ORDER BY occurredAt DESC")
     suspend fun stagedByState(state: BankTxState): List<BankTransactionEntity>
 
