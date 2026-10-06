@@ -72,6 +72,8 @@ import com.grid.app.core.insights.DashboardSummary
 import com.grid.app.core.model.PendingDirection
 import com.grid.app.feature.bills.relativeDay
 import com.grid.app.feature.capture.sourceName
+import com.grid.app.feature.common.BankRefreshBox
+import com.grid.app.feature.common.BankUpdatedLine
 import com.grid.app.feature.common.LocalQuickAdd
 import com.grid.app.feature.common.TransactionRow
 import java.time.LocalDate
@@ -96,62 +98,66 @@ fun HomeScreen(
     val quickAdd = LocalQuickAdd.current
     val summary = state.summary ?: return
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = contentPadding.calculateBottomPadding() + 16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        item {
-            Header(
-                title = state.title,
-                summary = summary,
-                hidden = state.hideAmounts,
-                onToggleHidden = viewModel::toggleHideAmounts,
-                onOpenSettings = onOpenSettings,
-            )
-        }
-        item { AskBar(onOpenAsk) }
-        state.bankToReconnect?.let { bank ->
-            item { ReconnectBanner(bank, onOpenBank) }
-        }
-        state.lowFunds?.let { short ->
-            item { LowFundsBanner(short, state.hideAmounts, onOpenBills) }
-        }
-        if (state.needsCheckIn) {
-            item { CheckInBanner(onOpenCheckIn) }
-        }
-        if (state.detectedCount > 0) {
-            item { DetectedTile(state, onOpenDetected) }
-        }
-        if (state.otherToSort > 0) {
-            item { SortLink(state.otherToSort, onOpenDetected) }
-        }
-        if (state.suggestedSubscriptions > 0) {
-            item { SuggestedLink(state.suggestedSubscriptions) { com.grid.app.feature.bills.BillsTabRequest.next.value = com.grid.app.feature.bills.BillsTab.SUGGESTED; onOpenBills() } }
-        }
-        item {
-            HeroCard(state, summary, onDayClick = { onOpenActivity(it.toEpochDay()) })
-        }
-        item {
-            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SpentTile(summary, state.currency, Modifier.weight(1f).fillMaxHeight())
-                IncomeTile(summary, state.currency, state.needsCheckIn, onOpenCheckIn, Modifier.weight(1f).fillMaxHeight())
+    // Swipe down to read the bank now.
+    BankRefreshBox(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = contentPadding.calculateBottomPadding() + 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item {
+                Header(
+                    title = state.title,
+                    summary = summary,
+                    hidden = state.hideAmounts,
+                    onToggleHidden = viewModel::toggleHideAmounts,
+                    onOpenSettings = onOpenSettings,
+                )
             }
-        }
-        state.movedMinor?.let { moved ->
-            item { SavingsTile(state.salaryMinor, moved, state.currency, onClick = onOpenMoved) }
-        }
-        item { UpcomingTile(state, onClick = onOpenBills) }
-        item { CategoriesTile(state, onClick = onOpenInsights) }
-        // Gemini's notes on the month (shown once a key is set).
-        item { com.grid.app.feature.ai.DigestTile() }
-        item { SectionHeader(stringResource(R.string.home_recent), Modifier.padding(top = 6.dp), action = stringResource(R.string.action_see_all), onAction = { onOpenActivity(null) }) }
-        item {
-            Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)) {
-                if (state.recent.isEmpty()) {
-                    EmptyState(Icons.Rounded.WbSunny, stringResource(R.string.home_empty_title), stringResource(R.string.home_empty_body))
-                } else {
-                    state.recent.forEach { tx -> TransactionRow(tx, onClick = { quickAdd.edit(tx.id) }) }
+            item { AskBar(onOpenAsk) }
+            state.bankToReconnect?.let { bank ->
+                item { ReconnectBanner(bank, onOpenBank) }
+            }
+            state.lowFunds?.let { short ->
+                item { LowFundsBanner(short, state.hideAmounts, onOpenBills) }
+            }
+            if (state.needsCheckIn) {
+                item { CheckInBanner(onOpenCheckIn) }
+            }
+            if (state.detectedCount > 0) {
+                item { DetectedTile(state, onOpenDetected) }
+            }
+            if (state.otherToSort > 0) {
+                item { SortLink(state.otherToSort, onOpenDetected) }
+            }
+            if (state.suggestedSubscriptions > 0) {
+                item { SuggestedLink(state.suggestedSubscriptions) { com.grid.app.feature.bills.BillsTabRequest.next.value = com.grid.app.feature.bills.BillsTab.SUGGESTED; onOpenBills() } }
+            }
+            item {
+                HeroCard(state, summary, onDayClick = { onOpenActivity(it.toEpochDay()) })
+            }
+            item { BankUpdatedLine(Modifier.padding(start = 4.dp)) }
+            item {
+                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SpentTile(summary, state.currency, Modifier.weight(1f).fillMaxHeight())
+                    IncomeTile(summary, state.currency, state.needsCheckIn, onOpenCheckIn, Modifier.weight(1f).fillMaxHeight())
+                }
+            }
+            state.movedMinor?.let { moved ->
+                item { SavingsTile(state.salaryMinor, moved, state.currency, onClick = onOpenMoved) }
+            }
+            item { UpcomingTile(state, onClick = onOpenBills) }
+            item { CategoriesTile(state, onClick = onOpenInsights) }
+            // Gemini's notes on the month (shown once a key is set).
+            item { com.grid.app.feature.ai.DigestTile() }
+            item { SectionHeader(stringResource(R.string.home_recent), Modifier.padding(top = 6.dp), action = stringResource(R.string.action_see_all), onAction = { onOpenActivity(null) }) }
+            item {
+                Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)) {
+                    if (state.recent.isEmpty()) {
+                        EmptyState(Icons.Rounded.WbSunny, stringResource(R.string.home_empty_title), stringResource(R.string.home_empty_body))
+                    } else {
+                        state.recent.forEach { tx -> TransactionRow(tx, onClick = { quickAdd.edit(tx.id) }) }
+                    }
                 }
             }
         }

@@ -23,6 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import com.grid.app.core.bank.BankAuthInbox
 import com.grid.app.core.bank.BankSync
 import com.grid.app.core.bank.BankSyncWorker
+import com.grid.app.core.bank.SyncMode
 import com.grid.app.core.data.repo.BankRepository
 import com.grid.app.core.model.BankStatus
 import kotlinx.coroutines.launch
@@ -111,7 +112,7 @@ class MainActivity : FragmentActivity() {
         )
     }
 
-    /** Opening the app fetches the latest bank payments, at most once an hour (banks limit how often apps may ask). */
+    /** Opening the app fetches the latest bank payments as the person present (not limited), unless synced minutes ago. */
     override fun onStart() {
         super.onStart()
         lifecycleScope.launch {
@@ -122,8 +123,8 @@ class MainActivity : FragmentActivity() {
             runCatching { aiAssistant.prepare() }
             if (runCatching { aiAssistant.passDue() }.getOrDefault(false)) com.grid.app.core.ai.AiWorker.runNow(this@MainActivity)
             val connection = bank.connection() ?: return@launch
-            val stale = (connection.lastSyncAt ?: 0L) < System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1)
-            if (connection.status == BankStatus.ACTIVE && stale) BankSyncWorker.runNow(this@MainActivity)
+            val stale = (connection.lastSyncAt ?: 0L) < System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(5)
+            if (connection.status == BankStatus.ACTIVE && stale) BankSyncWorker.runNow(this@MainActivity, SyncMode.PRESENT)
         }
     }
 

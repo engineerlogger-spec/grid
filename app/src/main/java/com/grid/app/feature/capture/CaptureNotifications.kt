@@ -76,7 +76,7 @@ class NotificationCaptureAlerts @Inject constructor(
     )
 
     companion object {
-        fun notificationId(captureId: Long) = 80_000 + captureId.toInt()
+        fun notificationId(captureId: Long) = com.grid.app.core.notify.NotificationIds.capture(captureId)
     }
 }
 

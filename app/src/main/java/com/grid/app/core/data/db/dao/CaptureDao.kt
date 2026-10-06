@@ -28,6 +28,10 @@ interface CaptureDao {
     @Query("SELECT * FROM captures WHERE status = 'NEW' AND postedAt BETWEEN :fromMs AND :toMs")
     suspend fun inboxBetween(fromMs: Long, toMs: Long): List<CaptureEntity>
 
+    /** Payment notifications since then (waiting in Detected or recorded), with an amount. */
+    @Query("SELECT * FROM captures WHERE postedAt >= :sinceMs AND amountMinor IS NOT NULL AND status IN ('NEW', 'ADDED')")
+    suspend fun paymentsSince(sinceMs: Long): List<CaptureEntity>
+
     @Query("SELECT * FROM captures WHERE status = 'UNPARSED' ORDER BY postedAt DESC")
     fun observeUnparsed(): Flow<List<CaptureEntity>>
 

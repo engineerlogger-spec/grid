@@ -166,6 +166,19 @@ class BankRepository @Inject constructor(
     }
 
     /**
+     * A payment notified in the last 15 minutes that the bank doesn't list yet (no row of that exact amount, direction
+     * and currency within two days): worth asking the bank again shortly.
+     */
+    suspend fun awaitingListing(): Boolean {
+        val now = clock.millis()
+        return db.captureDao().paymentsSince(now - AWAIT_MS).any { c ->
+            dao.stagedBetween(c.postedAt - LISTED_WINDOW_MS, c.postedAt + LISTED_WINDOW_MS).none {
+                it.direction == c.direction && it.amountMinor == c.amountMinor && it.currency == c.currency && it.state != BankTxState.IGNORED
+            }
+        }
+    }
+
+    /**
      * Ends bank access but keeps what was fetched: the history is what prevents duplicates if the user
      * connects the same accounts again.
      */
@@ -280,6 +293,8 @@ class BankRepository @Inject constructor(
 
     companion object {
         const val PROVIDER = "enablebanking"
+        private val AWAIT_MS = TimeUnit.MINUTES.toMillis(15)
+        private val LISTED_WINDOW_MS = TimeUnit.DAYS.toMillis(2)
 
         /** The name to show and to learn rules by: the cleaned counterparty ("PAYPAL *NETFLIX" → Netflix). */
         fun displayName(row: BankTransactionEntity): String? =

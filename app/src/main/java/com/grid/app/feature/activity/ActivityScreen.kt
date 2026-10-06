@@ -77,6 +77,8 @@ import com.grid.app.core.designsystem.theme.GridText
 import com.grid.app.core.designsystem.theme.GridTheme
 import com.grid.app.core.model.Transaction
 import com.grid.app.core.model.TxType
+import com.grid.app.feature.common.BankRefreshBox
+import com.grid.app.feature.common.BankUpdatedLine
 import com.grid.app.feature.common.LocalMessenger
 import com.grid.app.feature.common.LocalQuickAdd
 import com.grid.app.feature.common.TransactionRow
@@ -100,57 +102,61 @@ fun ActivityScreen(
     var categorySheet by remember { mutableStateOf(false) }
     var revertedSheet by remember { mutableStateOf<Transaction?>(null) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = contentPadding.calculateBottomPadding() + 16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        item { TopRow(state, viewModel, onOpenDeleted, onOpenAsk) }
-        item { SearchField(state.filters.query, viewModel::setQuery) }
-        item { FilterRow(state, viewModel, onOpenCategories = { categorySheet = true }) }
-        item { TotalsTile(state) }
-        if (state.groups.isEmpty() && !state.loading) {
-            item {
-                EmptyState(
-                    icon = if (state.filters.isFiltered) Icons.Rounded.SearchOff else Icons.Rounded.History,
-                    title = stringResource(R.string.activity_empty_title),
-                    body = stringResource(R.string.activity_empty_body),
-                    action = if (state.filters.isFiltered) {
-                        { TextButton(onClick = viewModel::clearFilters) { Text(stringResource(R.string.activity_clear_filters)) } }
-                    } else null,
-                )
-            }
-        }
-        state.groups.forEach { group ->
-            item(key = "h${group.date}") {
-                Row(Modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CapsLabel(dayLabel(group.date, state.today), Modifier.weight(1f))
-                    if (group.spentMinor > 0) AmountText(-group.spentMinor, state.currency, style = GridText.moneyTiny, color = GridTheme.colors.muted)
-                    if (group.incomeMinor > 0) {
-                        Spacer(Modifier.width(8.dp))
-                        AmountText(group.incomeMinor, state.currency, style = GridText.moneyTiny, color = GridTheme.colors.income, signed = true)
-                    }
+    // Swipe down to read the bank now.
+    BankRefreshBox(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = contentPadding.calculateBottomPadding() + 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item { TopRow(state, viewModel, onOpenDeleted, onOpenAsk) }
+            item { SearchField(state.filters.query, viewModel::setQuery) }
+            item { FilterRow(state, viewModel, onOpenCategories = { categorySheet = true }) }
+            item { TotalsTile(state) }
+            item { BankUpdatedLine(Modifier.padding(start = 4.dp)) }
+            if (state.groups.isEmpty() && !state.loading) {
+                item {
+                    EmptyState(
+                        icon = if (state.filters.isFiltered) Icons.Rounded.SearchOff else Icons.Rounded.History,
+                        title = stringResource(R.string.activity_empty_title),
+                        body = stringResource(R.string.activity_empty_body),
+                        action = if (state.filters.isFiltered) {
+                            { TextButton(onClick = viewModel::clearFilters) { Text(stringResource(R.string.activity_clear_filters)) } }
+                        } else null,
+                    )
                 }
             }
-            // A reverted payment keeps its entry's id: keyed apart so "Count it anyway" never shows the same key twice.
-            items(group.items, key = { if (it.reverted) "r${it.id}" else it.id }) { tx ->
-                if (tx.reverted) {
-                    Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp)) {
-                        TransactionRow(tx, showTime = true, onClick = { revertedSheet = tx })
-                    }
-                } else if (tx.ownTransfer) {
-                    // Money moved between own accounts: shown with its sign, managed on the "Moved to Revolut" screen.
-                    Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp)) {
-                        TransactionRow(tx, showTime = false, onClick = onOpenMoved)
-                    }
-                } else {
-                    SwipeToDelete(onDelete = {
-                        viewModel.delete(tx) { deleted ->
-                            messenger.show(deletedLabel.replace("%s", formatter.format(deleted.amountMinor, deleted.currency)), undoLabel) { viewModel.restore(deleted) }
+            state.groups.forEach { group ->
+                item(key = "h${group.date}") {
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        CapsLabel(dayLabel(group.date, state.today), Modifier.weight(1f))
+                        if (group.spentMinor > 0) AmountText(-group.spentMinor, state.currency, style = GridText.moneyTiny, color = GridTheme.colors.muted)
+                        if (group.incomeMinor > 0) {
+                            Spacer(Modifier.width(8.dp))
+                            AmountText(group.incomeMinor, state.currency, style = GridText.moneyTiny, color = GridTheme.colors.income, signed = true)
                         }
-                    }) {
+                    }
+                }
+                // A reverted payment keeps its entry's id: keyed apart so "Count it anyway" never shows the same key twice.
+                items(group.items, key = { if (it.reverted) "r${it.id}" else it.id }) { tx ->
+                    if (tx.reverted) {
                         Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp)) {
-                            TransactionRow(tx, showTime = true, onClick = { quickAdd.edit(tx.id) })
+                            TransactionRow(tx, showTime = true, onClick = { revertedSheet = tx })
+                        }
+                    } else if (tx.ownTransfer) {
+                        // Money moved between own accounts: shown with its sign, managed on the "Moved to Revolut" screen.
+                        Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp)) {
+                            TransactionRow(tx, showTime = false, onClick = onOpenMoved)
+                        }
+                    } else {
+                        SwipeToDelete(onDelete = {
+                            viewModel.delete(tx) { deleted ->
+                                messenger.show(deletedLabel.replace("%s", formatter.format(deleted.amountMinor, deleted.currency)), undoLabel) { viewModel.restore(deleted) }
+                            }
+                        }) {
+                            Tile(contentPadding = PaddingValues(horizontal = 14.dp, vertical = 2.dp)) {
+                                TransactionRow(tx, showTime = true, onClick = { quickAdd.edit(tx.id) })
+                            }
                         }
                     }
                 }

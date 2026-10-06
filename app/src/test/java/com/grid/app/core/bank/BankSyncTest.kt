@@ -214,6 +214,22 @@ class BankSyncTest {
         assertThat(transactions.get(moved)!!.occurredAt).isEqualTo(noon + 86_400_000L)
     }
 
+    @Test fun aNotifiedPaymentAwaitsListingUntilTheBankHasIt() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        db.captureDao().insert(
+            com.grid.app.core.data.db.entities.CaptureEntity(
+                source = com.grid.app.core.model.CaptureSource.REVOLUT, postedAt = clock.millis() - 60_000, title = "Revolut",
+                text = "Paid €12.00 at Uber", amountMinor = 1200, currency = "EUR", merchant = "Uber",
+                status = com.grid.app.core.model.CaptureStatus.ADDED, dedupeKey = "u",
+            ),
+        )
+        assertThat(bank.awaitingListing()).isTrue()
+        scripted.txs = listOf(uber("PDNG"))
+        sync.run()
+        assertThat(bank.awaitingListing()).isFalse()
+    }
+
     @Test fun aPaymentStillPendingAtTheBankIsTaggedUntilBooked() = runTest {
         val scripted = Scripted()
         connect(scripted)

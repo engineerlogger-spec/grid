@@ -7,6 +7,7 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationManagerCompat
 import com.grid.app.BuildConfig
+import com.grid.app.core.bank.BankSyncWorker
 import com.grid.app.core.di.AppScope
 import com.grid.app.core.model.CaptureSource
 import dagger.hilt.android.AndroidEntryPoint
@@ -40,10 +41,14 @@ class PaymentCaptureService : NotificationListenerService() {
             title = title.removePrefix(tag.key).trim()
         }
         val resolved = source ?: return
-        scope.launch { processor.process(resolved, title, text, sbn.postTime) }
+        scope.launch {
+            // A payment just happened (or was reverted): the bank is asked in a few seconds, then again until it lists it.
+            if (processor.process(resolved, title, text, sbn.postTime) in SYNC_AFTER) BankSyncWorker.afterPayment(applicationContext)
+        }
     }
 
     companion object {
+        private val SYNC_AFTER = setOf(CaptureOutcome.AUTO_ADDED, CaptureOutcome.QUEUED, CaptureOutcome.REVERTED)
         val SOURCES = mapOf(
             "com.google.android.apps.walletnfcrel" to CaptureSource.GOOGLE_WALLET,
             "com.paypal.android.p2pmobile" to CaptureSource.PAYPAL,
