@@ -49,6 +49,9 @@ data class RemoteTx(
     val isPending: Boolean get() = status.equals("PDNG", ignoreCase = true)
 
     val isBooked: Boolean get() = status == null || status.equals("BOOK", ignoreCase = true)
+
+    /** Cancelled or rejected: the payment didn't happen, or was given back. */
+    val isCancelled: Boolean get() = status.equals("CNCL", ignoreCase = true) || status.equals("RJCT", ignoreCase = true)
 }
 
 data class TxPage(val transactions: List<RemoteTx>, val continuationKey: String?)

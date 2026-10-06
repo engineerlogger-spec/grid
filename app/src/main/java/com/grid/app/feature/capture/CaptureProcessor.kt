@@ -1,5 +1,6 @@
 package com.grid.app.feature.capture
 
+import com.grid.app.core.bank.Reversals
 import com.grid.app.core.capture.CaptureParse
 import com.grid.app.core.capture.CaptureParsers
 import com.grid.app.core.data.prefs.SettingsRepository
@@ -26,7 +27,9 @@ interface CaptureAlerts {
 
 enum class CaptureOutcome { DISABLED, IGNORED, UNPARSED, DUPLICATE, AUTO_ADDED, QUEUED, 
     /** The bank had already booked it: the notification joined that entry (no second entry, no alert). */
-    JOINED_BANK }
+    JOINED_BANK,
+    /** A notification that a payment was reverted: its entry is now shown as reverted. */
+    REVERTED }
 
 /**
  * Parses a payment notification and decides what to do with it. Auto-adds only when it's safe:
@@ -39,12 +42,15 @@ class CaptureProcessor @Inject constructor(
     private val transactions: TransactionRepository,
     private val settings: SettingsRepository,
     private val alerts: CaptureAlerts,
+    private val reversals: Reversals,
 ) {
     suspend fun process(source: CaptureSource, title: String, text: String, postedAt: Long): CaptureOutcome {
         val s = settings.settings.first()
         if (!s.capture.enabled(source)) return CaptureOutcome.DISABLED
         return when (val parsed = CaptureParsers.parse(source, title, text, s.currency)) {
             is CaptureParse.Ignored -> CaptureOutcome.IGNORED
+            is CaptureParse.Reverted ->
+                if (reversals.notified(parsed.amount.minor, parsed.amount.currency, parsed.merchant, postedAt)) CaptureOutcome.REVERTED else CaptureOutcome.IGNORED
             CaptureParse.Unparsed -> {
                 if (s.capture.diagnostics) captures.recordUnparsed(source, title, text, postedAt)
                 CaptureOutcome.UNPARSED

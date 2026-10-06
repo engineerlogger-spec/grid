@@ -72,7 +72,7 @@ class PaymentTwinsTest {
         twins = PaymentTwins(db, transactions, clock, emptySet())
         captures = CaptureRepository(db, transactions, clock, twins)
         val categories = CategoryRepository(db)
-        processor = CaptureProcessor(captures, categories, transactions, settings, NoAlerts)
+        processor = CaptureProcessor(captures, categories, transactions, settings, NoAlerts, com.grid.app.core.bank.Reversals(db, transactions, clock))
         reconciler = BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), categories, clock, twins)
         val bank = BankRepository(db, transactions, clock)
         bank.beginAuth(Aspsp("Revolut", "FR", null), "st", null)

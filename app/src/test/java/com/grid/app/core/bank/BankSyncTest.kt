@@ -38,6 +38,7 @@ class BankSyncTest {
     private lateinit var transactions: TransactionRepository
     private lateinit var bank: BankRepository
     private lateinit var sync: BankSync
+    private lateinit var reversals: Reversals
 
     /** Wraps the demo bank to record requests or fail on demand. */
     private inner class Recording(var failWith: BankError? = null) : BankConnector by DemoBankConnector(clock) {
@@ -67,7 +68,8 @@ class BankSyncTest {
         transactions = TransactionRepository(db, clock, emptySet())
         bank = BankRepository(db, transactions, clock)
         val reconciler = BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), CategoryRepository(db), clock)
-        sync = BankSync(db, bank, { using }, reconciler, settings, clock, transactions)
+        reversals = Reversals(db, transactions, clock)
+        sync = BankSync(db, bank, { using }, reconciler, settings, clock, transactions, reversals)
 
         val demo = DemoBankConnector(clock)
         bank.beginAuth(demo.aspsps("FR").single(), "st", today.minusMonths(3).toEpochDay())
@@ -142,7 +144,7 @@ class BankSyncTest {
 
     @Test fun unexpectedTroubleFailsTheSyncInsteadOfCrashing() = runTest {
         connect()
-        val broken = BankSync(db, bank, { throwingConnector }, BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), CategoryRepository(db), clock), settingsFor(), clock, transactions)
+        val broken = BankSync(db, bank, { throwingConnector }, BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), CategoryRepository(db), clock), settingsFor(), clock, transactions, reversals)
         assertThat(broken.run()).isInstanceOf(SyncResult.Failed::class.java)
     }
 
@@ -211,14 +213,106 @@ class BankSyncTest {
         assertThat(transactions.observeAll().first()).hasSize(before)
     }
 
-    @Test fun cancelledPendingPaymentDisappears() = runTest {
+    private suspend fun ledgerUbers() = transactions.observeAll().first().filter { it.merchant == "Uber" }
+    private suspend fun revertedUbers() = transactions.observeReverted(null).first().filter { it.merchant == "Uber" }
+
+    @Test fun pendingPaymentTheBankDropsShowsAsReverted() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        scripted.txs = listOf(uber("PDNG"))
+        sync.run()
+        val entry = ledgerUbers().single()
+        scripted.txs = emptyList()
+        sync.run()
+        sync.run()
+        assertThat(ledgerUbers()).isEmpty()
+        assertThat(revertedUbers().map { it.id to it.reverted }).containsExactly(entry.id to true)
+        assertThat(db.bankDao().stagedByState(BankTxState.REVERTED).single().counterparty).isEqualTo("Uber")
+    }
+
+    @Test fun aPaymentRecordedFromItsNotificationIsRevertedToo() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        val other = db.categoryDao().byIconKey(com.grid.app.core.data.db.Seed.ICON_OTHER, com.grid.app.core.model.CategoryKind.EXPENSE)!!.id
+        val noted = transactions.add(
+            com.grid.app.core.model.TransactionDraft(
+                TxType.EXPENSE, 1200, "EUR", other, merchant = "Uber",
+                occurredAt = clock.millis() - 20 * 3_600_000L, source = com.grid.app.core.model.TxSource.CAPTURE,
+            ),
+        )
+        scripted.txs = listOf(uber("PDNG"))
+        sync.run()
+        assertThat(db.bankDao().stagedLinkedTo(noted)).isNotNull()
+        scripted.txs = emptyList()
+        sync.run()
+        assertThat(ledgerUbers()).isEmpty()
+        assertThat(revertedUbers().single().id).isEqualTo(noted)
+    }
+
+    @Test fun cancelledStatusRevertsABookedPayment() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        scripted.txs = listOf(uber("BOOK", ref = "e-9"))
+        sync.run()
+        scripted.txs = listOf(uber("CNCL", ref = "e-9"))
+        sync.run()
+        assertThat(ledgerUbers()).isEmpty()
+        assertThat(revertedUbers()).hasSize(1)
+    }
+
+    @Test fun aFinalAmountWithATipSettlesThePendingPayment() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        scripted.txs = listOf(uber("PDNG"))
+        sync.run()
+        scripted.txs = listOf(uber("BOOK", ref = "e-10").copy(amount = "13.20"))
+        sync.run()
+        assertThat(ledgerUbers().map { it.amountMinor }).containsExactly(1320L)
+        assertThat(revertedUbers()).isEmpty()
+    }
+
+    @Test fun countItAnywayKeepsItCountedAfterLaterSyncs() = runTest {
         val scripted = Scripted()
         connect(scripted)
         scripted.txs = listOf(uber("PDNG"))
         sync.run()
         scripted.txs = emptyList()
         sync.run()
-        assertThat(transactions.observeAll().first().filter { it.merchant == "Uber" }).isEmpty()
+        reversals.countAnyway(revertedUbers().single().id)
+        sync.run()
+        assertThat(ledgerUbers()).hasSize(1)
+        assertThat(revertedUbers()).isEmpty()
+    }
+
+    @Test fun aRevolutNotificationTheBankNeverListedIsRevertedAfterAWhile() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        db.bankDao().updateConnection(bank.connection()!!.copy(aspspName = "Revolut", createdAt = clock.millis() - 10 * 86_400_000L))
+        val other = db.categoryDao().byIconKey(com.grid.app.core.data.db.Seed.ICON_OTHER, com.grid.app.core.model.CategoryKind.EXPENSE)!!.id
+        suspend fun notified(amount: Long, hoursAgo: Long): Long {
+            val at = clock.millis() - hoursAgo * 3_600_000L
+            val captureId = db.captureDao().insert(
+                com.grid.app.core.data.db.entities.CaptureEntity(
+                    source = com.grid.app.core.model.CaptureSource.REVOLUT, postedAt = at, title = "Revolut", text = "Paid at Shop",
+                    amountMinor = amount, currency = "EUR", merchant = "Shop", status = com.grid.app.core.model.CaptureStatus.ADDED, dedupeKey = "k$amount",
+                ),
+            )
+            return transactions.add(
+                com.grid.app.core.model.TransactionDraft(
+                    TxType.EXPENSE, amount, "EUR", other, merchant = "Shop", occurredAt = at,
+                    source = com.grid.app.core.model.TxSource.CAPTURE, captureId = captureId,
+                ),
+            )
+        }
+        val gone = notified(4_500, hoursAgo = 5)
+        val fresh = notified(700, hoursAgo = 0)
+        val listed = notified(1_200, hoursAgo = 20) // the bank has a €12.00 payment that day (Uber)
+        scripted.txs = listOf(uber("BOOK", ref = "e-11").copy(creditorName = "Uber BV"))
+        sync.run()
+        val ledger = transactions.observeAll().first().map { it.id }
+        assertThat(ledger).containsAtLeast(fresh, listed)
+        assertThat(ledger).doesNotContain(gone)
+        assertThat(transactions.observeReverted(null).first().map { it.id }).containsExactly(gone)
     }
 
     @Test fun notConnectedWithoutSession() = runTest {

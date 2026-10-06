@@ -40,6 +40,8 @@ data class Transaction(
     val needsReview: Boolean = false,
     /** Display-only row for money moved between the user's own accounts: in Activity, in = income and out = spent. */
     val ownTransfer: Boolean = false,
+    /** Display-only row for a payment the bank reverted: shown struck through, counted nowhere. */
+    val reverted: Boolean = false,
 ) {
     /** What to call this transaction in lists: merchant, else note, else the category name. */
     val title: String
