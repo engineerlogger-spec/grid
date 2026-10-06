@@ -23,7 +23,8 @@ Either way, syncs made while the owner is in the app are exempt by regulation. B
 
 ## 2. Triggers
 
-- **After a payment notification** (Revolut, PayPal or Wallet, payment or reversal): a background sync 90 seconds later, so Revolut has time to list the payment. This is WorkManager unique work with `REPLACE`, so a burst of notifications ends in one sync, and it requires a network connection.
+- **After a payment notification** (Revolut, PayPal or Wallet, payment or reversal): a background sync 30 seconds later (the owner's choice; they find even that long). This is WorkManager unique work with `REPLACE`, so the 2 or 3 notifications of one payment end in one sync, and it requires a network connection.
+  - **Retries:** if the notified amount is still not listed by the bank, Grid tries again 1 minute later, then 5 minutes later. "Listed" means any bank row of that exact amount, out, within 2 days.
 - **Opening the app:** a present sync when the last sync is more than 5 minutes old (today: more than 1 hour).
 - **Pull to refresh** on Home and Activity: Material 3 `PullToRefreshBox` starts a present sync. A spinner shows while it runs, then a message: "Up to date", "3 new payments" or "Revolut refused, try again later".
 - **"Updated 2 min ago"** under the totals on Home and Activity, based on `lastSyncAt`. It reads "Syncing…" while a sync runs.
