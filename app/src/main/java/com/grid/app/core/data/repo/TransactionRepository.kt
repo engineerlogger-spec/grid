@@ -192,8 +192,11 @@ class TransactionRepository @Inject constructor(
         listeners.notifyAll()
     }
 
-    /** "Count it anyway": a payment Grid took for reverted goes back in the ledger, linked again to its bank row. */
-    suspend fun unrevert(id: Long) {
+    /**
+     * A payment Grid took for reverted goes back in the ledger, linked again to its bank row. [byUser]: "Count it
+     * anyway" on a notification the bank never listed, which is then never taken for reverted again.
+     */
+    suspend fun unrevert(id: Long, byUser: Boolean = false) {
         db.withTransaction {
             val r = reverted.get(id) ?: return@withTransaction
             dao.insert(
@@ -201,8 +204,7 @@ class TransactionRepository @Inject constructor(
                     id = r.id, type = r.type, amountMinor = r.amountMinor, currency = r.currency, categoryId = existingCategory(r.categoryId, r.type),
                     paymentMethodId = r.paymentMethodId?.takeIf { db.paymentMethodDao().get(it) != null }, merchant = r.merchant, note = r.note,
                     occurredAt = r.occurredAt, createdAt = r.createdAt, updatedAt = clock.millis(),
-                    // A notification the bank never listed, confirmed by the user: never taken for reverted again.
-                    source = if (r.source == TxSource.CAPTURE && r.bankRowId == null) TxSource.MANUAL else r.source,
+                    source = if (byUser && r.source == TxSource.CAPTURE && r.bankRowId == null) TxSource.MANUAL else r.source,
                     subscriptionId = r.subscriptionId, captureId = r.captureId,
                 ),
             )

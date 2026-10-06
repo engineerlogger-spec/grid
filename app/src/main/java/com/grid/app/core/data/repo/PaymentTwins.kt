@@ -66,9 +66,9 @@ class PaymentTwins @Inject constructor(
         val near = txDao.between(at - WINDOW, at + WINDOW).filter { it.type == type && it.currency == currency && it.source != TxSource.CHECKIN }
         return when (origin) {
             EntryOrigin.NOTIFICATION -> {
-                // The bank's entry of this payment (no notification joined yet)…
+                // The bank's entry of this payment (no notification joined yet), when both name the same payee…
                 val bank = near.filter { it.source == TxSource.BANK && it.captureId == null }
-                bank.filter { MatchRules.similar(it.merchant, name) && MatchRules.relativeDiff(it.amountMinor, amountMinor) <= 0.10 }
+                bank.filter { sameNamedPayee(it.merchant, name) && MatchRules.relativeDiff(it.amountMinor, amountMinor) <= 0.10 }
                     .minByOrNull { abs(it.occurredAt - at) }
                     // …or, when the bank names the shop differently, the one entry of exactly that amount around then;
                     ?: bank.filter { it.amountMinor == amountMinor && abs(it.occurredAt - at) <= EXACT_WINDOW }.singleOrNull()
@@ -107,7 +107,7 @@ class PaymentTwins @Inject constructor(
         val captures = db.captureDao()
         val waiting = captures.inboxBetween(entry.occurredAt - WINDOW, entry.occurredAt + WINDOW)
             .filter { it.amountMinor != null && it.currency == entry.currency && (it.direction.name == "OUT") == (entry.type == TxType.EXPENSE) }
-        val match = waiting.filter { MatchRules.similar(entry.merchant, it.merchant) && MatchRules.relativeDiff(entry.amountMinor, it.amountMinor!!) <= 0.10 }
+        val match = waiting.filter { sameNamedPayee(entry.merchant, it.merchant) && MatchRules.relativeDiff(entry.amountMinor, it.amountMinor!!) <= 0.10 }
             .minByOrNull { abs(it.postedAt - entry.occurredAt) }
             ?: waiting.filter { it.amountMinor == entry.amountMinor && abs(it.postedAt - entry.occurredAt) <= EXACT_WINDOW }.singleOrNull()
             ?: return
@@ -115,10 +115,37 @@ class PaymentTwins @Inject constructor(
         captures.update(match.copy(status = CaptureStatus.ADDED, transactionId = entry.id))
     }
 
+    /**
+     * A close amount is the same payment only when both name the same payee: a notification without a name (or a bank
+     * entry without one) joins only on the exact amount. Earlier versions let it join anything within 10% (a €12.60
+     * Bolt notification moved the €11.78 Allianz payment to that day).
+     */
+    private fun sameNamedPayee(a: String?, b: String?) = !a.isNullOrBlank() && !b.isNullOrBlank() && MatchRules.similar(a, b)
+
+    /**
+     * Undoes those joins: the bank's entry gets its own date and method back, and the notification, which named no one
+     * and matches nothing for sure, is set aside (the bank lists every payment anyway).
+     */
+    private suspend fun undoNamelessJoins(): Int {
+        var undone = 0
+        val methods = db.paymentMethodDao().all().filter { !it.archived }
+        for (entry in txDao.bankEntriesWithCapture()) {
+            val capture = entry.captureId?.let { db.captureDao().get(it) } ?: continue
+            if (!capture.merchant.isNullOrBlank() || capture.amountMinor == entry.amountMinor) continue
+            val row = db.bankDao().stagedLinkedTo(entry.id) ?: continue
+            val method = row.via?.let { via -> methods.firstOrNull { it.kind == via }?.id } ?: methods.firstOrNull { it.kind == PaymentKind.REVOLUT }?.id
+            txDao.update(entry.copy(captureId = null, occurredAt = row.occurredAt, paymentMethodId = method ?: entry.paymentMethodId, updatedAt = clock.millis()))
+            db.captureDao().update(capture.copy(status = CaptureStatus.DISMISSED, transactionId = null))
+            undone++
+        }
+        return undone
+    }
+
     /** Pairs left by earlier versions: notification entries recording a payment the bank (or another notification) already has. */
     suspend fun mergeExisting(): Int {
         var merged = 0
         db.withTransaction {
+            merged += undoNamelessJoins()
             for (captured in txDao.captureEntriesWithoutBank()) {
                 if (txDao.get(captured.id) == null) continue // merged away earlier in this pass
                 val twin = twinOf(captured.type, captured.amountMinor, captured.currency, captured.occurredAt, captured.merchant, EntryOrigin.NOTIFICATION, captured.captureId)

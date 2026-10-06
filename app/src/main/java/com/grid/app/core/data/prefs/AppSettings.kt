@@ -137,6 +137,7 @@ class SettingsRepository(
         val aiDigestDay = longPreferencesKey("ai_digest_day")
         val aiDigest = stringPreferencesKey("ai_digest")
         val detectedAreSuggestions = booleanPreferencesKey("detected_are_suggestions")
+        val sameDescriptorGuessUndone = booleanPreferencesKey("same_descriptor_guess_undone")
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -206,6 +207,9 @@ class SettingsRepository(
     /** Once: bills detected before suggestions existed (3.0–3.1) become suggestions for the user to confirm. */
     suspend fun detectedAreSuggestions(): Boolean = store.data.first()[Keys.detectedAreSuggestions] == true
     suspend fun markDetectedAreSuggestions() = store.edit { it[Keys.detectedAreSuggestions] = true }
+    /** Once: card payments 3.4.1 took for replaced by a later one with the same descriptor come back. */
+    suspend fun sameDescriptorGuessUndone(): Boolean = store.data.first()[Keys.sameDescriptorGuessUndone] == true
+    suspend fun markSameDescriptorGuessUndone() = store.edit { it[Keys.sameDescriptorGuessUndone] = true }
 
     suspend fun saveDigest(epochDay: Long, json: String) = store.edit {
         it[Keys.aiDigestDay] = epochDay

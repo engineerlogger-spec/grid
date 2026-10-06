@@ -12,6 +12,7 @@ import com.grid.app.core.data.db.entities.OwnAccountRuleEntity
 import com.grid.app.core.data.db.entities.BankTransactionEntity
 import com.grid.app.core.data.db.entities.TransactionEntity
 import com.grid.app.core.model.BankTxState
+import com.grid.app.core.model.CaptureSource
 import com.grid.app.core.model.TxType
 import kotlinx.coroutines.flow.Flow
 
@@ -105,6 +106,16 @@ interface BankDao {
 
     @Query("SELECT * FROM bank_transactions WHERE accountId = :accountId AND externalId = :externalId")
     suspend fun stagedByExternalId(accountId: Long, externalId: String): BankTransactionEntity?
+
+    @Query("SELECT * FROM bank_accounts ORDER BY id")
+    suspend fun allAccounts(): List<BankAccountEntity>
+
+    /** Payments notified by [source] that the bank listed too (their entry is linked to a bank row). */
+    @Query(
+        """SELECT COUNT(*) FROM transactions t JOIN captures c ON c.id = t.captureId
+           WHERE c.source = :source AND EXISTS (SELECT 1 FROM bank_transactions b WHERE b.transactionId = t.id)""",
+    )
+    suspend fun notifiedAndListed(source: CaptureSource): Int
 
     /** Every row the bank sent dated around a time, whatever Grid did with it. */
     @Query("SELECT * FROM bank_transactions WHERE occurredAt BETWEEN :fromMs AND :toMs")

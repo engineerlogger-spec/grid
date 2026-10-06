@@ -18,8 +18,8 @@ android {
         applicationId = "com.grid.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 27
-        versionName = "3.4.1"
+        versionCode = 28
+        versionName = "3.4.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

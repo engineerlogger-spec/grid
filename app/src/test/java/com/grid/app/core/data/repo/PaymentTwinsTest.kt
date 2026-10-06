@@ -72,7 +72,7 @@ class PaymentTwinsTest {
         twins = PaymentTwins(db, transactions, clock, emptySet())
         captures = CaptureRepository(db, transactions, clock, twins)
         val categories = CategoryRepository(db)
-        processor = CaptureProcessor(captures, categories, transactions, settings, NoAlerts, com.grid.app.core.bank.Reversals(db, transactions, clock))
+        processor = CaptureProcessor(captures, categories, transactions, settings, NoAlerts, com.grid.app.core.bank.Reversals(db, transactions))
         reconciler = BankReconciler(db, transactions, PendingRepository(db, clock, emptySet()), categories, clock, twins)
         val bank = BankRepository(db, transactions, clock)
         bank.beginAuth(Aspsp("Revolut", "FR", null), "st", null)
@@ -137,6 +137,35 @@ class PaymentTwinsTest {
         assertThat(entries()).hasSize(1)
         assertThat(twins.record(draft, EntryOrigin.MANUAL, force = true)).isInstanceOf(RecordResult.Added::class.java)
         assertThat(entries()).hasSize(2)
+    }
+
+    @Test fun aNotificationNamingNoOneJoinsOnlyTheExactAmount() = runTest {
+        build()
+        val allianz = bank("Allianz Direct Vers.", 1178)
+        // €12.60 to an unnamed payee is not the €11.78 Allianz payment, however close.
+        assertThat(twins.twinOf(TxType.EXPENSE, 1260, "EUR", noon + 5 * hour, null, EntryOrigin.NOTIFICATION)).isNull()
+        assertThat(twins.twinOf(TxType.EXPENSE, 1178, "EUR", noon + 5 * hour, null, EntryOrigin.NOTIFICATION)?.id).isEqualTo(allianz)
+    }
+
+    @Test fun aJoinEarlierVersionsMadeOnACloseAmountAloneIsUndone() = runTest {
+        build()
+        val allianz = bank("Allianz Direct Vers.", 1178)
+        val paypal = db.paymentMethodDao().all().first { it.kind == com.grid.app.core.model.PaymentKind.PAYPAL }.id
+        val captureId = db.captureDao().insert(
+            com.grid.app.core.data.db.entities.CaptureEntity(
+                source = CaptureSource.PAYPAL, postedAt = noon + 5 * hour, title = "PayPal", text = "€12.60", amountMinor = 1260, currency = "EUR",
+                merchant = null, status = com.grid.app.core.model.CaptureStatus.ADDED, transactionId = allianz, dedupeKey = "pp",
+            ),
+        )
+        db.transactionDao().update(db.transactionDao().get(allianz)!!.copy(captureId = captureId, occurredAt = noon + 5 * hour, paymentMethodId = paypal))
+
+        twins.mergeExisting()
+        val back = transactions.get(allianz)!!
+        assertThat(back.occurredAt).isEqualTo(noon)
+        assertThat(back.captureId).isNull()
+        assertThat(back.method?.kind).isEqualTo(com.grid.app.core.model.PaymentKind.REVOLUT)
+        assertThat(db.captureDao().get(captureId)!!.status).isEqualTo(com.grid.app.core.model.CaptureStatus.DISMISSED)
+        assertThat(entries()).hasSize(1)
     }
 
     @Test fun doublesMadeBeforeAreMergedWhenTheAppOpens() = runTest {

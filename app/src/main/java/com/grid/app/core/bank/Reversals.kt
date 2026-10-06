@@ -4,33 +4,32 @@ import androidx.room.withTransaction
 import com.grid.app.core.data.db.GridDatabase
 import com.grid.app.core.data.db.entities.BankTransactionEntity
 import com.grid.app.core.data.repo.TransactionRepository
-import com.grid.app.core.model.BankTxKind
 import com.grid.app.core.model.BankTxState
 import com.grid.app.core.model.CaptureDirection
 import com.grid.app.core.model.CaptureSource
 import com.grid.app.core.model.CaptureStatus
 import com.grid.app.core.model.TxSource
 import com.grid.app.core.model.TxType
-import com.grid.app.core.time.AppClock
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
 
 /**
- * Payments the bank gave back (Revolut's "Reverted": a card payment the shop released, a cancelled payment). They
- * leave the ledger and show in Activity struck through, however Grid learns it:
+ * Payments the bank gave back (Revolut's "Reverted": a ride's first price released when the final one is charged, a
+ * card payment the shop cancelled). Revolut drops them from its feed without a word, so Grid learns it when:
  * - the bank listed it as pending and dropped it without booking it ([BankSync]),
- * - the bank lists a newer card payment for the same order ([superseded]),
  * - the bank sends it again as cancelled or rejected ([cancelled]),
  * - a notification says it was reverted ([notified]),
- * - a payment notification from the bank's app that the bank never listed ([unlisted]).
+ * - a payment notification (Revolut, or PayPal and Google Wallet when they pay through the bank) that the bank still
+ *   doesn't list after a sync ([unlisted]): reverted before Grid synced.
+ * They leave the ledger and show in Activity struck through. When the bank lists or books one after all, it comes
+ * back ([stillListed], [listedAfterAll], [bookedAfterAll]).
  */
 @Singleton
 class Reversals @Inject constructor(
     private val db: GridDatabase,
     private val transactions: TransactionRepository,
-    private val clock: AppClock,
 ) {
     private val dao = db.bankDao()
 
@@ -71,40 +70,69 @@ class Reversals @Inject constructor(
     }
 
     /**
-     * Payments the bank's own app notified that the bank still doesn't list hours later, after a successful sync: they
-     * were reverted before Grid saw them (the bank lists even pending card payments within minutes). Only money out,
-     * in [currencies] (every account of them synced), made since the bank was connected ([since]), in the last week.
+     * Payments notified by an app that pays through the bank, that the bank still doesn't list (no row linked, none of
+     * that exact amount around then) half an hour or more before its last successful fetch at [syncedAt]: reverted
+     * before Grid saw them pending (the bank lists card payments within minutes). Only money out, in [currencies] (every
+     * account of them synced), since the bank was connected ([since]), over the last week.
      */
-    suspend fun unlisted(bankName: String, currencies: Set<String>, since: Long) {
-        val source = APP_OF_BANK.entries.firstOrNull { bankName.contains(it.key, ignoreCase = true) }?.value ?: return
-        val now = clock.millis()
+    suspend fun unlisted(bankName: String, currencies: Set<String>, since: Long, syncedAt: Long) {
+        val covered = CaptureSource.entries.filter { source ->
+            // The bank's own app; PayPal and Google Wallet once their payments have shown up at the bank.
+            bankName.contains(source.name, ignoreCase = true) || dao.notifiedAndListed(source) >= LEARNED_AFTER
+        }.toSet()
+        if (covered.isEmpty()) return
         for (entry in db.transactionDao().captureEntriesWithoutBank()) {
             if (entry.type != TxType.EXPENSE || entry.currency !in currencies) continue
-            if (entry.occurredAt < maxOf(since, now - LOOKBACK) || entry.occurredAt > now - GRACE) continue
-            if (entry.captureId?.let { db.captureDao().get(it) }?.source != source) continue
-            val listed = dao.stagedBetween(entry.occurredAt - LISTED_WINDOW, entry.occurredAt + LISTED_WINDOW).any {
-                it.direction == CaptureDirection.OUT && it.currency == entry.currency && MatchRules.relativeDiff(it.amountMinor, entry.amountMinor) <= 0.10
-            }
-            if (!listed) transactions.revert(entry.id, null)
+            if (entry.occurredAt < maxOf(since, syncedAt - LOOKBACK) || entry.occurredAt > syncedAt - GRACE) continue
+            if (entry.captureId?.let { db.captureDao().get(it) }?.source !in covered) continue
+            if (listedNear(entry.amountMinor, entry.currency, entry.occurredAt).isEmpty()) transactions.revert(entry.id, null)
+        }
+    }
+
+    /** Bank rows of exactly this payment out around [at] that the bank still stands by. */
+    private suspend fun listedNear(amountMinor: Long, currency: String, at: Long) =
+        dao.stagedBetween(at - LISTED_WINDOW, at + LISTED_WINDOW).filter {
+            it.direction == CaptureDirection.OUT && it.currency == currency && it.amountMinor == amountMinor &&
+                it.state != BankTxState.REVERTED && it.state != BankTxState.IGNORED
+        }
+
+    /**
+     * The bank now lists [row], a payment Grid had taken for reverted because the bank didn't list it (notified only):
+     * the entry comes back as this row's. False when it wasn't one of those.
+     */
+    suspend fun listedAfterAll(row: BankTransactionEntity): Boolean = db.withTransaction {
+        if (row.direction != CaptureDirection.OUT || row.amountMinor == 0L) return@withTransaction false
+        val gone = db.revertedDao().between(row.occurredAt - LISTED_WINDOW, row.occurredAt + LISTED_WINDOW)
+            .filter { it.bankRowId == null && it.type == TxType.EXPENSE && it.currency == row.currency && it.amountMinor == row.amountMinor }
+            .minByOrNull { abs(it.occurredAt - row.occurredAt) } ?: return@withTransaction false
+        transactions.unrevert(gone.id)
+        dao.updateStaged(row.copy(state = BankTxState.BOOKED, transactionId = gone.id))
+        true
+    }
+
+    /** Pending payments Grid took for reverted that the bank still lists as pending ([pendingIds]): they come back. */
+    suspend fun stillListed(accountId: Long, pendingIds: Set<String>) {
+        for (row in dao.stagedWithPrefix(accountId, BankSync.PENDING_PREFIX)) {
+            if (row.state == BankTxState.REVERTED && row.externalId in pendingIds) restoreRow(row)
         }
     }
 
     /**
-     * A card payment authorised again for the same order (a ride's estimate, then its final price): the bank releases
-     * the first, which Revolut shows as Reverted while its feed still lists it as pending, like the new one
-     * ("Paypal *bolt.eu/o/2610061" €19.70, then €23.20). Pending card payments whose descriptor carries the same order
-     * number are one payment: all but the latest are reverted. One booked after all comes back ([bookedAfterAll]).
+     * Once: 3.4.1 took the first of two pending card payments with the same descriptor for replaced by the second
+     * ("Paypal *bolt.eu/o/2610061" names a day of Bolt rides, not one ride). Those still listed as pending come back.
      */
-    suspend fun superseded(accountId: Long) {
-        dao.stagedWithPrefix(accountId, BankSync.PENDING_PREFIX)
-            .filter { it.state == BankTxState.BOOKED && it.transactionId != null && it.direction == CaptureDirection.OUT && it.kind == BankTxKind.CARD_SPEND }
-            .filter { it.counterparty?.let(ORDER_NUMBER::containsMatchIn) == true }
-            .groupBy { it.counterparty!!.trim().lowercase() }
-            .values.filter { it.size > 1 }
-            .forEach { sameOrder ->
-                val latest = sameOrder.maxWith(compareBy({ issuedAt(it) }, { it.id }))
-                sameOrder.filter { it.id != latest.id && abs(it.bookingEpochDay - latest.bookingEpochDay) <= 1 }.forEach { revertRow(it) }
-            }
+    suspend fun undoSameDescriptorGuess() {
+        for (account in db.bankDao().allAccounts()) {
+            val pending = dao.stagedWithPrefix(account.id, BankSync.PENDING_PREFIX)
+            pending.filter { it.state == BankTxState.REVERTED }
+                .filter { gone -> pending.any { it.state == BankTxState.BOOKED && it.counterparty.equals(gone.counterparty, ignoreCase = true) } }
+                .forEach { restoreRow(it) }
+        }
+    }
+
+    private suspend fun restoreRow(row: BankTransactionEntity) {
+        val entry = db.revertedDao().byBankRow(row.id)
+        if (entry != null) transactions.unrevert(entry.id) else dao.updateStaged(row.copy(state = BankTxState.NEW))
     }
 
     /**
@@ -126,29 +154,22 @@ class Reversals @Inject constructor(
     /** "Count it anyway": the payment goes back in the ledger and its bank row is no longer watched as pending. */
     suspend fun countAnyway(id: Long) = db.withTransaction {
         val bankRowId = db.revertedDao().get(id)?.bankRowId
-        transactions.unrevert(id)
+        transactions.unrevert(id, byUser = true)
         bankRowId?.let { dao.staged(it) }?.takeIf { it.externalId.startsWith(BankSync.PENDING_PREFIX) }
             ?.let { dao.updateStaged(it.copy(externalId = KEPT_PREFIX + it.externalId.removePrefix(BankSync.PENDING_PREFIX))) }
     }
 
-    /** Revolut's transaction ids start with the second they were made (hex): orders same-day payments. */
-    private fun issuedAt(row: BankTransactionEntity): Long? =
-        TIMED_ID.matchEntire(row.externalId.removePrefix(BankSync.PENDING_PREFIX))?.groupValues?.get(1)?.toLong(16)
-
     private companion object {
-        /** An order number in a card descriptor ("bolt.eu/o/2610061"): a plain shop name ("Starbucks") has none. */
-        val ORDER_NUMBER = Regex("""\d{5,}""")
-        val TIMED_ID = Regex("""([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}""")
         val HOUR = TimeUnit.HOURS.toMillis(1)
         /** A reversal comes within a few days of the payment. */
         val NOTIFIED_WINDOW = TimeUnit.DAYS.toMillis(3)
         val LISTED_WINDOW = TimeUnit.DAYS.toMillis(2)
         val LOOKBACK = TimeUnit.DAYS.toMillis(7)
-        /** Time for the bank to list a payment, pending or booked. */
-        val GRACE = TimeUnit.HOURS.toMillis(2)
+        /** Time for the bank to list a payment it made (it shows card payments as pending within minutes). */
+        val GRACE = TimeUnit.MINUTES.toMillis(30)
+        /** Notifications of an app matched to bank payments before Grid trusts that it pays through the bank. */
+        const val LEARNED_AFTER = 2
         /** Pending rows the user counted anyway: kept out of the pending check. */
         const val KEPT_PREFIX = "k:"
-        /** Banks whose own app's notifications Grid reads. */
-        val APP_OF_BANK = mapOf("revolut" to CaptureSource.REVOLUT)
     }
 }

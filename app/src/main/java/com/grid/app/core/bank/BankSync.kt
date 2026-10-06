@@ -2,6 +2,7 @@ package com.grid.app.core.bank
 
 import androidx.room.withTransaction
 import com.grid.app.core.data.db.GridDatabase
+import com.grid.app.core.data.db.entities.BankConnectionEntity
 import com.grid.app.core.data.db.entities.BankTransactionEntity
 import com.grid.app.core.data.prefs.SettingsRepository
 import com.grid.app.core.data.repo.BankRepository
@@ -96,6 +97,7 @@ class BankSync @Inject constructor(
                     if (old.state != BankTxState.REVERTED && old.externalId !in stillPending) settle(old, inserted)
                 }
                 for ((externalId, tx) in pendingNow) dao.insertStaged(toEntity(account.id, externalId, tx, ownIbans))
+                reversals.stillListed(account.id, stillPending)
                 // Any other status (scheduled, information…): kept, not shown. Cancelled or rejected: the payment is reverted.
                 for ((externalId, tx) in ExternalIds.assign(all.filter { !it.isBooked && !it.isPending })) {
                     val id = dao.insertStaged(toEntity(account.id, "${tx.status}:$externalId", tx, ownIbans).copy(state = BankTxState.IGNORED))
@@ -142,12 +144,11 @@ class BankSync @Inject constructor(
         // Includes rows left NEW by an interrupted run.
         var bookedCount = 0
         for (row in dao.stagedByState(BankTxState.NEW).sortedBy { it.occurredAt }) {
+            // A notified payment Grid took for reverted that the bank lists after all: its entry comes back.
+            if (reversals.listedAfterAll(row)) continue
             if (reconciler.process(row, currency) == BankTxState.BOOKED) bookedCount++
         }
-        for (account in accounts.filter { it.enabled }) reversals.superseded(account.id)
-        // Notified payments the bank still doesn't list were reverted before it did (only where every account was read).
-        val synced = accounts.filter { it.enabled }.map { it.currency }.toSet() - accounts.filter { !it.enabled }.map { it.currency }.toSet()
-        reversals.unlisted(connection.aspspName, synced, connection.createdAt)
+        unlisted(connection, clock.millis())
         bank.recordSync(clock.millis())
         return SyncResult.Ok(fetched, bookedCount, (dao.countToReview() - reviewBefore).coerceAtLeast(0))
     }
@@ -158,7 +159,18 @@ class BankSync @Inject constructor(
         val currency = settings.settings.first().currency
         reconciler.revisit(currency, bank.accounts().mapNotNull { it.iban }.toSet())
         for (row in dao.stagedByState(BankTxState.NEW).sortedBy { it.occurredAt }) reconciler.process(row, currency)
-        for (account in bank.accounts()) reversals.superseded(account.id)
+        if (!settings.sameDescriptorGuessUndone()) {
+            reversals.undoSameDescriptorGuess()
+            settings.markSameDescriptorGuessUndone()
+        }
+        bank.connection()?.let { c -> c.lastSyncAt?.let { unlisted(c, it) } }
+    }
+
+    /** Notified payments the bank still didn't list at its last fetch were reverted (only where every account is read). */
+    private suspend fun unlisted(connection: BankConnectionEntity, syncedAt: Long) {
+        val accounts = bank.accounts()
+        val synced = accounts.filter { it.enabled }.map { it.currency }.toSet() - accounts.filter { !it.enabled }.map { it.currency }.toSet()
+        reversals.unlisted(connection.aspspName, synced, connection.createdAt, syncedAt)
     }
 
     /** Books again a bank payment whose entry was deleted before "Recently deleted" kept copies. */
