@@ -15,7 +15,9 @@ import com.grid.app.core.bank.BankCredentials
 import com.grid.app.core.bank.BankError
 import com.grid.app.core.bank.BankKeyStore
 import com.grid.app.core.bank.BankSync
+import com.grid.app.core.bank.LiveSync
 import com.grid.app.core.bank.PemKeys
+import com.grid.app.core.bank.SyncMode
 import com.grid.app.core.bank.SyncResult
 import com.grid.app.core.data.db.entities.BankAccountEntity
 import com.grid.app.core.data.db.entities.BankConnectionEntity
@@ -74,7 +76,7 @@ class BankSetupViewModel @Inject constructor(
     private val keyStore: BankKeyStore,
     private val connectors: BankConnectorProvider,
     private val inbox: BankAuthInbox,
-    private val sync: BankSync,
+    private val liveSync: LiveSync,
     private val settings: SettingsRepository,
     private val clock: AppClock,
 ) : ViewModel() {
@@ -207,11 +209,9 @@ class BankSetupViewModel @Inject constructor(
     fun syncNow() = work { runSync() }
 
     private suspend fun runSync() {
-        val event = when (val result = sync.run()) {
-            is SyncResult.Ok -> {
-                com.grid.app.core.ai.AiWorker.runNow(context) // Gemini tidies what was just imported
-                BankEvent.Synced(result.toReview + result.booked)
-            }
+        // The person asked for it: the bank doesn't count it against its daily background limit.
+        val event = when (val result = liveSync.run(SyncMode.PRESENT)) {
+            is SyncResult.Ok -> BankEvent.Synced(result.toReview + result.booked)
             SyncResult.RateLimited -> BankEvent.RateLimited
             SyncResult.Expired -> BankEvent.Expired
             is SyncResult.Failed -> BankEvent.Failed(result.message)

@@ -42,6 +42,8 @@ data class Transaction(
     val ownTransfer: Boolean = false,
     /** Display-only row for a payment the bank reverted: shown struck through, counted nowhere. */
     val reverted: Boolean = false,
+    /** The bank still shows it as pending: counted (the money is held), but it can still change or be reverted. */
+    val pending: Boolean = false,
 ) {
     /** What to call this transaction in lists: merchant, else note, else the category name. */
     val title: String

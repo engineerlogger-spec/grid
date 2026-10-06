@@ -30,6 +30,7 @@ object Channels {
     const val BACKUP = "backup"
     const val CHECKIN = "checkin"
     const val BANK = "bank"
+    const val PAYMENTS = "payments"
 
     fun createAll(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -40,6 +41,7 @@ object Channels {
             Triple(BACKUP, R.string.channel_backup, R.string.channel_backup_desc) to NotificationManager.IMPORTANCE_LOW,
             Triple(CHECKIN, R.string.channel_checkin, R.string.channel_checkin_desc) to NotificationManager.IMPORTANCE_DEFAULT,
             Triple(BANK, R.string.channel_bank, R.string.channel_bank_desc) to NotificationManager.IMPORTANCE_DEFAULT,
+            Triple(PAYMENTS, R.string.channel_payments, R.string.channel_payments_desc) to NotificationManager.IMPORTANCE_DEFAULT,
         ).forEach { (spec, importance) ->
             val (id, name, desc) = spec
             manager.createNotificationChannel(NotificationChannel(id, context.getString(name), importance).apply { description = context.getString(desc) })
@@ -48,7 +50,7 @@ object Channels {
 }
 
 /** Where a notification tap should land inside the app. */
-enum class LaunchTarget { BILLS, INSIGHTS, CHECK_IN, ADD_EXPENSE, ADD_INCOME, DETECTED, BACKUP, BANK;
+enum class LaunchTarget { BILLS, INSIGHTS, CHECK_IN, ADD_EXPENSE, ADD_INCOME, DETECTED, BACKUP, BANK, ACTIVITY;
     companion object {
         const val EXTRA = "grid.launch"
         fun from(intent: Intent?): LaunchTarget? = intent?.getStringExtra(EXTRA)?.let { name -> entries.firstOrNull { it.name == name } }

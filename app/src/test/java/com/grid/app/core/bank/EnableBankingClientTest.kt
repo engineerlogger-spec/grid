@@ -50,6 +50,19 @@ class EnableBankingClientTest {
         assertThat(header["kid"]!!.jsonPrimitive.content).isEqualTo("app-42")
     }
 
+    @Test fun asksAsThePersonInTheAppWhenPresent() = runTest {
+        server.enqueue(json("""{"balances":[]}"""))
+        server.enqueue(json("""{"balances":[]}"""))
+        client.balances("u-1")
+        client.present(Presence("203.0.113.7", "Grid/test")).balances("u-1")
+        val background = server.takeRequest()
+        assertThat(background.headers["Psu-Ip-Address"]).isNull()
+        val present = server.takeRequest()
+        assertThat(present.headers["Psu-Ip-Address"]).isEqualTo("203.0.113.7")
+        assertThat(present.headers["Psu-User-Agent"]).isEqualTo("Grid/test")
+        assertThat(present.headers["Authorization"]).startsWith("Bearer ")
+    }
+
     @Test fun startsAuthorisation() = runTest {
         server.enqueue(json("""{"url":"https://auth.example/xyz","authorization_id":"auth-1"}"""))
         val validUntil = Instant.parse("2027-04-02T10:00:00Z").toEpochMilli()

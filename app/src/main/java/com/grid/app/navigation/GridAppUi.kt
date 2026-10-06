@@ -110,6 +110,7 @@ fun GridAppUi(
             LaunchTarget.DETECTED -> nav.navigate(DetectedRoute) { launchSingleTop = true }
             LaunchTarget.BACKUP -> nav.navigate(BackupRoute) { launchSingleTop = true }
             LaunchTarget.BANK -> nav.navigate(BankSetupRoute) { launchSingleTop = true }
+            LaunchTarget.ACTIVITY -> nav.navigateToTab("activity")
         }
         onLaunchHandled()
     }
