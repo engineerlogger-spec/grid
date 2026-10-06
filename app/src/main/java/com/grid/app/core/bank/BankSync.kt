@@ -17,6 +17,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.Instant
 import java.time.LocalDate
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -177,6 +178,7 @@ class BankSync @Inject constructor(
 
     /** Re-applies today's rules to what is already stored, without asking the bank (runs whenever the app opens). */
     suspend fun refreshLocal() = mutex.withLock {
+        backfillTimes()
         bank.relinkOrphans()
         val currency = settings.settings.first().currency
         reconciler.revisit(currency, bank.accounts().mapNotNull { it.iban }.toSet())
@@ -193,6 +195,22 @@ class BankSync @Inject constructor(
         val accounts = bank.accounts()
         val synced = accounts.filter { it.enabled }.map { it.currency }.toSet() - accounts.filter { !it.enabled }.map { it.currency }.toSet()
         reversals.unlisted(connection.aspspName, synced, connection.createdAt, syncedAt)
+    }
+
+    /**
+     * Payments stored before Grid read times from Revolut's ids get their real time, and so do their entries, unless
+     * someone changed the entry's time since (the user moving it, a notification giving its own).
+     */
+    private suspend fun backfillTimes() {
+        for (row in dao.allStaged()) {
+            val day = Instant.ofEpochMilli(row.occurredAt).atZone(clock.zone).toLocalDate()
+            val real = BankTime.fromId(row.externalId, day, clock.zone)?.takeIf { it != row.occurredAt } ?: continue
+            db.withTransaction {
+                row.transactionId?.let { db.transactionDao().get(it) }?.takeIf { it.occurredAt == row.occurredAt }
+                    ?.let { db.transactionDao().update(it.copy(occurredAt = real)) }
+                dao.updateStaged(row.copy(occurredAt = real))
+            }
+        }
     }
 
     /** Books again a bank payment whose entry was deleted before "Recently deleted" kept copies. */
@@ -236,10 +254,11 @@ class BankSync @Inject constructor(
         // A row without a usable amount is kept (and its raw data) but never shown or counted.
         val amount = runCatching { abs(Currencies.toMinor(tx.amount.trim().removePrefix("-").removePrefix("+"), tx.currency)) }.getOrNull() ?: 0L
         val cleaned = tx.counterparty?.let(DescriptorCleaner::clean)
-        val noon = date.atTime(12, 0).atZone(clock.zone).toInstant().toEpochMilli()
+        // Revolut's ids carry the second of the payment; otherwise only the day is known.
+        val at = BankTime.fromId(externalId, date, clock.zone) ?: BankTime.dayOnly(date, clock.zone, clock.millis())
         return BankTransactionEntity(
             accountId = accountId, externalId = externalId, bookingEpochDay = booking.toEpochDay(),
-            occurredAt = minOf(noon, clock.millis()), amountMinor = amount, currency = tx.currency,
+            occurredAt = at, amountMinor = amount, currency = tx.currency,
             direction = if (tx.isCredit) CaptureDirection.IN else CaptureDirection.OUT,
             kind = TxClassifier.classify(tx, ownIbans), counterparty = tx.counterparty,
             counterpartyKey = cleaned?.merchant?.let(MerchantKey::of), counterpartyIban = tx.counterpartyIban,

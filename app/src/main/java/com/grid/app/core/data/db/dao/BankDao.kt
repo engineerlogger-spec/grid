@@ -110,6 +110,13 @@ interface BankDao {
     @Query("SELECT * FROM bank_accounts ORDER BY id")
     suspend fun allAccounts(): List<BankAccountEntity>
 
+    @Query("SELECT * FROM bank_transactions")
+    suspend fun allStaged(): List<BankTransactionEntity>
+
+    /** Ledger entries of payments the bank still shows as pending. */
+    @Query("SELECT transactionId FROM bank_transactions WHERE externalId LIKE 'p:%' AND state = 'BOOKED' AND transactionId IS NOT NULL")
+    fun observePendingEntryIds(): Flow<List<Long>>
+
     /** Payments notified by [source] that the bank listed too (their entry is linked to a bank row). */
     @Query(
         """SELECT COUNT(*) FROM transactions t JOIN captures c ON c.id = t.captureId

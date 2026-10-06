@@ -294,6 +294,7 @@
     <string name="activity_moved_in">Moved from your account</string>
     <string name="activity_moved_out">Sent to your account</string>
     <string name="activity_reverted">Reverted</string>
+    <string name="activity_pending">Pending</string>
     <string name="activity_reverted_title">Reverted payment</string>
     <string name="activity_reverted_body">The bank gave these %1$s back (or the payment never went through), so Grid doesn\'t count them anywhere.</string>
     <string name="activity_reverted_count">Count it anyway</string>

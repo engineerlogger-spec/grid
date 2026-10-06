@@ -176,6 +176,55 @@ class BankSyncTest {
         assertThat(sync.run(SyncMode.PRESENT)).isInstanceOf(SyncResult.Ok::class.java)
     }
 
+    /** Revolut's id for a payment made at [at] (its first 8 hex digits are the Unix second). */
+    private fun revolutId(at: java.time.LocalDateTime, n: Int = 1) =
+        "%08x-0000-4000-8000-%012d".format(at.toEpochSecond(java.time.ZoneOffset.UTC), n)
+
+    @Test fun bankPaymentsTakeTheirRealTimeFromRevolutIds() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        val eightAm = today.atTime(8, 0)
+        scripted.txs = listOf(uber("PDNG", ref = revolutId(eightAm)).copy(transactionDate = today.toString()))
+        sync.run()
+        assertThat(ledgerUbers().single().occurredAt).isEqualTo(eightAm.toEpochSecond(java.time.ZoneOffset.UTC) * 1000)
+    }
+
+    @Test fun paymentsStoredBeforeGetTheirRealTimeUnlessSomeoneChangedIt() = runTest {
+        connect(Scripted())
+        val day = today.minusDays(1)
+        val noon = day.atTime(12, 0).toEpochSecond(java.time.ZoneOffset.UTC) * 1000
+        val real = day.atTime(9, 30)
+        val other = db.categoryDao().byIconKey(com.grid.app.core.data.db.Seed.ICON_OTHER, com.grid.app.core.model.CategoryKind.EXPENSE)!!.id
+        suspend fun entry(at: Long) = transactions.add(
+            com.grid.app.core.model.TransactionDraft(TxType.EXPENSE, 500, "EUR", other, merchant = "Shop", occurredAt = at, source = com.grid.app.core.model.TxSource.BANK),
+        )
+        suspend fun row(n: Int, entryId: Long) = db.bankDao().insertStaged(
+            com.grid.app.core.data.db.entities.BankTransactionEntity(
+                accountId = 1, externalId = revolutId(real, n), bookingEpochDay = day.toEpochDay(), occurredAt = noon, amountMinor = 500,
+                currency = "EUR", direction = com.grid.app.core.model.CaptureDirection.OUT, kind = com.grid.app.core.model.BankTxKind.CARD_SPEND,
+                state = BankTxState.BOOKED, transactionId = entryId, rawJson = "{}", createdAt = 0,
+            ),
+        )
+        val untouched = entry(noon)
+        val moved = entry(noon + 86_400_000L) // the user moved it to another day
+        row(1, untouched)
+        row(2, moved)
+        sync.refreshLocal()
+        assertThat(transactions.get(untouched)!!.occurredAt).isEqualTo(real.toEpochSecond(java.time.ZoneOffset.UTC) * 1000)
+        assertThat(transactions.get(moved)!!.occurredAt).isEqualTo(noon + 86_400_000L)
+    }
+
+    @Test fun aPaymentStillPendingAtTheBankIsTaggedUntilBooked() = runTest {
+        val scripted = Scripted()
+        connect(scripted)
+        scripted.txs = listOf(uber("PDNG"))
+        sync.run()
+        assertThat(ledgerUbers().single().pending).isTrue()
+        scripted.txs = listOf(uber("BOOK", ref = "e-2"))
+        sync.run()
+        assertThat(ledgerUbers().single().pending).isFalse()
+    }
+
     @Test fun newRowsAreThePaymentsListedForTheFirstTime() = runTest {
         val scripted = Scripted()
         connect(scripted)

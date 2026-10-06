@@ -44,8 +44,13 @@ class TransactionRepository @Inject constructor(
     private val methods: Flow<Map<Long, PaymentMethod>> =
         db.paymentMethodDao().observeAll().map { list -> list.associate { it.id to it.toDomain() } }
 
+    /** Entries whose bank payment is still pending. */
+    private val pendingIds: Flow<Set<Long>> = db.bankDao().observePendingEntryIds().map { it.toSet() }
+
     private fun Flow<List<TransactionEntity>>.resolved(): Flow<List<Transaction>> =
-        combine(this, categories, methods) { rows, cats, ms -> rows.mapNotNull { it.toDomain(cats, ms) } }
+        combine(this, categories, methods, pendingIds) { rows, cats, ms, pending ->
+            rows.mapNotNull { row -> row.toDomain(cats, ms)?.let { if (it.id in pending) it.copy(pending = true) else it } }
+        }
 
     fun observePeriod(period: BudgetPeriod): Flow<List<Transaction>> =
         observeBetween(period.startMillis(clock.zone), period.endMillis(clock.zone))
